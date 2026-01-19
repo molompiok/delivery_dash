@@ -1,10 +1,12 @@
 FROM node:20-alpine AS base
 
+RUN npm install -g pnpm
+
 # All deps stage
 FROM base AS deps
 WORKDIR /app
 ADD package.json pnpm-lock.yaml ./
-RUN npm install -g pnpm && pnpm install
+RUN pnpm install
 
 # Build stage
 FROM base AS build
@@ -17,8 +19,9 @@ RUN pnpm build
 FROM base AS production
 WORKDIR /app
 ENV NODE_ENV=production
+RUN npm install -g pnpm
 COPY --from=build /app/dist /app/dist
 COPY --from=build /app/package.json /app/package.json
-RUN npm install -g pnpm && pnpm install --prod
+RUN pnpm install --prod
 EXPOSE 4002
 CMD ["node", "./dist/server/index.mjs"]
