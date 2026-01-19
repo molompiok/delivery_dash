@@ -11,7 +11,8 @@
     ],
     "types": [
       "vite/client",
-      "vike-react"
+      "vike-react",
+      "google.maps"
     ],
     "noEmit": true,
     "skipLibCheck": true,
