@@ -10,6 +10,7 @@ interface ConfirmModalProps {
     description: string;
     confirmLabel?: string;
     confirmVariant?: 'danger' | 'primary' | 'success';
+    showCancel?: boolean;
 }
 
 export const ConfirmModal: React.FC<ConfirmModalProps> = ({
@@ -19,7 +20,8 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
     title,
     description,
     confirmLabel = 'Confirmer',
-    confirmVariant = 'primary'
+    confirmVariant = 'primary',
+    showCancel = true
 }) => {
     const variantStyles = {
         danger: 'bg-red-600 hover:bg-red-700 text-white shadow-red-100',
@@ -57,12 +59,14 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
                             </div>
 
                             <div className="flex gap-3 mt-8">
-                                <button
-                                    onClick={onClose}
-                                    className="flex-1 px-4 py-2.5 bg-gray-50 hover:bg-gray-100 text-gray-700 rounded-xl font-bold text-sm transition-all border border-gray-200"
-                                >
-                                    Annuler
-                                </button>
+                                {showCancel && (
+                                    <button
+                                        onClick={onClose}
+                                        className="flex-1 px-4 py-2.5 bg-gray-50 hover:bg-gray-100 text-gray-700 rounded-xl font-bold text-sm transition-all border border-gray-200"
+                                    >
+                                        Annuler
+                                    </button>
+                                )}
                                 <button
                                     onClick={() => {
                                         onConfirm();

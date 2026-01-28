@@ -92,7 +92,12 @@ export interface Vehicle {
         }>;
     } | null;
     assignedDriver?: User;
+    // Legacy files array (for backward compatibility)
     files?: FileRecord[];
+    // New computed document properties from FileManager
+    vehicleInsurance?: string[];
+    vehicleTechnicalVisit?: string[];
+    vehicleRegistration?: string[];
 }
 
 export interface User {

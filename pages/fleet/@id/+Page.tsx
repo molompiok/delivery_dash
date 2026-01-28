@@ -1,12 +1,11 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { usePageContext } from 'vike-react/usePageContext';
-import { Truck, User as UserIcon, FileText, Save, ArrowLeft, Upload, Paperclip, AlertCircle, CheckCircle, Calendar, Trash2, MapPin, Package, Edit, Clock } from 'lucide-react';
+import { Truck, User as UserIcon, FileText, ArrowLeft, Upload, Paperclip, AlertCircle, MapPin, Package, Edit, Clock, ShieldCheck, Fuel, Battery, RefreshCw, Star, TrendingUp, AlertTriangle, CheckCircle2, Info, Search, ChevronRight } from 'lucide-react';
 import { fleetService } from '../../../api/fleet';
 import { driverService } from '../../../api/drivers';
-import { Vehicle, User, FileRecord, CompanyDriverSetting } from '../../../api/types';
+import { Vehicle, User, CompanyDriverSetting } from '../../../api/types';
 import { VehicleEditModal } from '../../../components/VehicleEditModal';
 import { EmptyState } from '../../../components/EmptyState';
-import { ConfirmModal } from '../../../components/ConfirmModal';
 
 const VEHICLE_TYPE_LABELS: Record<string, string> = {
     'MOTO': 'Moto',
@@ -23,6 +22,24 @@ const ENERGY_LABELS: Record<string, string> = {
     'HYBRID': 'Hybride',
     '': 'Inconnu'
 };
+
+// --- PREMIUM MOCKS ---
+const MOCKED_TELEMETRY = {
+    healthScore: 94,
+    batteryLevel: 88,
+    fuelRange: '420 km',
+    lastSync: 'Il y a 2 min',
+    engineStatus: 'Optimal',
+    tirePressure: 'Normal',
+    oilLife: '75%',
+    avgConsumption: '6.2L/100km'
+};
+
+const MOCKED_MAINTENANCE = [
+    { title: 'Vidange moteur', date: '12 Jan 2024', odometer: '42,500 km', cost: '45,000 FCFA', type: 'ROUTINE' },
+    { title: 'Changement pneumatiques', date: '05 Nov 2023', odometer: '38,200 km', cost: '120,000 FCFA', type: 'REPAIR' },
+    { title: 'Révision climatisation', date: '15 Sep 2023', odometer: '35,000 km', cost: '25,000 FCFA', type: 'ROUTINE' }
+];
 
 export default function Page() {
     const pageContext = usePageContext();
@@ -49,11 +66,6 @@ export default function Page() {
     const [isUploading, setIsUploading] = useState(false);
     const [docType, setDocType] = useState('VEHICLE_INSURANCE');
     const [expiryDate, setExpiryDate] = useState('');
-    const [replacingFile, setReplacingFile] = useState<FileRecord | null>(null);
-    const [showConfirmReplace, setShowConfirmReplace] = useState(false);
-    const [showConfirmDelete, setShowConfirmDelete] = useState(false);
-    const [deletingFileId, setDeletingFileId] = useState<string | null>(null);
-    const replaceInputRef = useRef<HTMLInputElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
@@ -122,104 +134,87 @@ export default function Page() {
         }
     };
 
-    const handleReplaceUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        console.log('🔄 Remplacement - Fichier sélectionné:', file?.name);
-
-        if (!file || !replacingFile) {
-            console.warn('⚠️ Remplacement avorté: fichier ou cible manquante', { file: !!file, target: !!replacingFile });
-            return;
-        }
-
-        setIsUploading(true);
-        try {
-            console.log('📤 Envoi du nouveau document...', { type: replacingFile.tableColumn });
-            await fleetService.uploadDocument(
-                vehicleId,
-                replacingFile.tableColumn,
-                file,
-                replacingFile.metadata?.expiryDate
-            );
-
-            console.log('🗑️ Suppression de l\'ancien document:', replacingFile.id);
-            await fleetService.deleteDocument(replacingFile.id);
-
-            console.log('✅ Remplacement réussi');
-            loadData();
-        } catch (err: any) {
-            console.error('❌ Erreur lors du remplacement:', err);
-            alert(err.response?.data?.message || 'Erreur lors du remplacement');
-        } finally {
-            setIsUploading(false);
-            setReplacingFile(null);
-            if (replaceInputRef.current) replaceInputRef.current.value = '';
-        }
-    };
-
-    const handleDeleteFile = async (fileId: string) => {
-        setDeletingFileId(fileId);
-        setShowConfirmDelete(true);
-    };
-
-    const confirmDelete = async () => {
-        if (!deletingFileId) return;
-        try {
-            await fleetService.deleteDocument(deletingFileId);
-            loadData();
-        } catch (err: any) {
-            alert(err.response?.data?.message || 'Erreur lors de la suppression');
-        } finally {
-            setDeletingFileId(null);
-        }
-    };
+    // Note: Replace and Delete functionality needs reimplementation with new FileManager API
+    // For now, users need to upload new documents which will replace existing ones
 
     if (isLoading) return <div className="p-8 text-center text-gray-400">Chargement...</div>;
     if (!vehicle) return <div className="p-8 text-center text-red-500">{error || 'Véhicule introuvable'}</div>;
 
     return (
         <div className="max-w-6xl mx-auto space-y-6">
-            {/* Header */}
-            <div className="flex items-center justify-between">
-                <div>
-                    <a href="/fleet" className="text-gray-500 hover:text-gray-700 flex items-center mb-2 text-sm transition-colors">
-                        <ArrowLeft size={16} className="mr-1" /> Retour Véhicules
-                    </a>
-                    <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
-                        {vehicle.brand} {vehicle.model}
-                        <span className="text-lg font-normal text-gray-500 bg-gray-100 px-3 py-1 rounded-md font-mono border border-gray-200">
-                            {vehicle.plate}
-                        </span>
-                    </h1>
-                    <div className="flex items-center gap-4 mt-2">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${vehicle.verificationStatus === 'APPROVED' ? 'bg-emerald-100 text-emerald-800' :
-                            vehicle.verificationStatus === 'PENDING' ? 'bg-amber-100 text-amber-800' : 'bg-red-100 text-red-800'
-                            }`}>
-                            {vehicle.verificationStatus}
-                        </span>
-                        <span className="text-sm text-gray-500 flex items-center">
-                            {VEHICLE_TYPE_LABELS[vehicle.type] || vehicle.type}
-                            <span className="mx-2">•</span>
-                            {ENERGY_LABELS[vehicle.energy] || vehicle.energy || 'Non spécifié'}
-                        </span>
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+                <div className="flex items-center gap-5">
+                    <button onClick={() => window.location.href = '/fleet'} className="p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-2xl shadow-sm transition-all text-slate-600">
+                        <ArrowLeft size={20} />
+                    </button>
+                    <div>
+                        <div className="flex items-center gap-3">
+                            <h1 className="text-3xl font-black text-slate-900 tracking-tight uppercase italic">{vehicle.brand} {vehicle.model}</h1>
+                            <span className="font-mono text-sm font-bold bg-slate-900 text-white px-3 py-1 rounded-lg border border-slate-800 shadow-lg">
+                                {vehicle.plate}
+                            </span>
+                        </div>
+                        <div className="flex items-center gap-4 mt-2">
+                            <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-[10px] font-black border transition-colors ${vehicle.verificationStatus === 'APPROVED' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
+                                vehicle.verificationStatus === 'PENDING' ? 'bg-amber-50 text-amber-600 border-amber-100' : 'bg-rose-50 text-rose-600 border-rose-100'
+                                }`}>
+                                <div className={`w-1.5 h-1.5 rounded-full ${vehicle.verificationStatus === 'APPROVED' ? 'bg-emerald-500' : 'bg-amber-500'}`}></div>
+                                {vehicle.verificationStatus}
+                            </span>
+                            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest flex items-center">
+                                {VEHICLE_TYPE_LABELS[vehicle.type] || vehicle.type}
+                                <span className="mx-2 opacity-30">•</span>
+                                {ENERGY_LABELS[vehicle.energy] || vehicle.energy || 'Non spécifié'}
+                            </span>
+                        </div>
                     </div>
                 </div>
-                <button
-                    onClick={() => setIsEditModalOpen(true)}
-                    className="bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 px-4 py-2 rounded-lg font-medium flex items-center shadow-sm transition-colors"
-                >
-                    <Edit size={16} className="mr-2" />
-                    Modifier
-                </button>
+                <div className="flex gap-2">
+                    <button
+                        onClick={() => setIsEditModalOpen(true)}
+                        className="px-6 py-2.5 bg-white text-slate-700 border border-slate-200 rounded-xl font-bold hover:bg-slate-50 transition-all shadow-sm flex items-center gap-2"
+                    >
+                        <Edit size={16} />
+                        <span>Configuration</span>
+                    </button>
+                    <a
+                        href={`/map?vehicle_id=${vehicle.id}`}
+                        className="px-6 py-2.5 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 flex items-center gap-2"
+                    >
+                        <MapPin size={16} />
+                        <span>Live Tracking</span>
+                    </a>
+                </div>
+            </div>
+
+            {/* Quick Stats Bar */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                {[
+                    { label: 'Health Score', value: `${MOCKED_TELEMETRY.healthScore}%`, icon: ShieldCheck, color: 'text-emerald-500', bg: 'bg-emerald-50' },
+                    { label: 'Autonomie', value: MOCKED_TELEMETRY.fuelRange, icon: Fuel, color: 'text-amber-500', bg: 'bg-amber-50' },
+                    { label: 'Batterie', value: `${MOCKED_TELEMETRY.batteryLevel}%`, icon: Battery, color: 'text-blue-500', bg: 'bg-blue-50' },
+                    { label: 'Dernière Sync', value: MOCKED_TELEMETRY.lastSync, icon: RefreshCw, color: 'text-slate-500', bg: 'bg-slate-50' }
+                ].map((stat, i) => (
+                    <div key={i} className="bg-white p-4 rounded-3xl border border-slate-100 shadow-xl shadow-slate-200/50 flex items-center gap-4">
+                        <div className={`p-2.5 ${stat.bg} ${stat.color} rounded-2xl`}>
+                            <stat.icon size={20} />
+                        </div>
+                        <div>
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{stat.label}</p>
+                            <p className="text-lg font-black text-slate-900 leading-none mt-1">{stat.value}</p>
+                        </div>
+                    </div>
+                ))}
             </div>
 
             {/* Tabs */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden min-h-[500px]">
+            <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden min-h-[500px]">
                 <div className="flex border-b border-gray-200 overflow-x-auto">
                     {[
                         { id: 'DETAILS', label: 'Informations', icon: FileText },
                         { id: 'DRIVER', label: `Chauffeur (${vehicle.assignedDriver ? '1' : '0'})`, icon: UserIcon },
                         { id: 'ORDERS', label: 'Commandes', icon: Package },
-                        { id: 'FILES', label: `Documents (${vehicle.files?.length || 0})`, icon: Paperclip },
+                        { id: 'FILES', label: `Documents (${(vehicle.vehicleInsurance?.length || 0) + (vehicle.vehicleTechnicalVisit?.length || 0) + (vehicle.vehicleRegistration?.length || 0)})`, icon: Paperclip },
                     ].map(tab => (
                         <button
                             key={tab.id}
@@ -238,42 +233,87 @@ export default function Page() {
                 <div className="p-6">
                     {/* DETAILS TAB */}
                     {activeTab === 'DETAILS' && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8 animate-in fade-in duration-300">
-                            <div>
-                                <div className="flex items-center justify-between mb-4">
-                                    <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider flex items-center">
-                                        <Truck size={14} className="mr-2" /> Caractéristiques
-                                    </h3>
-                                    {vehicle.assignedDriverId && (
-                                        <a
-                                            href={`/map?vehicle_id=${vehicle.id}`}
-                                            className="inline-flex items-center px-4 py-2 bg-blue-50 text-blue-600 rounded-xl text-sm font-bold border border-blue-100 hover:bg-blue-100 transition-all shadow-sm group"
-                                        >
-                                            <MapPin size={16} className="mr-2 group-hover:scale-110 transition-transform" />
-                                            Voir en direct
-                                        </a>
-                                    )}
+                        <div className="space-y-8 animate-in fade-in duration-300">
+                            {/* Top row: Gauges & Status */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                <div className="bg-slate-50/50 rounded-3xl p-6 border border-slate-100 flex flex-col items-center text-center">
+                                    <div className="relative w-32 h-32 mb-4">
+                                        <svg className="w-full h-full -rotate-90 transform" viewBox="0 0 100 100">
+                                            <circle cx="50" cy="50" r="45" fill="none" stroke="#f1f5f9" strokeWidth="8" />
+                                            <circle cx="50" cy="50" r="45" fill="none" stroke="currentColor" strokeWidth="8" strokeDasharray="282.7" strokeDashoffset={282.7 - (282.7 * ((vehicle as any).telemetry?.fuelLevel || 0)) / 100} className={(vehicle as any).telemetry?.fuelLevel < 20 ? 'text-rose-500' : 'text-emerald-500'} />
+                                        </svg>
+                                        <div className="absolute inset-0 flex flex-col items-center justify-center">
+                                            <span className="text-2xl font-black text-slate-900 leading-none">{(vehicle as any).telemetry?.fuelLevel || 0}%</span>
+                                            <span className="text-[10px] font-bold text-slate-400 uppercase mt-1">Carburant</span>
+                                        </div>
+                                    </div>
+                                    <p className="text-xs font-bold text-slate-500 italic">Autonomie estimée : {MOCKED_TELEMETRY.fuelRange}</p>
                                 </div>
-                                <dl className="space-y-4">
-                                    <DetailRow label="Marque" value={vehicle.brand} />
-                                    <DetailRow label="Modèle" value={vehicle.model} />
-                                    <DetailRow label="Année" value={vehicle.year?.toString() || '-'} />
-                                    <DetailRow label="Energie" value={ENERGY_LABELS[vehicle.energy] || vehicle.energy} />
-                                    <DetailRow label="Couleur" value={vehicle.color || '-'} />
-                                </dl>
+
+                                <div className="md:col-span-2 bg-slate-50/50 rounded-3xl p-6 border border-slate-100">
+                                    <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6 flex items-center gap-2">
+                                        <ShieldCheck size={14} className="text-indigo-600" /> État de Santé du Système
+                                    </h3>
+                                    <div className="grid grid-cols-2 gap-y-6 gap-x-8">
+                                        {[
+                                            { label: 'Moteur', value: MOCKED_TELEMETRY.engineStatus, icon: CheckCircle2, color: 'text-emerald-500' },
+                                            { label: 'Pneus', value: MOCKED_TELEMETRY.tirePressure, icon: CheckCircle2, color: 'text-emerald-500' },
+                                            { label: 'Huile', value: MOCKED_TELEMETRY.oilLife, icon: CheckCircle2, color: 'text-emerald-500' },
+                                            { label: 'Conso Moy.', value: MOCKED_TELEMETRY.avgConsumption, icon: TrendingUp, color: 'text-indigo-500' }
+                                        ].map((diag, i) => (
+                                            <div key={i} className="flex items-center gap-4">
+                                                <div className={`p-2 rounded-xl bg-white shadow-sm ${diag.color}`}>
+                                                    <diag.icon size={16} />
+                                                </div>
+                                                <div>
+                                                    <p className="text-[10px] font-bold text-slate-400 uppercase leading-none">{diag.label}</p>
+                                                    <p className="text-sm font-black text-slate-900 mt-1">{diag.value}</p>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
                             </div>
-                            <div>
-                                <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4 flex items-center">
-                                    <Package size={14} className="mr-2" /> Capacités Logistiques
-                                </h3>
-                                <div className="bg-gray-50 rounded-lg p-5 border border-gray-100">
-                                    <dl className="space-y-4">
-                                        <DetailRow label="Poids Max" value={vehicle.specs?.maxWeight ? `${vehicle.specs.maxWeight} kg` : '-'} />
-                                        <DetailRow label="Volume" value={vehicle.specs?.cargoVolume ? `${vehicle.specs.cargoVolume} m³` : '-'} />
-                                        <DetailRow label="Longueur" value={vehicle.specs?.length ? `${vehicle.specs.length} m` : '-'} />
-                                        <DetailRow label="Largeur" value={vehicle.specs?.width ? `${vehicle.specs.width} m` : '-'} />
-                                        <DetailRow label="Hauteur" value={vehicle.specs?.height ? `${vehicle.specs.height} m` : '-'} />
+
+                            {/* Bottom row: Characteristics & Specs */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-4">
+                                <div>
+                                    <h3 className="text-xs font-black text-slate-900 uppercase tracking-widest mb-4 flex items-center gap-2 border-b border-slate-100 pb-2">
+                                        <Info size={14} className="text-indigo-600" /> Spécifications Techniques
+                                    </h3>
+                                    <dl className="grid grid-cols-2 gap-4">
+                                        <div className="p-3 bg-slate-50/50 rounded-2xl">
+                                            <dt className="text-[10px] font-bold text-slate-400 uppercase">Poids Max</dt>
+                                            <dd className="text-sm font-black text-slate-900 mt-0.5">{vehicle.specs?.maxWeight ? `${vehicle.specs.maxWeight} kg` : '-'}</dd>
+                                        </div>
+                                        <div className="p-3 bg-slate-50/50 rounded-2xl">
+                                            <dt className="text-[10px] font-bold text-slate-400 uppercase">Cargo Volume</dt>
+                                            <dd className="text-sm font-black text-slate-900 mt-0.5">{vehicle.specs?.cargoVolume ? `${vehicle.specs.cargoVolume} m³` : '-'}</dd>
+                                        </div>
+                                        <div className="p-3 bg-slate-50/50 rounded-2xl">
+                                            <dt className="text-[10px] font-bold text-slate-400 uppercase">Énergie</dt>
+                                            <dd className="text-sm font-black text-slate-900 mt-0.5">{ENERGY_LABELS[vehicle.energy] || vehicle.energy}</dd>
+                                        </div>
+                                        <div className="p-3 bg-slate-50/50 rounded-2xl">
+                                            <dt className="text-[10px] font-bold text-slate-400 uppercase">Odomètre</dt>
+                                            <dd className="text-sm font-black text-slate-900 mt-0.5">{(vehicle as any).telemetry?.mileage?.toLocaleString() || '0'} km</dd>
+                                        </div>
                                     </dl>
+                                </div>
+                                <div className="bg-indigo-900 text-white rounded-[2rem] p-8 shadow-2xl relative overflow-hidden group">
+                                    <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:scale-110 group-hover:rotate-12 transition-transform duration-700">
+                                        <Truck size={120} />
+                                    </div>
+                                    <div className="relative z-10">
+                                        <p className="text-[10px] font-black opacity-60 uppercase tracking-[0.2em] mb-4">Prochaine Maintenance</p>
+                                        <p className="text-3xl font-black mb-2">{(vehicle as any).telemetry?.nextMaintenance || '15 Mars 2024'}</p>
+                                        <p className="text-sm opacity-80 flex items-center gap-2">
+                                            <Clock size={16} /> Estimation dans 1,200 km
+                                        </p>
+                                        <button className="mt-8 px-6 py-2 bg-white text-indigo-900 rounded-xl font-bold text-xs hover:bg-slate-100 transition-all">
+                                            Planifier maintenant
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -281,77 +321,97 @@ export default function Page() {
 
                     {/* DRIVER TAB */}
                     {activeTab === 'DRIVER' && (
-                        <div className="max-w-2xl mx-auto py-8 animate-in fade-in duration-300">
-                            <div className="text-center mb-10">
-                                <div className="w-24 h-24 bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4 text-emerald-600 shadow-inner">
-                                    {vehicle.assignedDriver ? (
-                                        <span className="text-4xl font-bold">{vehicle.assignedDriver.fullName?.charAt(0) || '?'}</span>
-                                    ) : (
-                                        <UserIcon size={48} />
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-in fade-in duration-300">
+                            <div className="lg:col-span-1 space-y-6">
+                                <div className="bg-white rounded-3xl p-8 border border-slate-100 shadow-xl shadow-slate-200/50 text-center relative overflow-hidden">
+                                    <div className="absolute top-0 left-0 w-full h-24 bg-gradient-to-br from-indigo-500 to-purple-600 opacity-10"></div>
+                                    <div className="w-24 h-24 bg-white rounded-full flex items-center justify-center mx-auto mb-4 text-indigo-600 shadow-xl border-4 border-white relative z-10">
+                                        {vehicle.assignedDriver ? (
+                                            <span className="text-4xl font-black tracking-tighter">{(vehicle.assignedDriver.fullName || '?').split(' ').map(n => n[0]).join('')}</span>
+                                        ) : (
+                                            <UserIcon size={48} />
+                                        )}
+                                    </div>
+                                    <h3 className="text-xl font-black text-slate-900 leading-tight">
+                                        {vehicle.assignedDriver ? vehicle.assignedDriver.fullName : 'SANS CHAUFFEUR'}
+                                    </h3>
+                                    <p className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-widest">
+                                        {vehicle.assignedDriver ? vehicle.assignedDriver.phone : 'Véhicule en attente d\'attribution'}
+                                    </p>
+
+                                    {vehicle.assignedDriver && (
+                                        <div className="mt-8 pt-8 border-t border-slate-50 grid grid-cols-2 gap-4">
+                                            <div className="text-center">
+                                                <p className="text-[10px] font-black text-slate-400 uppercase">Missions</p>
+                                                <p className="text-lg font-black text-indigo-600 mt-1">128</p>
+                                            </div>
+                                            <div className="text-center">
+                                                <p className="text-[10px] font-black text-slate-400 uppercase">Note</p>
+                                                <div className="flex items-center justify-center gap-1 text-amber-500 font-black text-lg mt-1">
+                                                    4.9 <Star size={14} fill="currentColor" />
+                                                </div>
+                                            </div>
+                                        </div>
                                     )}
                                 </div>
-                                <h3 className="text-xl font-bold text-gray-900">
-                                    {vehicle.assignedDriver ? vehicle.assignedDriver.fullName : 'Aucun chauffeur assigné'}
-                                </h3>
-                                <p className="text-gray-500 mt-1">
-                                    {vehicle.assignedDriver ? vehicle.assignedDriver.phone : 'Assignez un chauffeur pour mettre ce véhicule en service'}
-                                </p>
-                            </div>
 
-                            <div className="bg-gray-50 border border-gray-200 rounded-xl p-6">
-                                <label className="block text-sm font-medium text-gray-700 mb-2">Gestion de l'assignation</label>
-                                <div className="flex gap-2">
-                                    <select
-                                        className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 sm:text-sm p-2.5 border"
-                                        value={vehicle.assignedDriverId || ''}
-                                        onChange={(e) => handleAssignDriver(e.target.value || null)}
-                                    >
-                                        <option value="">-- Sélectionner un chauffeur --</option>
-                                        {drivers.map((item: any) => {
-                                            const driver = item.driver || item;
-                                            return (
-                                                <option key={driver.id} value={driver.id}>
-                                                    {driver.fullName || driver.firstName + ' ' + driver.lastName} ({driver.phone})
-                                                </option>
-                                            );
-                                        })}
-                                    </select>
+                                <div className="bg-slate-50/50 border border-slate-100 rounded-3xl p-6">
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 italic">Attribuer un nouveau chauffeur</label>
+                                    <div className="flex gap-2">
+                                        <select
+                                            className="block w-full rounded-2xl border-slate-100 shadow-sm focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 text-sm p-3 bg-white border outline-none font-bold text-slate-700"
+                                            value={vehicle.assignedDriverId || ''}
+                                            onChange={(e) => handleAssignDriver(e.target.value || null)}
+                                        >
+                                            <option value="">-- Sélectionner --</option>
+                                            {drivers.map((item: any) => {
+                                                const driver = item.driver || item;
+                                                return (
+                                                    <option key={driver.id} value={driver.id}>
+                                                        {driver.fullName}
+                                                    </option>
+                                                );
+                                            })}
+                                        </select>
+                                    </div>
                                 </div>
-                                <p className="text-xs text-gray-500 mt-3 flex items-center">
-                                    <AlertCircle size={12} className="mr-1" />
-                                    L'assignation est immédiate. Le chauffeur recevra une notification.
-                                </p>
                             </div>
 
-                            {/* Assignment History */}
-                            <div className="mt-12">
-                                <h3 className="text-sm font-bold text-gray-900 mb-6 flex items-center">
-                                    <Clock size={16} className="mr-2 text-gray-400" /> Historique des assignations
+                            <div className="lg:col-span-2">
+                                <h3 className="text-sm font-black text-slate-900 mb-6 flex items-center">
+                                    <Clock size={16} className="mr-2 text-indigo-600" /> Journal d'Activités d'Assignation
                                 </h3>
-                                <div className="relative border-l-2 border-gray-100 ml-3 pl-8 space-y-8">
+                                <div className="space-y-4">
                                     {vehicle.metadata?.assignmentHistory && vehicle.metadata.assignmentHistory.length > 0 ? (
                                         [...vehicle.metadata.assignmentHistory].reverse().map((entry, idx) => (
-                                            <div key={idx} className="relative">
-                                                <div className={`absolute -left-[41px] top-0 w-5 h-5 rounded-full border-2 border-white shadow-sm ${entry.action === 'ASSIGNED' ? 'bg-emerald-500' : 'bg-amber-500'}`}></div>
-                                                <div>
-                                                    <div className="flex items-center justify-between mb-1">
-                                                        <p className="text-sm font-bold text-gray-900">
-                                                            {entry.action === 'ASSIGNED' ? 'Assigné à' : 'Désassigné de'} <span className="text-emerald-600">{entry.driverName}</span>
-                                                        </p>
-                                                        <span className="text-xs text-gray-400 font-medium">
-                                                            {new Date(entry.timestamp).toLocaleDateString()} {new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                                        </span>
+                                            <div key={idx} className="bg-white p-4 rounded-2xl border border-slate-50 shadow-sm flex items-center justify-between group hover:border-indigo-100 transition-colors">
+                                                <div className="flex items-center gap-4">
+                                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${entry.action === 'ASSIGNED' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
+                                                        {entry.action === 'ASSIGNED' ? <CheckCircle2 size={18} /> : <AlertTriangle size={18} />}
                                                     </div>
-                                                    <p className="text-xs text-gray-500">
-                                                        Par <span className="font-semibold text-gray-700">{entry.managerName}</span>
+                                                    <div>
+                                                        <p className="text-sm font-black text-slate-900 uppercase italic tracking-tighter">
+                                                            {entry.action === 'ASSIGNED' ? 'Attribution réussie' : 'Désattribution effectuée'}
+                                                        </p>
+                                                        <p className="text-xs text-slate-400 font-bold mt-0.5">
+                                                            Chauffeur : <span className="text-indigo-600">{entry.driverName}</span>
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <div className="text-right">
+                                                    <p className="text-[10px] font-black text-slate-300 uppercase leading-none">
+                                                        {new Date(entry.timestamp).toLocaleDateString()}
+                                                    </p>
+                                                    <p className="text-xs font-bold text-slate-900 mt-1">
+                                                        {new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                     </p>
                                                 </div>
                                             </div>
                                         ))
                                     ) : (
-                                        <p className="text-sm text-gray-400 -ml-8 py-4 text-center italic font-medium bg-gray-50/50 rounded-lg border border-dashed border-gray-200">
-                                            Aucun historique d'assignation disponible pour ce véhicule.
-                                        </p>
+                                        <div className="text-center py-12 bg-slate-50/50 rounded-3xl border border-dashed border-slate-200">
+                                            <p className="text-sm text-slate-400 font-bold italic uppercase tracking-widest">Historique Vierge</p>
+                                        </div>
                                     )}
                                 </div>
                             </div>
@@ -368,40 +428,40 @@ export default function Page() {
                                     description="Aucune course n'a encore été effectuée avec ce véhicule."
                                 />
                             ) : (
-                                <div className="overflow-hidden border border-gray-200 rounded-lg">
-                                    <table className="min-w-full divide-y divide-gray-200">
-                                        <thead className="bg-gray-50">
-                                            <tr>
-                                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ref</th>
-                                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Chauffeur</th>
-                                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Départ / Arrivée</th>
-                                                <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Statut</th>
+                                <div className="overflow-hidden border border-slate-100 rounded-3xl shadow-xl shadow-slate-200/50 bg-white">
+                                    <table className="min-w-full divide-y divide-slate-50">
+                                        <thead>
+                                            <tr className="bg-slate-50/50">
+                                                <th scope="col" className="px-6 py-4 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Date</th>
+                                                <th scope="col" className="px-6 py-4 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Référence</th>
+                                                <th scope="col" className="px-6 py-4 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Chauffeur</th>
+                                                <th scope="col" className="px-6 py-4 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Trajet</th>
+                                                <th scope="col" className="px-6 py-4 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest">Statut</th>
                                             </tr>
                                         </thead>
-                                        <tbody className="bg-white divide-y divide-gray-200">
+                                        <tbody className="divide-y divide-slate-50">
                                             {orders.map((order) => (
-                                                <tr key={order.id} className="hover:bg-gray-50 transition-colors">
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                                        {new Date(order.createdAt).toLocaleDateString()} <span className="text-xs">{new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                                <tr key={order.id} className="hover:bg-slate-50/50 transition-colors group">
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <p className="text-xs font-black text-slate-700">{new Date(order.createdAt).toLocaleDateString()}</p>
+                                                        <p className="text-[10px] font-bold text-slate-400">{new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
                                                     </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                                    <td className="px-6 py-4 whitespace-nowrap text-xs font-black text-indigo-600 uppercase italic">
                                                         #{order.id.substring(order.id.length - 6)}
                                                     </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                    <td className="px-6 py-4 whitespace-nowrap text-xs font-bold text-slate-700">
                                                         {order.driver ? order.driver.fullName : '-'}
                                                     </td>
-                                                    <td className="px-6 py-4 text-sm text-gray-500">
-                                                        <div className="flex flex-col">
-                                                            <span className="truncate max-w-[200px]" title={order.pickupAddress?.formattedAddress}>{order.pickupAddress?.formattedAddress || 'N/A'}</span>
-                                                            <span className="text-xs text-gray-400">vers</span>
+                                                    <td className="px-6 py-4 text-xs font-medium text-slate-500">
+                                                        <div className="flex flex-col gap-0.5">
+                                                            <span className="truncate max-w-[200px] font-bold text-slate-700" title={order.pickupAddress?.formattedAddress}>{order.pickupAddress?.formattedAddress || 'N/A'}</span>
                                                             <span className="truncate max-w-[200px]" title={order.deliveryAddress?.formattedAddress}>{order.deliveryAddress?.formattedAddress || 'N/A'}</span>
                                                         </div>
                                                     </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${order.status === 'DELIVERED' ? 'bg-green-100 text-green-800' :
-                                                            order.status === 'CANCELLED' ? 'bg-red-100 text-red-800' :
-                                                                'bg-blue-100 text-blue-800'
+                                                    <td className="px-6 py-4 whitespace-nowrap text-right">
+                                                        <span className={`inline-flex items-center px-3 py-1 rounded-xl text-[10px] font-black italic uppercase ${order.status === 'DELIVERED' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
+                                                            order.status === 'CANCELLED' ? 'bg-rose-50 text-rose-600 border border-rose-100' :
+                                                                'bg-indigo-50 text-indigo-600 border border-indigo-100'
                                                             }`}>
                                                             {order.status}
                                                         </span>
@@ -418,128 +478,127 @@ export default function Page() {
                     {/* FILES TAB */}
                     {activeTab === 'FILES' && (
                         <div className="space-y-8 animate-in fade-in duration-300">
-
-
-                            {/* Upload Form */}
-                            <div className="bg-gray-50 rounded-xl p-6 border border-gray-200/60">
-                                <h3 className="text-sm font-bold text-gray-900 mb-4 flex items-center">
-                                    <Upload size={16} className="mr-2" /> Ajouter un document
-                                </h3>
-                                <form onSubmit={handleFileUpload} className="flex flex-col md:flex-row gap-4 items-end">
-                                    <div className="flex-1 w-full">
-                                        <label className="block text-xs font-semibold text-gray-500 mb-1.5">Type de document</label>
-                                        <select
-                                            value={docType}
-                                            onChange={(e) => setDocType(e.target.value)}
-                                            className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 sm:text-sm p-2.5 bg-white border"
+                            {/* Upload Vault */}
+                            <div className="bg-indigo-50/50 rounded-[2rem] p-8 border border-indigo-100 relative overflow-hidden">
+                                <div className="absolute top-0 right-0 p-8 opacity-5">
+                                    <ShieldCheck size={120} />
+                                </div>
+                                <div className="relative z-10">
+                                    <h3 className="text-xl font-black text-slate-900 mb-6 flex items-center gap-3">
+                                        <Upload className="text-indigo-600" /> Document Vault
+                                        <span className="text-xs font-bold bg-white px-3 py-1 rounded-full text-indigo-600 shadow-sm">Audit Ready</span>
+                                    </h3>
+                                    <form onSubmit={handleFileUpload} className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                                        <div>
+                                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Type de Document</label>
+                                            <select
+                                                value={docType}
+                                                onChange={(e) => setDocType(e.target.value)}
+                                                className="block w-full rounded-xl border-slate-200 shadow-sm focus:ring-4 focus:ring-indigo-500/10 text-xs p-3.5 bg-white border font-bold text-slate-700 outline-none"
+                                            >
+                                                <option value="VEHICLE_INSURANCE">📑 Assurance (RC)</option>
+                                                <option value="VEHICLE_TECHNICAL_VISIT">🔍 Visite Technique</option>
+                                                <option value="VEHICLE_REGISTRATION">🚗 Carte Grise</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Sélectionner Fichier</label>
+                                            <div className="relative group/file">
+                                                <input
+                                                    type="file"
+                                                    ref={fileInputRef}
+                                                    className="absolute inset-0 opacity-0 cursor-pointer z-10"
+                                                />
+                                                <div className="bg-white border border-slate-200 rounded-xl p-3.5 text-xs font-bold text-slate-500 flex items-center justify-between group-hover/file:border-indigo-300 transition-colors">
+                                                    <span className="truncate">Choisir un document...</span>
+                                                    <Paperclip size={14} className="text-slate-300" />
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Expiration</label>
+                                            <input
+                                                type="date"
+                                                value={expiryDate}
+                                                onChange={(e) => setExpiryDate(e.target.value)}
+                                                className="block w-full rounded-xl border-slate-200 shadow-sm focus:ring-4 focus:ring-indigo-500/10 text-xs p-3.5 bg-white border font-bold text-slate-700 outline-none"
+                                            />
+                                        </div>
+                                        <button
+                                            type="submit"
+                                            disabled={isUploading}
+                                            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white p-3.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-lg shadow-indigo-100 disabled:opacity-50"
                                         >
-                                            <option value="VEHICLE_INSURANCE">Assurance</option>
-                                            <option value="VEHICLE_TECHNICAL_VISIT">Visite Technique</option>
-                                            <option value="VEHICLE_REGISTRATION">Carte Grise</option>
-                                        </select>
-                                    </div>
-                                    <div className="flex-1 w-full">
-                                        <label className="block text-xs font-semibold text-gray-500 mb-1.5">Fichier</label>
-                                        <input
-                                            type="file"
-                                            ref={fileInputRef}
-                                            className="block w-full text-sm text-gray-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100 transition-colors bg-white border border-gray-200 rounded-lg"
-                                        />
-                                    </div>
-                                    <div className="flex-1 w-full">
-                                        <label className="block text-xs font-semibold text-gray-500 mb-1.5">Date d'expiration</label>
-                                        <input
-                                            type="date"
-                                            value={expiryDate}
-                                            onChange={(e) => setExpiryDate(e.target.value)}
-                                            className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 sm:text-sm p-2.5 bg-white border"
-                                        />
-                                    </div>
-                                    <button
-                                        type="submit"
-                                        disabled={isUploading}
-                                        className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2.5 rounded-lg text-sm font-medium transition-colors shadow-sm whitespace-nowrap"
-                                    >
-                                        {isUploading ? 'Envoi...' : 'Ajouter'}
-                                    </button>
-                                </form>
+                                            {isUploading ? 'TRANSFERT...' : 'DÉPOSER'}
+                                        </button>
+                                    </form>
+                                </div>
                             </div>
 
-                            {/* Files List */}
-                            <div>
-                                <h3 className="text-sm font-bold text-gray-900 mb-4 px-1">Documents enregistrés</h3>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    {vehicle.files?.map(file => (
-                                        <FileCard
-                                            key={file.id}
-                                            file={file}
-                                            onDelete={() => handleDeleteFile(file.id)}
-                                            onUpdateClick={() => {
-                                                setReplacingFile(file);
-                                                setShowConfirmReplace(true);
-                                            }}
-                                        />
-                                    ))}
-                                    <input
-                                        type="file"
-                                        ref={replaceInputRef}
-                                        className="hidden"
-                                        onChange={handleReplaceUpload}
-                                    />
-                                    {!vehicle.files?.length && (
-                                        <div className="col-span-2 text-center py-12 bg-gray-50 rounded-xl border border-dashed border-gray-200">
-                                            <Paperclip className="mx-auto h-8 w-8 text-gray-300 mb-2" />
-                                            <p className="text-sm text-gray-400">Aucun document n'a été ajouté pour ce véhicule.</p>
+                            {/* Digital Vault Grid */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                {[
+                                    { title: "Assurance Automobile", key: "insurance", files: vehicle.vehicleInsurance || [], icon: ShieldCheck, color: "text-emerald-500" },
+                                    { title: "Visite Technique", key: "technical", files: vehicle.vehicleTechnicalVisit || [], icon: Search, color: "text-amber-500" },
+                                    { title: "Carte Grise", key: "registration", files: vehicle.vehicleRegistration || [], icon: FileText, color: "text-blue-500" }
+                                ].map((folder, i) => (
+                                    <div key={i} className="bg-white rounded-3xl border border-slate-100 shadow-xl shadow-slate-200/50 p-6 flex flex-col h-full">
+                                        <div className="flex items-center justify-between mb-6">
+                                            <div className={`p-3 rounded-2xl bg-slate-50 ${folder.color}`}>
+                                                <folder.icon size={24} />
+                                            </div>
+                                            <span className="text-[10px] font-black bg-slate-100 text-slate-500 px-3 py-1 rounded-full uppercase">
+                                                {folder.files.length} FICHIER(S)
+                                            </span>
                                         </div>
-                                    )}
-                                </div>
+                                        <h4 className="text-sm font-black text-slate-900 mb-4">{folder.title}</h4>
+                                        <div className="flex-1 space-y-2">
+                                            {folder.files.length > 0 ? (
+                                                folder.files.map((file, idx) => (
+                                                    <div key={idx} className="group flex items-center justify-between p-3 bg-slate-50/50 hover:bg-slate-100 rounded-xl transition-all border border-transparent hover:border-slate-200">
+                                                        <div className="flex items-center gap-3 overflow-hidden">
+                                                            <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center text-slate-400 group-hover:text-indigo-600 shadow-sm">
+                                                                <FileText size={16} />
+                                                            </div>
+                                                            <span className="text-xs font-bold text-slate-600 truncate max-w-[120px]">{file.split('/').pop()}</span>
+                                                        </div>
+                                                        <button
+                                                            onClick={async () => {
+                                                                const url = await fleetService.getSignedUrl(file);
+                                                                window.open(url, '_blank');
+                                                            }}
+                                                            className="p-2 text-slate-300 hover:text-indigo-600 transition-colors"
+                                                        >
+                                                            <ChevronRight size={18} />
+                                                        </button>
+                                                    </div>
+                                                ))
+                                            ) : (
+                                                <div className="py-8 flex flex-col items-center justify-center border-2 border-dashed border-slate-50 rounded-2xl">
+                                                    <Paperclip className="text-slate-200 mb-2" size={20} />
+                                                    <p className="text-[10px] font-bold text-slate-300 uppercase italic">Aucun document</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
                         </div>
                     )}
                 </div>
-            </div>
+            </div >
 
             {/* Modals */}
-            <ConfirmModal
-                isOpen={showConfirmReplace}
-                onClose={() => {
-                    setShowConfirmReplace(false);
-                }}
-                onConfirm={() => {
-                    console.log('🎯 Confirmation de remplacement pour:', replacingFile?.name);
-                    if (replaceInputRef.current) {
-                        replaceInputRef.current.value = ''; // Force reset to allow re-selection
-                        replaceInputRef.current.click();
-                    }
-                    setShowConfirmReplace(false);
-                }}
-                title="Remplacer le document"
-                description={`Voulez-vous remplacer le document "${replacingFile?.name}" ? L'ancienne version sera définitivement supprimée.`}
-                confirmLabel="Continuer"
-                confirmVariant="primary"
-            />
-
-            <ConfirmModal
-                isOpen={showConfirmDelete}
-                onClose={() => {
-                    setShowConfirmDelete(false);
-                    setDeletingFileId(null);
-                }}
-                onConfirm={confirmDelete}
-                title="Supprimer le document"
-                description="Êtes-vous sûr de vouloir supprimer ce document ? Cette action est irréversible."
-                confirmLabel="Supprimer"
-                confirmVariant="danger"
-            />
-
-            {isEditModalOpen && vehicle && (
-                <VehicleEditModal
-                    vehicle={vehicle}
-                    onClose={() => setIsEditModalOpen(false)}
-                    onUpdate={(updated) => setVehicle(updated)}
-                />
-            )}
-        </div>
+            {
+                isEditModalOpen && vehicle && (
+                    <VehicleEditModal
+                        vehicle={vehicle}
+                        onClose={() => setIsEditModalOpen(false)}
+                        onUpdate={(updated) => setVehicle(updated)}
+                    />
+                )
+            }
+        </div >
     );
 }
 
@@ -552,110 +611,35 @@ function DetailRow({ label, value }: { label: string, value: string }) {
     );
 }
 
-function FileCard({ file, onDelete, onUpdateClick }: { file: FileRecord, onDelete: () => void, onUpdateClick: () => void }) {
-    const [isOpening, setIsOpening] = useState(false);
-
-    const getExpiryDate = () => {
-        if (!file.metadata?.expiryDate) return null;
-        const date = new Date(file.metadata.expiryDate);
-        return isNaN(date.getTime()) ? null : date;
-    };
-
-    const expiryDate = getExpiryDate();
-    const now = new Date();
-    const isExpired = expiryDate ? expiryDate < now : false;
-
-    // Calculate days until expiry
-    const daysUntilExpiry = expiryDate ? Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) : null;
-    const isExpiringSoon = daysUntilExpiry !== null && daysUntilExpiry > 0 && daysUntilExpiry <= 7;
-
-    const handleView = async () => {
-        setIsOpening(true);
-        try {
-            const url = await fleetService.getDocumentViewUrl(file.id);
-            window.open(url, '_blank');
-        } catch (err: any) {
-            alert('Impossible d\'ouvrir le document');
-        } finally {
-            setIsOpening(false);
-        }
-    };
-
-
-
-    // Determine card border color based on expiry
-    const getBorderColor = () => {
-        if (isExpired) return 'border-red-300 hover:border-red-400';
-        if (isExpiringSoon) return 'border-amber-300 hover:border-amber-400';
-        return 'border-gray-200 hover:border-emerald-200';
-    };
+/**
+ * Simple document section component for displaying documents by category
+ */
+function DocumentSection({ title, files, onView }: { title: string, files: string[], onView: (filename: string) => void }) {
+    if (!files.length) return null;
 
     return (
-        <div className={`flex flex-col p-4 bg-white border rounded-xl hover:shadow-sm transition-all group ${getBorderColor()}`}>
-            <div className="flex items-start mb-4">
-                <div className={`p-2.5 rounded-lg mr-4 flex-shrink-0 ${isExpired
-                    ? 'bg-red-50 text-red-600'
-                    : isExpiringSoon
-                        ? 'bg-amber-50 text-amber-600'
-                        : 'bg-blue-50 text-blue-600 group-hover:bg-blue-100 group-hover:text-blue-700'
-                    }`}>
-                    <FileText size={24} />
-                </div>
-                <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-2 mb-1">
-                        <h4 className="text-sm font-bold text-gray-900 truncate">{file.name}</h4>
-                    </div>
-                    <p className="text-xs text-gray-500 mt-1">{file.fileCategory} • {file.mimeType}</p>
-
-                    {/* Expiry Date Display */}
-                    {expiryDate && (
-                        <div className={`flex items-center mt-2 text-xs font-bold ${isExpired
-                            ? 'text-red-600'
-                            : isExpiringSoon
-                                ? 'text-amber-600'
-                                : 'text-emerald-600'
-                            }`}>
-                            <Calendar size={12} className="mr-1.5" />
-                            {expiryDate.toLocaleDateString()}
-                            {isExpired && (
-                                <span className="ml-2 px-1.5 py-0.5 bg-red-100 text-red-700 rounded text-[10px] uppercase tracking-wide">
-                                    Expiré
-                                </span>
-                            )}
-                            {isExpiringSoon && !isExpired && (
-                                <span className="ml-2 px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded text-[10px] uppercase tracking-wide">
-                                    {daysUntilExpiry}j restants
-                                </span>
-                            )}
+        <div className="bg-white border border-gray-200 rounded-xl p-4">
+            <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3 flex items-center">
+                <FileText size={14} className="mr-2" />
+                {title}
+            </h4>
+            <div className="space-y-2">
+                {files.map((filename, idx) => {
+                    const displayName = filename.split('/').pop() || filename;
+                    return (
+                        <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                            <span className="text-sm text-gray-700 truncate max-w-[300px]" title={displayName}>
+                                {displayName}
+                            </span>
+                            <button
+                                onClick={() => onView(filename)}
+                                className="text-emerald-600 hover:text-emerald-700 text-xs font-bold px-3 py-1 rounded-md hover:bg-emerald-50 transition-colors"
+                            >
+                                Voir
+                            </button>
                         </div>
-                    )}
-
-
-                </div>
-            </div>
-
-            <div className="flex items-center gap-2 mt-auto pt-3 border-t border-gray-100">
-                <button
-                    onClick={handleView}
-                    disabled={isOpening}
-                    className="flex-1 bg-gray-50 hover:bg-gray-100 text-gray-700 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50"
-                >
-                    <ArrowLeft size={14} className="rotate-135" /> {isOpening ? '...' : 'Ouvrir'}
-                </button>
-                <button
-                    onClick={onUpdateClick}
-                    className="flex-1 bg-gray-50 hover:bg-emerald-50 text-gray-700 hover:text-emerald-700 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-1.5"
-                    title="Remplacer le document"
-                >
-                    <Edit size={14} /> Remplacer
-                </button>
-                <button
-                    onClick={onDelete}
-                    className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors ml-auto"
-                    title="Supprimer"
-                >
-                    <Trash2 size={16} />
-                </button>
+                    );
+                })}
             </div>
         </div>
     );

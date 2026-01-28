@@ -9,22 +9,12 @@ export const documentService = {
     },
 
     // Upload a document
-    async uploadDocument(file: File, category: string, expiryDate?: string) {
+    async uploadDocument(file: File, docType: string) {
         const formData = new FormData();
         formData.append('file', file);
-        formData.append('fileCategory', category);
-        formData.append('ownerType', 'Company');
-        // ownerId is inferred from token in backend or should be passed?
-        // Actually /v1/files/upload expects specific params?
-        // Let's use the explicit generic upload if needed or the specific if available.
-        // Checking backend routes: GET /v1/company/files exists.
-        // POST /v1/files/upload exists.
+        formData.append('docType', docType);
 
-        if (expiryDate) {
-            formData.append('expiryDate', expiryDate);
-        }
-
-        return client.post<FileRecord>('/files/upload', formData);
+        return client.post<FileRecord>('/company/documents/upload', formData);
     },
 
     async deleteFile(fileId: string) {

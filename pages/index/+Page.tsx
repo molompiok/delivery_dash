@@ -187,11 +187,11 @@ export default function Page() {
                   </div>
                   <div>
                     <div className="font-semibold text-gray-900">{order.customerName}</div>
-                    <div className="text-xs text-gray-500">{order.pickupAddress}</div>
+                    <div className="text-xs text-gray-500">{order.pickupAddress?.formattedAddress}</div>
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="font-mono text-sm font-medium">{order.price.toLocaleString()} FCFA</div>
+                  <div className="font-mono text-sm font-medium">{(order.pricingData?.finalPrice || 0).toLocaleString()} FCFA</div>
                   <span className={`text-xs px-2 py-1 rounded-full ${order.status === 'DELIVERED' ? 'bg-green-100 text-green-700' :
                     order.status === 'PENDING' ? 'bg-amber-100 text-amber-700' :
                       'bg-blue-100 text-blue-700'

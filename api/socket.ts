@@ -15,11 +15,14 @@ class SocketClient {
 
     public connect(): Socket {
         if (!this.socket) {
-            // Connect to the same host/port as the API (proxied via Vite or direct)
-            // Assuming API is at localhost:3333, but Vite acts as proxy or we point directly.
-            // Since we are in dev, backend is 3333.
-            // Ideally this comes from env, but we'll hardcode localhost:3333 for this environment.
-            this.socket = io("http://localhost:3333", {
+            const getSocketUrl = () => {
+                if (import.meta.env.VITE_SOCKET_URL) return import.meta.env.VITE_SOCKET_URL;
+                if (typeof window !== 'undefined') {
+                    return `http://${window.location.hostname}:3333`;
+                }
+                return "http://localhost:3333";
+            };
+            this.socket = io(getSocketUrl(), {
                 transports: ["websocket"],
                 autoConnect: false,
             });

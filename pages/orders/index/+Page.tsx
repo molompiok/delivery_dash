@@ -1,142 +1,539 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { ShoppingBag, Search, Filter, RefreshCw } from 'lucide-react';
-import { ordersApi, Order } from '../../../api/orders';
+import {
+    ShoppingBag,
+    Search,
+    Filter,
+    RefreshCw,
+    Plus,
+    ChevronRight,
+    Package,
+    MapPin,
+    Clock,
+    Truck,
+    ArrowUpRight,
+    CheckCircle2,
+    AlertCircle,
+    Layers,
+    X
+} from 'lucide-react';
+import { Order } from '../../../api/orders';
+
+// Mocked Orders for the Premium Demo
+import { ordersApi } from '../../../api/orders';
 import { socketClient } from '../../../api/socket';
+import { useHeader } from '../../../context/HeaderContext';
 
 export default function Page() {
-    const [orders, setOrders] = useState<Order[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [realTimeEnabled, setRealTimeEnabled] = useState(false);
-    const socketRef = useRef<any>(null);
+    const [orders, setOrders] = useState<any[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [activeFilter, setActiveFilter] = useState('ALL');
+    const [showFilters, setShowFilters] = useState(false);
+    const { setHeaderContent, clearHeaderContent } = useHeader();
 
     useEffect(() => {
-        loadOrders();
+        setHeaderContent(
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 w-full">
+                <div>
+                    <h1 className="text-xl font-black text-slate-900 tracking-tight">Gestion des Commandes</h1>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Temps réel</p>
+                </div>
+                <div className="flex items-center gap-3">
+                    <a
+                        href="/orders/new"
+                        className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest shadow-lg shadow-indigo-100 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                    >
+                        <Plus size={16} />
+                        <span>Nouvelle Mission</span>
+                    </a>
+                </div>
+            </div>
+        );
+        return () => clearHeaderContent();
+    }, [setHeaderContent, clearHeaderContent]);
+
+    // Filter advanced states
+    const [filters, setFilters] = useState({
+        startDate: '',
+        endDate: '',
+        minAmount: '',
+        maxAmount: '',
+        modes: ['GLOBAL', 'INTERNAL', 'TARGET'],
+        type: 'ALL' // ALL, RECEIVED, EMITTED
+    });
+
+    const [error, setError] = useState<string | null>(null);
+
+    const fetchOrders = async () => {
+        setIsLoading(true);
+        setError(null);
+        try {
+            const data = await ordersApi.list();
+            // Transform backend data to match UI expected structure if necessary
+            const transformed = data.map((ord: any) => ({
+                ...ord,
+                pricingData: {
+                    ...ord.pricingData,
+                    finalPrice: ord.pricingData?.clientFee || 0
+                },
+                items: ord.packages || []
+            }));
+            setOrders(transformed);
+        } catch (error: any) {
+            console.error("Failed to fetch orders:", error);
+            setError("Impossible de charger le flux de commandes. Veuillez vérifier votre connexion au serveur.");
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchOrders();
+
+        // Socket integration
+        const socket = socketClient.connect();
+        const userStr = localStorage.getItem('delivery_user');
+        if (userStr) {
+            try {
+                const user = JSON.parse(userStr);
+                const companyId = user.effectiveCompanyId || user.companyId;
+                if (companyId) {
+                    socket.emit('join', `fleet:${companyId}`);
+                    console.log(`Subscribed to fleet:${companyId}`);
+                }
+            } catch (e) { }
+        }
+
+        socket.connect();
+
+        socket.on('order_status_updated', (payload: any) => {
+            console.log('Order update received:', payload);
+            setOrders(prev => prev.map(ord =>
+                ord.id === payload.orderId
+                    ? { ...ord, status: payload.status }
+                    : ord
+            ));
+        });
+
+        socket.on('orders:new', (payload: any) => {
+            console.log('New order received:', payload);
+            fetchOrders(); // Refresh list on new order
+        });
+
         return () => {
-            if (socketRef.current) {
-                socketClient.disconnect();
-            }
+            socket.off('order_status_updated');
+            socket.off('orders:new');
         };
     }, []);
 
-    useEffect(() => {
-        if (realTimeEnabled) {
-            const socket = socketClient.connect();
-            socketRef.current = socket;
-
-            // Listen for new missions (orders offered to drivers)
-            // Ideally we should listen to a specific room, but for dash we might need a general admin room.
-            // For now, let's assume we get updates if we are in the loop. 
-            // Actually, `mission:offered` is usually for drivers.
-            // Admin dash should probably listen to `order:created` or similar if implemented,
-            // or just refresh on `mission:offered` if we can hear it.
-
-            // To be safe and simple for this demo:
-            // We will listen to `order:status_updated` which is emitted to `orders:{id}` room.
-            // But we need to be in that room.
-            // PASSIVE: We can't easily listen to ALL orders without a global admin room.
-            // Let's assume the backend emits to a public/admin channel or we rely on polling/refresh for list.
-
-            // Wait, the user asked for "real time see orders add".
-            // If the backend doesn't emit a global "new order" event, we might struggle.
-            // Let's check `orders_controller` or `socket_listener` to see what is emitted.
-
-            // Re-reading `SocketListener`:
-            // `WsService.emitToRoom(\`drivers:\${driverId}\`, 'mission:offered', ...)`
-            // `WsService.emitToRoom(\`orders:\${orderId}\`, 'status_updated', ...)`
-
-            // There is no global "all orders" room yet.
-            // I should probably add one in the backend to support this feature properly,
-            // OR I can just simulate "Real Time" by polling every 5 seconds if enabled.
-            // The user asked for "socket.io". I should add the event to the backend.
-
-            // Let's keep the frontend ready to receive `orders:new`.
-            socket.on('orders:new', (newOrder: Order) => {
-                setOrders(prev => [newOrder, ...prev]);
-            });
-
-        } else {
-            if (socketRef.current) {
-                socketClient.disconnect();
-                socketRef.current = null;
-            }
-        }
-    }, [realTimeEnabled]);
-
-    const loadOrders = async () => {
-        setLoading(true);
-        try {
-            const data = await ordersApi.list();
-            setOrders(data);
-        } catch (e) {
-            console.error(e);
-        }
-        setLoading(false);
+    const formatNumber = (num: number) => {
+        return new Intl.NumberFormat('fr-FR', {
+            notation: 'compact',
+            maximumFractionDigits: 2
+        }).format(num).replace(',', '.');
     };
 
-    const toggleRealTime = () => {
-        setRealTimeEnabled(!realTimeEnabled);
+    const getStatusStyles = (status: string) => {
+        switch (status) {
+            case 'DELIVERED':
+                return 'bg-emerald-50 text-emerald-700 border-emerald-100';
+            case 'PENDING':
+                return 'bg-amber-50 text-amber-700 border-amber-100';
+            case 'IN_TRANSIT':
+            case 'ACCEPTED':
+                return 'bg-blue-50 text-blue-700 border-blue-100';
+            case 'PICKING_UP':
+            case 'AT_PICKUP':
+            case 'COLLECTED':
+                return 'bg-indigo-50 text-indigo-700 border-indigo-100';
+            case 'AT_DELIVERY':
+                return 'bg-rose-50 text-rose-700 border-rose-100';
+            default:
+                return 'bg-gray-50 text-gray-700 border-gray-100';
+        }
     };
+
+    const getStatusIcon = (status: string) => {
+        switch (status) {
+            case 'DELIVERED': return <CheckCircle2 size={14} />;
+            case 'PENDING': return <Clock size={14} />;
+            case 'IN_TRANSIT':
+            case 'ACCEPTED': return <Truck size={14} />;
+            case 'PICKING_UP':
+            case 'AT_PICKUP':
+            case 'COLLECTED': return <Package size={14} />;
+            default: return <AlertCircle size={14} />;
+        }
+    };
+
+    const setRecentFilter = (days: number) => {
+        const end = new Date();
+        const start = new Date();
+        start.setDate(start.getDate() - days);
+        setFilters({
+            ...filters,
+            startDate: start.toISOString().split('T')[0],
+            endDate: end.toISOString().split('T')[0]
+        });
+    };
+
+    const filteredOrders = orders.filter(order => {
+        // Search Term: ID or Phone
+        if (searchTerm) {
+            const matchesId = order.id.toLowerCase().includes(searchTerm.toLowerCase());
+            const matchesPhone = order.driver?.phone?.includes(searchTerm) || order.pickupAddress?.phone?.includes(searchTerm) || order.deliveryAddress?.phone?.includes(searchTerm);
+            if (!matchesId && !matchesPhone) return false;
+        }
+
+        // Status Filter
+        if (activeFilter !== 'ALL') {
+            if (activeFilter === 'IN_PROGRESS' && !['IN_TRANSIT', 'PICKING_UP', 'ACCEPTED', 'AT_PICKUP', 'COLLECTED', 'AT_DELIVERY'].includes(order.status)) return false;
+            if (activeFilter === 'PENDING' && order.status !== 'PENDING') return false;
+            if (activeFilter === 'DELIVERED' && order.status !== 'DELIVERED') return false;
+            // INCIDENTS could be matched by a specific field or status if available
+        }
+
+        // Advanced: Dates
+        if (filters.startDate) {
+            if (new Date(order.createdAt) < new Date(filters.startDate)) return false;
+        }
+        if (filters.endDate) {
+            const end = new Date(filters.endDate);
+            end.setHours(23, 59, 59);
+            if (new Date(order.createdAt) > end) return false;
+        }
+
+        // Advanced: Amount
+        if (filters.minAmount && (order.pricingData.finalPrice || 0) < Number(filters.minAmount)) return false;
+        if (filters.maxAmount && (order.pricingData.finalPrice || 0) > Number(filters.maxAmount)) return false;
+
+        // Advanced: Mode
+        if (!filters.modes.includes(order.assignmentMode)) return false;
+
+        // Advanced: Type (Simulation: Received if target, Emitted if internal/global by default for this ETP)
+        if (filters.type === 'RECEIVED' && order.assignmentMode !== 'TARGET') return false;
+        if (filters.type === 'EMITTED' && order.assignmentMode === 'TARGET') return false;
+
+        return true;
+    });
+
+    const statusFilters = [
+        { id: 'ALL', label: 'Tout', icon: <Layers size={14} />, count: orders.length },
+        { id: 'PENDING', label: 'En attente', icon: <Clock size={14} />, count: orders.filter(o => o.status === 'PENDING').length },
+        { id: 'IN_PROGRESS', label: 'En cours', icon: <Truck size={14} />, count: orders.filter(o => ['ACCEPTED', 'AT_PICKUP', 'COLLECTED', 'AT_DELIVERY', 'IN_TRANSIT'].includes(o.status)).length },
+        { id: 'DELIVERED', label: 'Livrées', icon: <CheckCircle2 size={14} />, count: orders.filter(o => o.status === 'DELIVERED').length },
+        { id: 'INCIDENTS', label: 'Incidents', icon: <AlertCircle size={14} />, count: orders.filter(o => o.status === 'FAILED').length }
+    ];
 
     return (
-        <div className="space-y-6">
-            <h1 className="text-2xl font-bold text-gray-800">Commandes</h1>
+        <div className="space-y-6 pt-2">
 
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                <div className="p-4 border-b border-gray-200 flex gap-4 justify-between items-center">
-                    <div className="relative flex-1 max-w-md">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                        <input type="text" placeholder="Rechercher une commande..." className="w-full pl-10 pr-4 py-2 border rounded-lg" />
-                    </div>
-                    <div className="flex gap-2">
-                        <button
-                            onClick={toggleRealTime}
-                            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${realTimeEnabled ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                }`}
-                        >
-                            <RefreshCw size={18} className={realTimeEnabled ? 'animate-spin' : ''} />
-                            {realTimeEnabled ? 'Temps réel Activé' : 'Activer Temps réel'}
+            <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100 relative">
+                {error && (
+                    <div className="m-4 p-4 bg-rose-50 border border-rose-100 rounded-2xl flex items-center gap-3 text-rose-700 font-bold text-sm animate-in slide-in-from-top-4">
+                        <AlertCircle size={18} />
+                        {error}
+                        <button onClick={fetchOrders} className="ml-auto px-3 py-1 bg-white border border-rose-200 rounded-lg text-xs hover:bg-rose-50 transition-all">
+                            Réessayer
                         </button>
-                        <a href="/orders/new" className="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors">
-                            + Nouvelle Commande
-                        </a>
+                    </div>
+                )}
+                <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex flex-col xl:flex-row gap-4 justify-between items-center relative z-20 rounded-t-3xl">
+                    <div className="relative w-full md:max-w-xs group">
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" size={16} />
+                        <input
+                            type="text"
+                            placeholder="Réf. ou téléphone client..."
+                            className="w-full pl-10 pr-10 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all shadow-sm text-sm"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                        />
+                        <button
+                            onClick={() => setShowFilters(!showFilters)}
+                            className={`absolute right-3 top-1/2 -translate-y-1/2 transition-colors p-1.5 rounded-lg ${showFilters ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-indigo-500 hover:bg-slate-50'}`}
+                        >
+                            <Filter size={14} />
+                        </button>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-1.5 p-1 bg-slate-200/50 rounded-2xl border border-slate-200/50">
+                        {statusFilters.map((filter) => (
+                            <button
+                                key={filter.id}
+                                onClick={() => setActiveFilter(filter.id)}
+                                className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${activeFilter === filter.id
+                                    ? 'bg-white text-indigo-600 shadow-sm'
+                                    : 'text-slate-500 hover:text-slate-700'
+                                    }`}
+                            >
+                                {filter.icon}
+                                <span>{filter.label}</span>
+                                <span className={`px-1.5 py-0.5 rounded-lg text-[10px] ${activeFilter === filter.id ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-200 text-slate-600'
+                                    }`}>
+                                    {formatNumber(filter.count)}
+                                </span>
+                            </button>
+                        ))}
                     </div>
                 </div>
 
-                <table className="w-full text-left">
-                    <thead className="bg-gray-50 text-gray-600 text-xs uppercase">
-                        <tr>
-                            <th className="p-4">ID</th>
-                            <th className="p-4">Client</th>
-                            <th className="p-4">Adresse Pickup</th>
-                            <th className="p-4">Statut</th>
-                            <th className="p-4 text-right">Montant</th>
-                            <th className="p-4">Action</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                        {loading ? (
-                            <tr><td colSpan={6} className="p-8 text-center">Chargement...</td></tr>
-                        ) : orders.map(order => (
-                            <tr key={order.id} className="hover:bg-gray-50">
-                                <td className="p-4 font-mono text-sm text-gray-500">#{order.id.substring(0, 8)}...</td>
-                                <td className="p-4 font-medium text-gray-900">Client</td>
-                                <td className="p-4 text-gray-600 text-sm">{order.pickupAddress?.formattedAddress || 'N/A'}</td>
-                                <td className="p-4">
-                                    <span className={`px-2 py-1 rounded-full text-xs font-bold ${order.status === 'DELIVERED' ? 'bg-green-100 text-green-700' :
-                                        order.status === 'PENDING' ? 'bg-amber-100 text-amber-700' :
-                                            'bg-blue-100 text-blue-700'
-                                        }`}>
-                                        {order.status}
-                                    </span>
-                                </td>
-                                <td className="p-4 text-right font-mono">{order.pricingData?.finalPrice?.toLocaleString() || 0} FCFA</td>
-                                <td className="p-4">
-                                    <a href={`/orders/${order.id}`} className="text-blue-600 hover:underline text-sm">Voir</a>
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
+                {/* Advanced Filter Panel */}
+                {showFilters && (
+                    <div className="absolute top-16 left-4 bg-white rounded-2xl shadow-2xl border border-slate-200 p-6 z-50 animate-in slide-in-from-top-4 duration-300 w-full max-w-2xl xl:w-[600px]">
+                        <div className="flex items-center justify-between mb-6">
+                            <h3 className="font-bold text-slate-900 flex items-center gap-2">
+                                <Filter size={18} className="text-indigo-600" />
+                                Filtres avancés
+                            </h3>
+                            <button onClick={() => setShowFilters(false)} className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 transition-colors">
+                                <X size={18} />
+                            </button>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            {/* Dates Section */}
+                            <div className="space-y-4">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Période</label>
+                                <div className="grid grid-cols-2 gap-3 mb-3">
+                                    <input
+                                        type="date"
+                                        className="w-full p-2 bg-slate-50 border border-slate-100 rounded-lg text-xs"
+                                        value={filters.startDate}
+                                        onChange={(e) => setFilters({ ...filters, startDate: e.target.value })}
+                                    />
+                                    <input
+                                        type="date"
+                                        className="w-full p-2 bg-slate-50 border border-slate-100 rounded-lg text-xs"
+                                        value={filters.endDate}
+                                        onChange={(e) => setFilters({ ...filters, endDate: e.target.value })}
+                                    />
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                    {[
+                                        { l: '24h', v: 1 },
+                                        { l: '3j', v: 3 },
+                                        { l: '7j', v: 7 },
+                                        { l: '1m', v: 30 }
+                                    ].map(p => (
+                                        <button
+                                            key={p.l}
+                                            onClick={() => setRecentFilter(p.v)}
+                                            className="px-3 py-1.5 bg-slate-100 hover:bg-indigo-50 text-slate-600 hover:text-indigo-600 rounded-lg text-xs font-bold transition-all"
+                                        >
+                                            {p.l}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Amount Section */}
+                            <div className="space-y-4">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Montant [Min - Max]</label>
+                                <div className="flex items-center gap-3">
+                                    <div className="relative flex-1">
+                                        <input
+                                            type="number"
+                                            placeholder="Min"
+                                            className="w-full p-2 bg-slate-50 border border-slate-100 rounded-lg text-xs pl-8"
+                                            value={filters.minAmount}
+                                            onChange={(e) => setFilters({ ...filters, minAmount: e.target.value })}
+                                        />
+                                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-400">FCFA</span>
+                                    </div>
+                                    <div className="w-4 h-0.5 bg-slate-200"></div>
+                                    <div className="relative flex-1">
+                                        <input
+                                            type="number"
+                                            placeholder="Max"
+                                            className="w-full p-2 bg-slate-50 border border-slate-100 rounded-lg text-xs pl-8"
+                                            value={filters.maxAmount}
+                                            onChange={(e) => setFilters({ ...filters, maxAmount: e.target.value })}
+                                        />
+                                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-400">FCFA</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Type & Mode Section */}
+                            <div className="space-y-4">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Type de commande</label>
+                                <div className="flex gap-2">
+                                    {[
+                                        { id: 'ALL', label: 'Tout' },
+                                        { id: 'RECEIVED', label: 'Reçues' },
+                                        { id: 'EMITTED', label: 'Émises' }
+                                    ].map(t => (
+                                        <button
+                                            key={t.id}
+                                            onClick={() => setFilters({ ...filters, type: t.id })}
+                                            className={`flex-1 py-1.5 rounded-lg text-xs font-bold border transition-all ${filters.type === t.id ? 'bg-slate-900 border-slate-900 text-white shadow-sm' : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
+                                                }`}
+                                        >
+                                            {t.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="space-y-4">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Mode d'attribution</label>
+                                <div className="flex gap-2">
+                                    {['GLOBAL', 'INTERNAL', 'TARGET'].map(m => (
+                                        <button
+                                            key={m}
+                                            onClick={() => {
+                                                const newModes = filters.modes.includes(m)
+                                                    ? filters.modes.filter(mode => mode !== m)
+                                                    : [...filters.modes, m];
+                                                setFilters({ ...filters, modes: newModes });
+                                            }}
+                                            className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold border transition-all ${filters.modes.includes(m) ? 'bg-indigo-600 border-indigo-600 text-white shadow-sm' : 'bg-white border-slate-200 text-slate-400 hover:border-slate-300'
+                                                }`}
+                                        >
+                                            {m}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="mt-8 pt-6 border-t border-slate-100 flex justify-end gap-3">
+                            <button
+                                onClick={() => {
+                                    setFilters({
+                                        startDate: '',
+                                        endDate: '',
+                                        minAmount: '',
+                                        maxAmount: '',
+                                        modes: ['GLOBAL', 'INTERNAL', 'TARGET'],
+                                        type: 'ALL'
+                                    });
+                                }}
+                                className="px-4 py-2 text-slate-500 hover:text-slate-800 text-xs font-bold transition-colors"
+                            >
+                                Réinitialiser
+                            </button>
+                            <button
+                                onClick={() => setShowFilters(false)}
+                                className="px-6 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold shadow-lg shadow-indigo-100 hover:scale-[1.05] transition-all"
+                            >
+                                Appliquer les filtres
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                <div className="overflow-hidden rounded-b-3xl">
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                            <thead>
+                                <tr className="text-slate-400 text-[11px] uppercase tracking-wider font-bold">
+                                    <th className="px-6 py-4">Référence / Date</th>
+                                    <th className="px-6 py-4">Articles</th>
+                                    <th className="px-6 py-4">Itinéraire</th>
+                                    <th className="px-6 py-4">Statut</th>
+                                    <th className="px-6 py-4">Attribution</th>
+                                    <th className="px-6 py-4 text-right">Montant</th>
+                                    <th className="px-6 py-4"></th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                                {filteredOrders.map((order) => (
+                                    <tr key={order.id} className="group hover:bg-slate-50/80 transition-all cursor-pointer" onClick={() => window.location.href = `/orders/${order.id}`}>
+                                        <td className="px-6 py-4">
+                                            <div className="flex flex-col">
+                                                <span className="font-mono text-sm font-bold text-slate-900 group-hover:text-indigo-600 transition-colors uppercase">
+                                                    {order.id.replace('ord_', '#')}
+                                                </span>
+                                                <span className="text-xs text-slate-400 mt-1 flex items-center gap-1.5">
+                                                    <Clock size={12} />
+                                                    {new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                </span>
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <div className="flex flex-col gap-1.5">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="bg-slate-100 p-1.5 rounded-lg">
+                                                        <Package size={14} className="text-slate-500" />
+                                                    </div>
+                                                    <span className="text-sm font-medium text-slate-700">
+                                                        {order.items?.[0]?.name || 'Sans titre'}
+                                                    </span>
+                                                </div>
+                                                {order.items?.length > 1 && (
+                                                    <span className="text-[10px] text-indigo-500 font-bold ml-8">
+                                                        + {order.items.length - 1} AUTRES ARTICLES
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <div className="flex flex-col gap-1 max-w-[200px]">
+                                                <div className="flex items-center gap-2 text-xs">
+                                                    <div className="w-1.5 h-1.5 rounded-full bg-slate-300"></div>
+                                                    <span className="text-slate-500 truncate">{order.pickupAddress?.formattedAddress || 'Adresse inconnue'}</span>
+                                                </div>
+                                                <div className="w-0.5 h-2 bg-slate-200 ml-[2.5px]"></div>
+                                                <div className="flex items-center gap-2 text-xs">
+                                                    <MapPin size={12} className="text-rose-400" />
+                                                    <span className="text-slate-900 font-medium truncate">{order.deliveryAddress?.formattedAddress || 'Adresse inconnue'}</span>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-bold border transition-colors ${getStatusStyles(order.status)}`}>
+                                                {getStatusIcon(order.status)}
+                                                {order.status.replace('_', ' ')}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            {order.driver ? (
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-slate-200 to-slate-100 border-2 border-white shadow-sm flex items-center justify-center text-xs font-bold text-slate-500">
+                                                        {(order.driver.name || order.driver.phone || 'D').toString().split(' ').map((n: string) => n[0] || '').join('').toUpperCase().substring(0, 2)}
+                                                    </div>
+                                                    <div className="flex flex-col">
+                                                        <span className="text-sm font-semibold text-slate-900">{order.driver.name || 'Chauffeur sans nom'}</span>
+                                                        <span className="text-[10px] text-slate-400 flex items-center gap-1">
+                                                            <Truck size={10} /> {order.assignmentMode}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div className="flex items-center gap-2 text-slate-400 text-xs italic">
+                                                    <div className="w-8 h-8 rounded-full border-2 border-dashed border-slate-200 flex items-center justify-center text-slate-300">
+                                                        ?
+                                                    </div>
+                                                    <span>Recherche en cours...</span>
+                                                </div>
+                                            )}
+                                        </td>
+                                        <td className="px-6 py-6 text-right">
+                                            <div className="flex flex-col items-end">
+                                                <span className="text-sm font-bold text-slate-900">{(order.pricingData?.finalPrice || 0).toLocaleString()} FCFA</span>
+                                                <span className="text-[10px] text-slate-400 uppercase tracking-tighter">Taxes incluses</span>
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-6">
+                                            <button className="p-2 text-slate-300 group-hover:text-indigo-500 group-hover:bg-indigo-50 rounded-lg transition-all">
+                                                <ChevronRight size={20} />
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div className="p-4 bg-slate-50/30 border-t border-slate-100 flex justify-between items-center text-sm text-slate-500">
+                        <p>Affichage de <b>{filteredOrders.length}</b> commandes sur <b>28</b> au total</p>
+                        <div className="flex gap-2">
+                            <button className="px-4 py-2 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors font-medium text-slate-600 disabled:opacity-50">Précédent</button>
+                            <button className="px-4 py-2 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors font-medium text-slate-600">Suivant</button>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     );

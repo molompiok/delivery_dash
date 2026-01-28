@@ -7,6 +7,7 @@ import { AnimatePresence } from 'framer-motion';
 import { usePageContext } from 'vike-react/usePageContext';
 
 // Refactored Components
+// Refactored Components
 import { SidebarHeader } from './components/SidebarHeader';
 import { TabNavigation } from './components/TabNavigation';
 import { DriverList } from './components/DriverList';
@@ -17,6 +18,7 @@ import { VehicleList } from './components/VehicleList';
 import { VehicleDetail } from './components/VehicleDetail';
 import { DeleteConfirmationModal } from './components/DeleteConfirmationModal';
 import { Vehicle } from '../../../api/types';
+import LocationSearchBar from '../../../components/LocationSearchBar';
 
 type MapTab = 'DRIVERS' | 'ZONES' | 'ORDERS' | 'VEHICLES';
 
@@ -488,6 +490,14 @@ export default function Page() {
             >
                 {isFullscreen ? <Minimize size={20} /> : <Maximize size={20} />}
             </button>
+
+            {/* Location Search Bar */}
+            <div className="absolute top-4 left-20 z-20 w-full max-w-md pointer-events-auto">
+                <LocationSearchBar onLocationSelect={(loc) => {
+                    setMapCenter({ lat: loc.lat, lng: loc.lng });
+                    setMapZoom(16);
+                }} />
+            </div>
 
             <GoogleMap center={mapCenter} zoom={mapZoom} className="w-full h-full" onCenterChanged={handleCenterChanged} onZoomChanged={handleZoomChanged}>
                 {zones.map(zone => {

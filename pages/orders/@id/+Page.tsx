@@ -1,187 +1,275 @@
 import React, { useEffect, useState } from 'react';
 import { usePageContext } from 'vike-react/usePageContext';
-import { RefreshCw, MapPin, Package, Clock, User, ArrowLeft, AlertCircle } from 'lucide-react';
+import {
+    ChevronLeft,
+    Clock,
+    MapPin,
+    Package,
+    Truck,
+    CheckCircle2,
+    AlertCircle,
+    Loader2,
+    ArrowRight,
+    Navigation,
+    Info,
+    DollarSign
+} from 'lucide-react';
 import { ordersApi, Order } from '../../../api/orders';
-import { socketClient } from '../../../api/socket';
 
 export default function Page() {
     const pageContext = usePageContext();
     const { id } = pageContext.routeParams;
     const [order, setOrder] = useState<Order | null>(null);
-    const [loading, setLoading] = useState(true);
+    const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         if (id) {
-            loadOrder(id);
-
-            // Connect socket for real-time updates on this specific order
-            const socket = socketClient.connect();
-
-            // Listen for status updates
-            socket.on('status_updated', (payload: any) => {
-                if (payload && payload.orderId === id) {
-                    // Optimistic update or reload
-                    setOrder(prev => prev ? { ...prev, status: payload.status } : null);
-                    // Ideally we verify if payload has more data or reload full object
-                    loadOrder(id);
-                }
-            });
-
-            // Listen for driver assignment
-            socket.on('mission:offered', (payload: any) => {
-                if (payload && payload.orderId === id) {
-                    loadOrder(id);
-                }
-            });
-
-            return () => {
-                // We don't necessarily disconnect as other pages might use it, 
-                // but we should remove listeners if we added specific ones manually or rely on hooks.
-                // Since we use a singleton, removing specific listeners is harder without named functions.
-                // For now, we leave it as is or rely on a wrapper. 
-                socket.off('status_updated');
-                socket.off('mission:offered');
-            };
+            fetchOrder();
         }
     }, [id]);
 
-    const loadOrder = async (orderId: string) => {
-        setLoading(true);
+    const fetchOrder = async () => {
+        setIsLoading(true);
+        setError(null);
         try {
-            const data = await ordersApi.get(orderId);
+            const data = await ordersApi.get(id);
             setOrder(data);
-            setError(null);
-        } catch (e: any) {
-            console.error(e);
-            setError('Impossible de charger la commande. Elle n\'existe peut-être pas.');
+        } catch (err: any) {
+            console.error("Failed to fetch order:", err);
+            setError(err.message || "Une erreur est survenue lors du chargement de la commande.");
+        } finally {
+            setIsLoading(false);
         }
-        setLoading(false);
     };
 
-    if (loading) return <div className="p-8 text-center">Chargement des détails...</div>;
-    if (error) return <div className="p-8 text-center text-red-600 flex flex-col items-center gap-2"><AlertCircle /> {error}</div>;
-    if (!order) return <div className="p-8 text-center">Commande introuvable.</div>;
+    if (isLoading) {
+        return (
+            <div className="flex flex-col items-center justify-center h-96 gap-4">
+                <Loader2 className="animate-spin text-indigo-600" size={48} />
+                <p className="text-slate-500 font-medium animate-pulse">Chargement de la mission...</p>
+            </div>
+        );
+    }
 
-    const steps = [
-        { status: 'PENDING', label: 'En attente', date: order.createdAt },
-        { status: 'ASSIGNED', label: 'Assignée', active: ['ASSIGNED', 'AT_PICKUP', 'COLLECTED', 'AT_DELIVERY', 'DELIVERED'].includes(order.status) },
-        { status: 'AT_PICKUP', label: 'Au retrait', active: ['AT_PICKUP', 'COLLECTED', 'AT_DELIVERY', 'DELIVERED'].includes(order.status) },
-        { status: 'COLLECTED', label: 'Récupérée', active: ['COLLECTED', 'AT_DELIVERY', 'DELIVERED'].includes(order.status) },
-        { status: 'AT_DELIVERY', label: 'Livraison', active: ['AT_DELIVERY', 'DELIVERED'].includes(order.status) },
-        { status: 'DELIVERED', label: 'Livrée', active: ['DELIVERED'].includes(order.status) },
-    ];
+    if (error || !order) {
+        return (
+            <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100 p-12 text-center max-w-2xl mx-auto mt-12">
+                <div className="w-20 h-20 bg-rose-50 rounded-full flex items-center justify-center mx-auto mb-6">
+                    <AlertCircle className="text-rose-500" size={40} />
+                </div>
+                <h1 className="text-2xl font-black text-slate-900 mb-2">Oups ! Commande introuvable</h1>
+                <p className="text-slate-500 mb-8">{error || "Nous n'avons pas pu récupérer les détails de cette commande. Le serveur est peut-être temporairement indisponible."}</p>
+                <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                    <button
+                        onClick={() => window.location.href = '/orders'}
+                        className="flex items-center justify-center gap-2 px-6 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold transition-all"
+                    >
+                        <ChevronLeft size={20} />
+                        Retour aux commandes
+                    </button>
+                    <button
+                        onClick={fetchOrder}
+                        className="flex items-center justify-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-lg shadow-indigo-100 transition-all"
+                    >
+                        Réessayer
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    const getStatusStyles = (status: string) => {
+        switch (status) {
+            case 'DELIVERED': return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+            case 'PENDING': return 'bg-amber-50 text-amber-700 border-amber-200';
+            case 'FAILED': return 'bg-rose-50 text-rose-700 border-rose-200';
+            case 'CANCELLED': return 'bg-slate-50 text-slate-700 border-slate-200';
+            default: return 'bg-indigo-50 text-indigo-700 border-indigo-200';
+        }
+    };
 
     return (
-        <div className="max-w-4xl mx-auto space-y-6 pb-20">
-            <div className="flex items-center gap-4">
-                <a href="/orders" className="p-2 hover:bg-gray-100 rounded-full text-gray-600">
-                    <ArrowLeft size={24} />
-                </a>
-                <div>
-                    <h1 className="text-2xl font-bold text-gray-900">Commande #{order.id.substring(0, 8)}</h1>
-                    <div className="text-sm text-gray-500">Créée le {new Date(order.createdAt).toLocaleString()}</div>
+        <div className="space-y-6 pb-12">
+            {/* Header */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                    <button
+                        onClick={() => window.location.href = '/orders'}
+                        className="p-2.5 bg-white border border-slate-200 rounded-xl text-slate-400 hover:text-indigo-600 hover:border-indigo-100 hover:shadow-lg transition-all"
+                    >
+                        <ChevronLeft size={20} />
+                    </button>
+                    <div>
+                        <div className="flex items-center gap-3">
+                            <h1 className="text-3xl font-black text-slate-900 tracking-tight uppercase">
+                                {order.id.replace('ord_', '#')}
+                            </h1>
+                            <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border ${getStatusStyles(order.status)}`}>
+                                {order.status}
+                            </span>
+                        </div>
+                        <p className="text-slate-500 mt-1 flex items-center gap-2">
+                            Réf Externe: <span className="font-mono font-bold text-slate-700">{order.refId || 'N/A'}</span>
+                            <span className="w-1 h-1 rounded-full bg-slate-300"></span>
+                            Créée le {new Date(order.createdAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                    </div>
                 </div>
-                <div className="ml-auto">
-                    <span className={`px-4 py-2 rounded-full font-bold text-sm ${order.status === 'DELIVERED' ? 'bg-green-100 text-green-700' :
-                        order.status === 'PENDING' ? 'bg-amber-100 text-amber-700' :
-                            'bg-blue-100 text-blue-700'
-                        }`}>
-                        {order.status}
-                    </span>
+
+                <div className="flex items-center gap-3">
+                    {order.status === 'PENDING' && (
+                        <button className="px-6 py-2.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-xl font-bold text-sm transition-all border border-rose-100">
+                            Annuler la mission
+                        </button>
+                    )}
+                    <button className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-sm shadow-lg shadow-indigo-100 transition-all">
+                        Modifier
+                    </button>
                 </div>
             </div>
 
-            {/* Timeline */}
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                <h3 className="font-medium text-gray-900 mb-6">Chronologie</h3>
-                <div className="flex justify-between items-center relative">
-                    <div className="absolute left-0 right-0 top-1/2 h-0.5 bg-gray-100 -z-0"></div>
-                    {steps.map((step, idx) => (
-                        <div key={step.status} className="relative z-10 flex flex-col items-center gap-2 bg-white px-2">
-                            <div className={`w-4 h-4 rounded-full border-2 ${step.active || step.status === order.status || (idx === 0) ? 'bg-blue-600 border-blue-600' : 'bg-white border-gray-300'
-                                }`}></div>
-                            <span className={`text-xs font-medium ${step.active || step.status === order.status ? 'text-gray-900' : 'text-gray-400'
-                                }`}>{step.label}</span>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                {/* Left Column: Mission Details */}
+                <div className="lg:col-span-2 space-y-8">
+                    {/* Progress Card (Mocked for now) */}
+                    <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100 p-8 relative overflow-hidden">
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50 rounded-bl-full -z-10 opacity-50"></div>
+                        <h2 className="text-lg font-black text-slate-900 mb-8 flex items-center gap-2">
+                            <Navigation className="text-indigo-600" size={20} />
+                            Déroulement de la Mission
+                        </h2>
+
+                        <div className="space-y-12 relative before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-100">
+                            {/* Start Point */}
+                            <div className="relative pl-10">
+                                <div className="absolute left-0 top-1 w-6 h-6 rounded-full bg-white border-4 border-indigo-600 z-10"></div>
+                                <div className="flex justify-between items-start">
+                                    <div>
+                                        <h3 className="font-bold text-slate-900">Point de Départ</h3>
+                                        <p className="text-sm text-slate-500 mt-1">{order.pickupAddress?.formattedAddress}</p>
+                                    </div>
+                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{order.createdAt ? new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}</span>
+                                </div>
+                            </div>
+
+                            {/* Delivery Point */}
+                            <div className="relative pl-10">
+                                <div className="absolute left-0 top-1 w-6 h-6 rounded-full bg-white border-4 border-rose-500 z-10"></div>
+                                <div className="flex justify-between items-start">
+                                    <div>
+                                        <h3 className="font-bold text-slate-900">Destination Finale</h3>
+                                        <p className="text-sm text-slate-500 mt-1">{order.deliveryAddress?.formattedAddress}</p>
+                                    </div>
+                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest italic">EDD: --:--</span>
+                                </div>
+                            </div>
                         </div>
-                    ))}
-                </div>
-            </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Locations */}
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 space-y-6">
-                    <h3 className="font-medium text-gray-900 flex items-center gap-2">
-                        <MapPin size={18} /> Itinéraire
-                    </h3>
-
-                    <div className="space-y-4">
-                        <div className="relative pl-8 border-l-2 border-gray-100 pb-6">
-                            <div className="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-blue-100 border-2 border-blue-500"></div>
-                            <div className="text-xs text-gray-500 uppercase font-bold mb-1">Point de retrait</div>
-                            <div className="text-gray-900 font-medium">{order.pickupAddress?.formattedAddress}</div>
-                            {/* <div className="text-sm text-gray-500">{order.pickupAddress.contactName}</div> */}
+                        {/* Order Type Info */}
+                        <div className="mt-12 p-6 bg-slate-50 rounded-2xl border border-slate-100 flex items-start gap-4">
+                            <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center border border-slate-200 shadow-sm shrink-0">
+                                <Info className="text-indigo-500" size={24} />
+                            </div>
+                            <div>
+                                <h4 className="font-bold text-slate-900">Type de Commande</h4>
+                                <p className="text-sm text-slate-500 mt-1">
+                                    {order.isComplex
+                                        ? "Cette mission fait partie d'un flux logistique complexe (Cas G) avec plusieurs étapes d'optimisation."
+                                        : "Commande standard de type Point-à-Point."}
+                                </p>
+                            </div>
                         </div>
+                    </div>
 
-                        <div className="relative pl-8 border-l-2 border-transparent">
-                            <div className="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-green-100 border-2 border-green-500"></div>
-                            <div className="text-xs text-gray-500 uppercase font-bold mb-1">Destination</div>
-                            <div className="text-gray-900 font-medium">{order.deliveryAddress?.formattedAddress}</div>
+                    {/* Items/Packages */}
+                    <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100 p-8">
+                        <h2 className="text-lg font-black text-slate-900 mb-6 flex items-center gap-2">
+                            <Package className="text-indigo-600" size={20} />
+                            Articles & Colis
+                        </h2>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {/* Simulation of packages if missing */}
+                            {(order.packages || []).length > 0 ? (order.packages || []).map((pkg: any) => (
+                                <div key={pkg.id} className="p-4 rounded-2xl border border-slate-100 bg-slate-50/50 flex items-center gap-4">
+                                    <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center border border-slate-200">
+                                        <Package className="text-slate-400" size={20} />
+                                    </div>
+                                    <div>
+                                        <div className="font-bold text-slate-800">{pkg.name}</div>
+                                        <div className="text-xs text-slate-400">Poids: {pkg.weight || 'N/A'}g</div>
+                                    </div>
+                                </div>
+                            )) : (
+                                <div className="p-8 rounded-2xl border-2 border-dashed border-slate-100 text-center col-span-2">
+                                    <p className="text-slate-400 text-sm italic">Aucun article spécifié</p>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
 
-                {/* Driver Info */}
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 space-y-6">
-                    <h3 className="font-medium text-gray-900 flex items-center gap-2">
-                        <User size={18} /> Chauffeur & Véhicule
-                    </h3>
+                {/* Right Column: Driver & Financials */}
+                <div className="space-y-8">
+                    {/* Driver Assignation */}
+                    <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100 p-8">
+                        <h2 className="text-lg font-black text-slate-900 mb-6 font-black uppercase tracking-tight">Attribution</h2>
 
-                    {order.driverId ? (
-                        <div className="bg-gray-50 p-4 rounded-lg flex items-center gap-4">
-                            <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center text-gray-500">
-                                <User size={24} />
+                        {order.driver ? (
+                            <div className="space-y-6">
+                                <div className="flex items-center gap-4">
+                                    <div className="w-16 h-16 rounded-2xl bg-indigo-100 flex items-center justify-center text-xl font-black text-indigo-600 border border-indigo-200">
+                                        {order.driver.name?.charAt(0) || 'D'}
+                                    </div>
+                                    <div>
+                                        <div className="font-bold text-slate-900 text-lg">{order.driver.name}</div>
+                                        <div className="text-sm text-slate-500">{order.driver.phone}</div>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-3 p-3 bg-emerald-50 rounded-xl border border-emerald-100 text-emerald-700 text-xs font-bold">
+                                    <CheckCircle2 size={14} />
+                                    Chauffeur en service
+                                </div>
                             </div>
-                            <div>
-                                <div className="font-bold text-gray-900">ID: {order.driverId}</div>
-                                <div className="text-sm text-gray-500">Assigné</div>
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="bg-amber-50 p-4 rounded-lg border border-amber-100 text-amber-700 text-sm flex items-center gap-3">
-                            <Clock size={18} />
-                            Recherche de chauffeur en cours...
-                        </div>
-                    )}
-
-                    <div className="border-t border-gray-100 pt-4">
-                        <div className="flex justify-between items-center mb-2">
-                            <span className="text-gray-600">Mode d'attribution</span>
-                            <span className="font-mono text-sm bg-gray-100 px-2 py-1 rounded">{order.assignmentMode}</span>
-                        </div>
-                        {order.refId && (
-                            <div className="flex justify-between items-center">
-                                <span className="text-gray-600">Ref ID</span>
-                                <span className="font-mono text-sm text-gray-500">{order.refId}</span>
+                        ) : (
+                            <div className="text-center py-6">
+                                <div className="w-16 h-16 rounded-full border-4 border-dashed border-slate-100 flex items-center justify-center mx-auto mb-4 text-slate-200">
+                                    <Truck size={32} />
+                                </div>
+                                <h3 className="font-bold text-slate-800">En attente d'attribution</h3>
+                                <p className="text-xs text-slate-400 mt-1 px-4 text-center">Recherche du meilleur chauffeur disponible via {order.assignmentMode}...</p>
+                                <button className="mt-6 w-full py-3 bg-slate-900 text-white rounded-xl font-bold text-xs hover:bg-slate-800 transition-all shadow-lg shadow-slate-200">
+                                    Attribuer manuellement
+                                </button>
                             </div>
                         )}
                     </div>
-                </div>
 
-                {/* Pricing */}
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 space-y-4 md:col-span-2">
-                    <h3 className="font-medium text-gray-900">Détail du Prix</h3>
-                    <div className="flex justify-between items-center py-2 border-b border-gray-100">
-                        <span className="text-gray-600">Distance estimée</span>
-                        <span className="font-medium">{(order.pricingData?.distance / 1000).toFixed(1)} km</span>
-                    </div>
-                    <div className="flex justify-between items-center py-2 border-b border-gray-100">
-                        <span className="text-gray-600">Tarif de base</span>
-                        <span className="font-medium">{order.pricingData?.details?.baseFare} FCFA</span>
-                    </div>
-                    <div className="flex justify-between items-center py-2 text-lg font-bold">
-                        <span>Total</span>
-                        <span>{order.pricingData?.finalPrice?.toLocaleString()} FCFA</span>
+                    {/* Financial Summary */}
+                    <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100 p-8 bg-gradient-to-br from-white to-slate-50">
+                        <h2 className="text-lg font-black text-slate-900 mb-6 flex items-center gap-2">
+                            <DollarSign className="text-indigo-600" size={20} />
+                            Frais de Mission
+                        </h2>
+
+                        <div className="space-y-4">
+                            <div className="flex justify-between text-sm">
+                                <span className="text-slate-500">Distance Totale</span>
+                                <span className="font-bold text-slate-800">{(order.totalDistanceMeters ? (order.totalDistanceMeters / 1000).toFixed(2) : '0')} km</span>
+                            </div>
+                            <div className="flex justify-between text-sm">
+                                <span className="text-slate-500">Durée Estimée</span>
+                                <span className="font-bold text-slate-800">{(order.totalDurationSeconds ? (order.totalDurationSeconds / 60).toFixed(0) : '0')} min</span>
+                            </div>
+                            <div className="h-px bg-slate-200 my-4"></div>
+                            <div className="flex justify-between items-center">
+                                <span className="font-black text-slate-900 uppercase tracking-widest text-[10px]">Total Client</span>
+                                <div className="text-2xl font-black text-indigo-600">
+                                    {(order.pricingData?.finalPrice || 0).toLocaleString()} <span className="text-xs">FCFA</span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>

@@ -5,15 +5,17 @@ import { Wrapper, Status } from '@googlemaps/react-wrapper';
 import client from '../api/client';
 
 interface GoogleMapProps {
-    center: google.maps.LatLngLiteral;
-    zoom: number;
+    center?: google.maps.LatLngLiteral;
+    zoom?: number;
+    bounds?: google.maps.LatLngLiteral[];
     children?: React.ReactNode;
     className?: string;
     onCenterChanged?: (center: google.maps.LatLngLiteral) => void;
     onZoomChanged?: (zoom: number) => void;
+    onClick?: (e: google.maps.MapMouseEvent) => void;
 }
 
-const MapComponent: React.FC<GoogleMapProps> = ({ center, zoom, children, className, onCenterChanged, onZoomChanged }) => {
+const MapComponent: React.FC<GoogleMapProps> = ({ center, zoom, bounds, children, className, onCenterChanged, onZoomChanged, onClick }) => {
     const ref = useRef<HTMLDivElement>(null);
     const [map, setMap] = useState<google.maps.Map>();
 
@@ -47,16 +49,27 @@ const MapComponent: React.FC<GoogleMapProps> = ({ center, zoom, children, classN
                 ],
                 disableDefaultUI: true,
                 zoomControl: true,
+                gestureHandling: 'greedy',
             });
             setMap(mapInstance);
         }
     }, [ref, map]);
 
+    // Use bounds to fit the map if provided
+    useEffect(() => {
+        const g = typeof window !== 'undefined' ? (window as any).google : null;
+        if (map && g && bounds && bounds.length > 0) {
+            const b = new g.maps.LatLngBounds();
+            bounds.forEach(p => b.extend(p));
+            map.fitBounds(b, { top: 50, bottom: 50, left: 50, right: 50 });
+        }
+    }, [map, bounds]);
+
     // Update center and zoom when props change
     useEffect(() => {
         if (map) {
-            map.panTo(center);
-            map.setZoom(zoom);
+            if (center) map.panTo(center);
+            if (zoom !== undefined) map.setZoom(zoom);
         }
     }, [map, center, zoom]);
 
@@ -82,6 +95,10 @@ const MapComponent: React.FC<GoogleMapProps> = ({ center, zoom, children, classN
 
             if (onCenterChanged || onZoomChanged) {
                 listeners.push(map.addListener('idle', handleIdle));
+            }
+
+            if (onClick) {
+                listeners.push(map.addListener('click', onClick));
             }
 
             return () => {
@@ -287,6 +304,37 @@ export const Rectangle: React.FC<google.maps.RectangleOptions & { map?: google.m
             };
         }
     }, [rectangle, options, onClick, onEdit]);
+
+    return null;
+};
+
+export const Polyline: React.FC<google.maps.PolylineOptions & { map?: google.maps.Map }> = ({ map, ...options }) => {
+    const [polyline, setPolyline] = useState<google.maps.Polyline>();
+
+    useEffect(() => {
+        if (!polyline) {
+            setPolyline(new google.maps.Polyline());
+        }
+
+        return () => {
+            if (polyline) {
+                polyline.setMap(null);
+            }
+        };
+    }, [polyline]);
+
+    useEffect(() => {
+        if (polyline && map) {
+            polyline.setMap(map);
+        }
+    }, [polyline, map]);
+
+    useEffect(() => {
+        const g = typeof window !== 'undefined' ? (window as any).google : null;
+        if (polyline && g && g.maps) {
+            polyline.setOptions(options);
+        }
+    }, [polyline, options]);
 
     return null;
 };

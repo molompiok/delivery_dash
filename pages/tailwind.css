@@ -4,16 +4,45 @@
   h1 {
     @apply mb-4 text-4xl font-bold tracking-tight text-gray-900;
   }
+
   ul {
     @apply list-disc pl-6;
   }
+
   ol {
     @apply list-decimal pl-6;
   }
+
   p {
     @apply mb-2 mt-2;
   }
+
   a {
     @apply text-blue-600 hover:text-pink-400 visited:text-blue-900;
+  }
+
+  /* Hide Google Maps Dev Overlays */
+  .gm-style-cc {
+    display: none !important;
+  }
+
+  .gm-err-container {
+    display: none !important;
+  }
+
+  .gm-style-pbc {
+    display: none !important;
+  }
+
+  .gm-err-content {
+    display: none !important;
+  }
+
+  .gm-err-icon {
+    display: none !important;
+  }
+
+  button[title="Stop"] {
+    display: none !important;
   }
 }

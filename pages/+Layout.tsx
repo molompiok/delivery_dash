@@ -6,6 +6,7 @@ import { authService } from '../api/auth';
 import { User } from '../api/types';
 
 import { usePageContext } from 'vike-react/usePageContext';
+import { HeaderProvider, useHeader } from '../context/HeaderContext';
 
 export { Layout };
 
@@ -16,10 +17,25 @@ function Layout({ children }: { children: React.ReactNode }) {
 
   // Simple auth check for now - redirect if no token (except login page)
   useEffect(() => {
-    if (typeof window !== 'undefined' && currentPath !== '/login') {
-      const token = localStorage.getItem('delivery_token');
-      if (!token) {
-        window.location.href = '/login';
+    if (typeof window !== 'undefined') {
+      // Check for token in URL (Admin Impersonation)
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlToken = urlParams.get('token');
+
+      if (urlToken) {
+        localStorage.setItem('delivery_token', urlToken);
+        // Clean URL to avoid token persistence in history/refresh
+        window.history.replaceState({}, document.title, window.location.pathname);
+        // Force refresh profile/data
+        window.location.reload();
+        return;
+      }
+
+      if (currentPath !== '/login') {
+        const token = localStorage.getItem('delivery_token');
+        if (!token) {
+          window.location.href = '/login';
+        }
       }
     }
   }, [currentPath]);
@@ -48,24 +64,24 @@ function Layout({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="layout">
-      {/* Mobile Overlay */}
-      <div
-        className={`sidebar-overlay ${isSidebarOpen ? 'open' : ''}`}
-        onClick={closeSidebar}
-      />
+    <HeaderProvider>
+      <div className="layout">
+        {/* Mobile Overlay */}
+        <div
+          className={`sidebar-overlay ${isSidebarOpen ? 'open' : ''}`}
+          onClick={closeSidebar}
+        />
 
-      <Sidebar currentPath={currentPath} isOpen={isSidebarOpen} onClose={closeSidebar} isCollapsed={isCollapsed} toggleCollapse={toggleCollapse} />
+        <Sidebar currentPath={currentPath} isOpen={isSidebarOpen} onClose={closeSidebar} isCollapsed={isCollapsed} toggleCollapse={toggleCollapse} />
 
-      <div className={`main-content transition-all duration-300`} style={{ marginLeft: isCollapsed ? '5rem' : '16rem' }}>
-        <Topbar onMenuClick={toggleSidebar} />
-        <div className={currentPath === '/map' ? 'h-[calc(100vh-64px)]' : 'page-container'}>
-          <div id="page-content" className={currentPath === '/map' ? 'h-full' : ''}>
+        <div className="flex-1 flex flex-col h-screen overflow-hidden transition-all duration-300" style={{ marginLeft: isCollapsed ? '5rem' : '16rem' }}>
+          <Topbar onMenuClick={toggleSidebar} />
+          <div id="page-content" className="flex-1 overflow-hidden">
             {children}
           </div>
         </div>
       </div>
-    </div>
+    </HeaderProvider>
   );
 }
 
@@ -152,6 +168,7 @@ function SidebarLink({ href, icon, label, active, onClick, isCollapsed }: { href
 
 function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
   const [user, setUser] = useState<User | null>(null);
+  const { headerContent } = useHeader();
 
   useEffect(() => {
     const userStr = localStorage.getItem('delivery_user');
@@ -179,14 +196,20 @@ function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
           <Menu size={24} />
         </button>
 
-        <div className="flex items-center bg-gray-100 rounded-lg px-3 py-2 w-full md:w-96">
-          <Search size={18} className="text-gray-400 mr-2 shrink-0" />
-          <input
-            type="text"
-            placeholder="Rechercher..."
-            className="bg-transparent border-none outline-none text-sm w-full text-gray-700 placeholder-gray-400 min-w-0"
-          />
-        </div>
+        {headerContent ? (
+          <div className="flex-1">
+            {headerContent}
+          </div>
+        ) : (
+          <div className="flex items-center bg-gray-100 rounded-lg px-3 py-2 w-full md:w-96">
+            <Search size={18} className="text-gray-400 mr-2 shrink-0" />
+            <input
+              type="text"
+              placeholder="Rechercher..."
+              className="bg-transparent border-none outline-none text-sm w-full text-gray-700 placeholder-gray-400 min-w-0"
+            />
+          </div>
+        )}
       </div>
 
       <div className="flex items-center gap-2 md:gap-4 ml-auto">

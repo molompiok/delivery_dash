@@ -1,4 +1,12 @@
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3333/v1';
+const getApiUrl = () => {
+    if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
+    if (typeof window !== 'undefined') {
+        return `http://${window.location.hostname}:3333/v1`;
+    }
+    return 'http://localhost:3333/v1';
+};
+
+const API_URL = getApiUrl();
 
 interface FetchOptions extends RequestInit {
     params?: Record<string, any>;

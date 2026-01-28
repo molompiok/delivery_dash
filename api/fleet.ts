@@ -1,5 +1,14 @@
 import client from './client';
-import { Vehicle, FileRecord } from './types';
+import { Vehicle } from './types';
+
+// Base URL for file access
+const getFileBaseUrl = () => {
+    if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL.replace('/v1', '');
+    if (typeof window !== 'undefined') {
+        return `http://${window.location.hostname}:3333`;
+    }
+    return 'http://localhost:3333';
+};
 
 export const fleetService = {
     /**
@@ -57,16 +66,18 @@ export const fleetService = {
 
     /**
      * Upload a document for a vehicle
+     * NEW FORMAT: File field must be named after the docType
      */
     async uploadDocument(vehicleId: string, docType: string, file: File, expiryDate?: string) {
         const formData = new FormData();
-        formData.append('file', file);
+        // The file field MUST be named after the docType for FileManager to process it
+        formData.append(docType, file);
         formData.append('docType', docType);
         if (expiryDate) {
             formData.append('expiryDate', expiryDate);
         }
 
-        return client.post<FileRecord>(`/vehicles/${vehicleId}/documents`, formData);
+        return client.post(`/vehicles/${vehicleId}/documents`, formData);
     },
 
     /**
@@ -77,20 +88,26 @@ export const fleetService = {
     },
 
     /**
-     * Delete a document
+     * Get a file URL for viewing
+     * NEW FORMAT: Uses /fs/:filename route
      */
-    async deleteDocument(fileId: string) {
-        return client.delete(`/files/${fileId}`);
+    getFileUrl(filename: string) {
+        // Extract just the filename if it starts with 'fs/'
+        const cleanFilename = filename.startsWith('fs/') ? filename.substring(3) : filename;
+        return `${getFileBaseUrl()}/fs/${cleanFilename}`;
     },
 
     /**
-     * Get a temporary view URL for a document (Blob approach for auth)
+     * View a document by requesting a temporary signed URL
      */
-    async getDocumentViewUrl(fileId: string) {
-        const response = await client.get(`/files/${fileId}/view`, {
-            responseType: 'blob'
-        });
-        const contentType = response.headers?.get('content-type') || 'application/octet-stream';
-        return URL.createObjectURL(new Blob([response.data as any], { type: contentType }));
+    async getSignedUrl(filename: string) {
+        // 1. Get just the filename (security)
+        const cleanFilename = filename.startsWith('fs/') ? filename.substring(3) : filename;
+
+        // 2. Fetch temporary token from server
+        const { data } = await client.get<{ token: string }>(`/fs/token/${cleanFilename}`);
+
+        // 3. Construct direct URL with token
+        return `${getFileBaseUrl()}/fs/${cleanFilename}?token=${data.token}`;
     }
 };

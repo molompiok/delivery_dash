@@ -40,8 +40,18 @@ export const driverService = {
     /**
      * Step 6: Validate an individual document
      */
-    async validateDocument(fileId: string, status: 'APPROVED' | 'REJECTED', comment?: string) {
-        return client.post(`/company/documents/${fileId}/validate`, { status, comment });
+    async validateDocument(docId: string, status: 'APPROVED' | 'REJECTED', comment?: string) {
+        return client.post(`/company/documents/${docId}/validate`, { status, comment });
+    },
+
+    /**
+     * Upload an ETP document for a driver relationship
+     */
+    async uploadCompanyDoc(relationId: string, docType: string, file: File) {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('docType', docType);
+        return client.post(`/company/drivers/relation/${relationId}/documents/upload`, formData);
     },
 
     /**
@@ -49,5 +59,12 @@ export const driverService = {
      */
     async inviteToFleet(driverId: string) {
         return client.post(`/company/drivers/${driverId}/invite-to-fleet`);
+    },
+
+    /**
+     * Sync driver requirements with company standards
+     */
+    async syncRequirements(driverId: string) {
+        return client.post(`/company/drivers/${driverId}/sync-requirements`);
     }
 };

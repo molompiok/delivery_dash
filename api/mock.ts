@@ -2,13 +2,15 @@ import { User, Vehicle } from './types';
 
 export interface Order {
     id: string;
+    refId?: string;
     customerName: string;
-    pickupAddress: string;
-    deliveryAddress: string;
-    status: 'PENDING' | 'ASSIGNED' | 'PICKED_UP' | 'DELIVERED' | 'CANCELLED';
-    price: number;
+    pickupAddress: { formattedAddress: string };
+    deliveryAddress: { formattedAddress: string };
+    status: string;
+    pricingData: { finalPrice: number };
     createdAt: string;
     driverId?: string;
+    assignmentMode: string;
 }
 
 export interface Zone {
@@ -67,14 +69,16 @@ export interface Driver {
 }
 
 const mockOrders: Order[] = Array.from({ length: 15 }).map((_, i) => ({
-    id: `ORD-${2023000 + i}`,
+    id: `ord_${2023000 + i}`,
+    refId: `REF-${2023000 + i}`,
     customerName: ['Alice Traoré', 'Moussa Koné', 'Restaurant Le Délice', 'Boutique Zara', 'Jean Kouassi'][Math.floor(Math.random() * 5)],
-    pickupAddress: 'Zone 4, Rue du Dr Blanchard',
-    deliveryAddress: 'Cocody, Riviera 2',
-    status: ['PENDING', 'ASSIGNED', 'DELIVERED'][Math.floor(Math.random() * 3)] as any,
-    price: Math.floor(Math.random() * 5000) + 1000,
+    pickupAddress: { formattedAddress: 'Zone 4, Rue du Dr Blanchard' },
+    deliveryAddress: { formattedAddress: 'Cocody, Riviera 2' },
+    status: ['PENDING', 'ACCEPTED', 'DELIVERED'][Math.floor(Math.random() * 3)],
+    pricingData: { finalPrice: Math.floor(Math.random() * 5000) + 1000 },
     createdAt: new Date(Date.now() - Math.random() * 86400000).toISOString(),
-    driverId: Math.random() > 0.5 ? 'driver-1' : undefined
+    driverId: Math.random() > 0.5 ? 'driver-1' : undefined,
+    assignmentMode: 'GLOBAL'
 }));
 
 const mockZones: Zone[] = [

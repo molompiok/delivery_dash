@@ -51,5 +51,19 @@ export const companyService = {
                 ownerId: companyId
             }
         });
+    },
+
+    /**
+     * Get Company Document Requirements
+     */
+    async getRequirements() {
+        return client.get<any[]>('/company/requirements');
+    },
+
+    /**
+     * Update Company Document Requirements
+     */
+    async updateRequirements(requirements: any[]) {
+        return client.post<any[]>('/company/requirements', { requirements });
     }
 };
