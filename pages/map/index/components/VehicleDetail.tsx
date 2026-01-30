@@ -27,7 +27,8 @@ export const VehicleDetail: React.FC<VehicleDetailProps> = ({
     vehicle,
     onBack
 }) => {
-    const Icon = VEHICLE_ICONS[vehicle.type] || Truck;
+    if (!vehicle) return null;
+    const Icon = VEHICLE_ICONS[vehicle?.type] || Truck;
 
     return (
         <motion.div
@@ -61,7 +62,7 @@ export const VehicleDetail: React.FC<VehicleDetailProps> = ({
                         </div>
                         <div className="flex gap-2 mt-2">
                             <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${vehicle.verificationStatus === 'APPROVED' ? 'bg-emerald-50 text-emerald-600' :
-                                    vehicle.verificationStatus === 'PENDING' ? 'bg-amber-50 text-amber-600' : 'bg-red-50 text-red-600'
+                                vehicle.verificationStatus === 'PENDING' ? 'bg-amber-50 text-amber-600' : 'bg-red-50 text-red-600'
                                 }`}>
                                 {vehicle.verificationStatus}
                             </span>

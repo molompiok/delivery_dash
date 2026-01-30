@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { LayoutDashboard, Users, Truck, Settings, LogOut, Search, Bell, User as UserIcon, Menu, X, ShoppingBag, Map as MapIcon, Calendar, DollarSign, Navigation, FileText, ChevronLeft } from 'lucide-react';
+import { LayoutDashboard, Users, Truck, Settings, LogOut, Search, Bell, User as UserIcon, Menu, X, ShoppingBag, Map as MapIcon, Calendar, DollarSign, Navigation, FileText, ChevronLeft, LayoutGrid, Activity } from 'lucide-react';
 import './Layout.css';
 import './tailwind.css';
 import { authService } from '../api/auth';
@@ -13,20 +13,16 @@ export { Layout };
 function Layout({ children }: { children: React.ReactNode }) {
   const pageContext = usePageContext();
   const currentPath = pageContext.urlPathname;
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   // Simple auth check for now - redirect if no token (except login page)
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      // Check for token in URL (Admin Impersonation)
       const urlParams = new URLSearchParams(window.location.search);
       const urlToken = urlParams.get('token');
 
       if (urlToken) {
         localStorage.setItem('delivery_token', urlToken);
-        // Clean URL to avoid token persistence in history/refresh
         window.history.replaceState({}, document.title, window.location.pathname);
-        // Force refresh profile/data
         window.location.reload();
         return;
       }
@@ -40,133 +36,23 @@ function Layout({ children }: { children: React.ReactNode }) {
     }
   }, [currentPath]);
 
-
-  const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
-  const closeSidebar = () => setIsSidebarOpen(false);
-
-  // Collapse state for desktop
-  const [isCollapsed, setIsCollapsed] = useState(false);
-
-  useEffect(() => {
-    const savedState = localStorage.getItem('sidebar_collapsed');
-    if (savedState) setIsCollapsed(JSON.parse(savedState));
-  }, []);
-
-  const toggleCollapse = () => {
-    const newState = !isCollapsed;
-    setIsCollapsed(newState);
-    localStorage.setItem('sidebar_collapsed', JSON.stringify(newState));
-  };
-
-  // If login page, don't show layout
   if (currentPath === '/login') {
     return children;
   }
 
   return (
     <HeaderProvider>
-      <div className="layout">
-        {/* Mobile Overlay */}
-        <div
-          className={`sidebar-overlay ${isSidebarOpen ? 'open' : ''}`}
-          onClick={closeSidebar}
-        />
-
-        <Sidebar currentPath={currentPath} isOpen={isSidebarOpen} onClose={closeSidebar} isCollapsed={isCollapsed} toggleCollapse={toggleCollapse} />
-
-        <div className="flex-1 flex flex-col h-screen overflow-hidden transition-all duration-300" style={{ marginLeft: isCollapsed ? '5rem' : '16rem' }}>
-          <Topbar onMenuClick={toggleSidebar} />
-          <div id="page-content" className="flex-1 overflow-hidden">
-            {children}
-          </div>
+      <div className="flex flex-col h-screen overflow-hidden bg-slate-50">
+        <Topbar currentPath={currentPath} />
+        <div id="page-content" className="flex-1 overflow-hidden">
+          {children}
         </div>
       </div>
     </HeaderProvider>
   );
 }
 
-function Sidebar({ currentPath, isOpen, onClose, isCollapsed, toggleCollapse }: { currentPath: string, isOpen: boolean, onClose: () => void, isCollapsed: boolean, toggleCollapse: () => void }) {
-  const logoUrl = "https://raw.githubusercontent.com/Sublymus/sublymus/main/logo.png"; // Placeholder or use asset
-
-  return (
-    <div
-      className={`sidebar fixed bg-white border-r border-gray-200 h-full z-40 transition-all duration-300 flex flex-col ${isOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0`}
-      style={{ width: isCollapsed ? '5rem' : '16rem' }}
-    >
-      <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'} p-6 mb-4 relative`}>
-        {!isCollapsed && (
-          <div className="flex items-center gap-3 overflow-hidden">
-            <Truck className="text-emerald-600 flex-shrink-0" size={32} />
-            <span className="font-bold text-xl text-gray-800 whitespace-nowrap">Sublymus</span>
-          </div>
-        )}
-        {isCollapsed && <Truck className="text-emerald-600 flex-shrink-0" size={32} />}
-
-        {/* Desktop Collapse Toggle */}
-        <button
-          onClick={toggleCollapse}
-          className={`hidden md:flex absolute -right-3 top-8 w-6 h-6 bg-white border border-gray-200 rounded-full items-center justify-center text-gray-500 hover:text-emerald-600 shadow-sm transition-transform hover:scale-110 z-50 ${isCollapsed ? 'rotate-180' : ''}`}
-        >
-          <ChevronLeft size={14} />
-        </button>
-
-        <button onClick={onClose} className="md:hidden text-gray-500 hover:text-gray-700">
-          <X size={24} />
-        </button>
-      </div>
-
-      <div className="flex-1 overflow-y-auto overflow-x-hidden">
-        {!isCollapsed && <div className="px-4 mb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider animate-in fade-in duration-200">Menu</div>}
-        <SidebarLink href="/" icon={<LayoutDashboard size={20} />} label="Tableau de bord" active={currentPath === '/'} onClick={onClose} isCollapsed={isCollapsed} />
-        <SidebarLink href="/fleet" icon={<Truck size={20} />} label="Véhicules" active={currentPath.startsWith('/fleet')} onClick={onClose} isCollapsed={isCollapsed} />
-        <SidebarLink href="/drivers" icon={<Users size={20} />} label="Chauffeurs" active={currentPath.startsWith('/drivers')} onClick={onClose} isCollapsed={isCollapsed} />
-        <SidebarLink href="/orders" icon={<ShoppingBag size={20} />} label="Commandes" active={currentPath.startsWith('/orders')} onClick={onClose} isCollapsed={isCollapsed} />
-        <SidebarLink href="/map" icon={<MapIcon size={20} />} label="Carte Live" active={currentPath.startsWith('/map')} onClick={onClose} isCollapsed={isCollapsed} />
-        <SidebarLink href="/schedules" icon={<Calendar size={20} />} label="Horaires" active={currentPath.startsWith('/schedules')} onClick={onClose} isCollapsed={isCollapsed} />
-        <SidebarLink href="/pricing" icon={<DollarSign size={20} />} label="Tarifs" active={currentPath.startsWith('/pricing')} onClick={onClose} isCollapsed={isCollapsed} />
-        <SidebarLink href="/zones" icon={<Navigation size={20} />} label="Zones" active={currentPath.startsWith('/zones')} onClick={onClose} isCollapsed={isCollapsed} />
-        <SidebarLink href="/documents" icon={<FileText size={20} />} label="Documents" active={currentPath.startsWith('/documents')} onClick={onClose} isCollapsed={isCollapsed} />
-        <SidebarLink href="/settings" icon={<Settings size={20} />} label="Paramètres" active={currentPath.startsWith('/settings')} onClick={onClose} isCollapsed={isCollapsed} />
-      </div>
-
-      <div className="p-4 border-t border-gray-200">
-        <button
-          onClick={() => {
-            authService.logout();
-            window.location.href = '/login';
-          }}
-          className={`flex items-center w-full px-4 py-3 text-sm font-medium text-red-600 rounded-lg hover:bg-red-50 transition-colors ${isCollapsed ? 'justify-center' : ''}`}
-          title={isCollapsed ? "Déconnexion" : ""}
-        >
-          <LogOut size={20} className={isCollapsed ? "" : "mr-3"} />
-          {!isCollapsed && "Déconnexion"}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function SidebarLink({ href, icon, label, active, onClick, isCollapsed }: { href: string, icon: React.ReactNode, label: string, active: boolean, onClick: () => void, isCollapsed: boolean }) {
-  return (
-    <a
-      href={href}
-      onClick={onClick}
-      className={`relative flex items-center px-4 py-3 mx-2 rounded-lg transition-colors group ${active ? 'bg-emerald-50 text-emerald-600' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'} ${isCollapsed ? 'justify-center' : ''}`}
-    >
-      <span className="flex-shrink-0">{icon}</span>
-      {!isCollapsed && <span className="ml-3 font-medium text-sm whitespace-nowrap">{label}</span>}
-
-      {/* Tooltip for collapsed mode */}
-      {isCollapsed && (
-        <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 whitespace-nowrap">
-          {label}
-        </div>
-      )}
-    </a>
-  );
-}
-
-function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
+function Topbar({ currentPath }: { currentPath: string }) {
   const [user, setUser] = useState<User | null>(null);
   const { headerContent } = useHeader();
 
@@ -176,8 +62,6 @@ function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
       try {
         const localUser = JSON.parse(userStr);
         setUser(localUser);
-
-        // Pulse: Refresh profile from backend to ensure data like companyId is fresh
         authService.getProfile().then(res => {
           const freshUser = res.data;
           setUser(freshUser);
@@ -189,46 +73,90 @@ function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
     }
   }, []);
 
-  return (
-    <div className="topbar">
-      <div className="flex items-center gap-4 w-full md:w-auto">
-        <button onClick={onMenuClick} className="md:hidden p-2 -ml-2 text-gray-600 hover:bg-gray-100 rounded-lg">
-          <Menu size={24} />
-        </button>
+  const NAV_LINKS = [
+    { href: '/', icon: LayoutDashboard, label: 'Tableau de bord' },
+    { href: '/fleet/3dview/TR-001', icon: Truck, label: 'Véhicules', activeBase: '/fleet' },
+    { href: '/drivers', icon: Users, label: 'Chauffeurs' },
+    { href: '/orders', icon: ShoppingBag, label: 'Commandes' },
+    { href: '/map', icon: MapIcon, label: 'Carte Live' },
+    { href: '/schedules', icon: Calendar, label: 'Horaires' },
+    { href: '/zones', icon: Navigation, label: 'Zones' },
+    { href: '/documents', icon: FileText, label: 'Documents' },
+  ];
 
-        {headerContent ? (
-          <div className="flex-1">
-            {headerContent}
+  return (
+    <div className="flex items-center justify-between px-6 h-16 shrink-0 bg-white/80 backdrop-blur-md border-b border-gray-100 z-50">
+      <div className="flex items-center gap-6 overflow-hidden">
+        <div className="flex items-center gap-2 shrink-0">
+          <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+            <Truck size={20} className="text-white" />
           </div>
-        ) : (
-          <div className="flex items-center bg-gray-100 rounded-lg px-3 py-2 w-full md:w-96">
-            <Search size={18} className="text-gray-400 mr-2 shrink-0" />
-            <input
-              type="text"
-              placeholder="Rechercher..."
-              className="bg-transparent border-none outline-none text-sm w-full text-gray-700 placeholder-gray-400 min-w-0"
-            />
-          </div>
-        )}
+          <span className="text-xl font-black tracking-tight text-slate-800">RoutaX</span>
+        </div>
+
+        <nav className="hidden lg:flex items-center gap-1 bg-white p-1 rounded-xl shadow-sm border border-slate-100 overflow-x-auto no-scrollbar">
+          {NAV_LINKS.map(link => {
+            const isActive = link.href === '/'
+              ? currentPath === '/'
+              : currentPath.startsWith(link.activeBase || link.href);
+
+            return (
+              <NavButton
+                key={link.href}
+                href={link.href}
+                icon={link.icon}
+                label={link.label}
+                active={isActive}
+              />
+            );
+          })}
+        </nav>
       </div>
 
-      <div className="flex items-center gap-2 md:gap-4 ml-auto">
-        <button className="p-2 text-gray-500 hover:bg-gray-100 rounded-full relative shrink-0">
-          <Bell size={20} />
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
-        </button>
-        <div className="pl-2 md:pl-4 border-l border-gray-200">
-          <a href="/settings" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-            <div className="text-right hidden sm:block">
-              <div className="text-sm font-semibold text-gray-800">{user?.fullName || 'Utilisateur'}</div>
-              <div className="text-xs text-gray-500">{user?.role || 'Company Manager'}</div>
-            </div>
-            <div className="w-8 h-8 md:w-10 md:h-10 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-600 shrink-0">
-              <UserIcon size={20} />
-            </div>
+      <div className="flex-1 flex justify-center px-4">
+        {headerContent}
+      </div>
+
+      <div className="flex items-center gap-5 shrink-0">
+
+        <div className="flex items-center gap-3 pr-2 border-r border-gray-100">
+          <IconButton icon={Search} />
+          <div className="relative">
+            <IconButton icon={Bell} />
+            <span className="absolute top-1.5 right-1.5 w-3 h-3 bg-red-500 rounded-full border-2 border-white" />
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <div className="text-right hidden sm:block">
+            <div className="text-xs font-black text-slate-800 leading-none mb-0.5">{user?.fullName || 'Admin'}</div>
+            <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{user?.role || 'Manager'}</div>
+          </div>
+          <a href="/settings" className="w-10 h-10 rounded-full border-2 border-white shadow-sm overflow-hidden bg-slate-100 hover:opacity-80 transition-opacity">
+            <img src={`https://ui-avatars.com/api/?name=${user?.fullName || 'A'}&background=random`} alt="User" />
           </a>
         </div>
       </div>
     </div>
+  );
+}
+
+function NavButton({ href, icon: Icon, label, active = false }: { href: string, icon: any, label: string, active?: boolean }) {
+  return (
+    <a
+      href={href}
+      className={`px-3 py-2 rounded-xl flex items-center gap-2 transition-all duration-300 ${active ? 'bg-blue-50 text-blue-600 shadow-sm ring-1 ring-blue-100/50' : 'text-slate-400 hover:bg-slate-50 hover:text-slate-600'}`}
+    >
+      <Icon size={18} className={active ? 'scale-110' : ''} />
+      {active && <span className="text-xs font-black animate-in fade-in slide-in-from-left-2 duration-300">{label}</span>}
+    </a>
+  );
+}
+
+function IconButton({ icon: Icon }: { icon: any }) {
+  return (
+    <button className="p-2 text-slate-400 hover:bg-slate-50 hover:text-slate-600 rounded-xl transition-all">
+      <Icon size={20} />
+    </button>
   );
 }

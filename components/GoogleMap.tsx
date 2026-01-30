@@ -10,12 +10,13 @@ interface GoogleMapProps {
     bounds?: google.maps.LatLngLiteral[];
     children?: React.ReactNode;
     className?: string;
+    styles?: google.maps.MapTypeStyle[];
     onCenterChanged?: (center: google.maps.LatLngLiteral) => void;
     onZoomChanged?: (zoom: number) => void;
     onClick?: (e: google.maps.MapMouseEvent) => void;
 }
 
-const MapComponent: React.FC<GoogleMapProps> = ({ center, zoom, bounds, children, className, onCenterChanged, onZoomChanged, onClick }) => {
+const MapComponent: React.FC<GoogleMapProps> = ({ center, zoom, bounds, children, className, styles, onCenterChanged, onZoomChanged, onClick }) => {
     const ref = useRef<HTMLDivElement>(null);
     const [map, setMap] = useState<google.maps.Map>();
 
@@ -25,7 +26,7 @@ const MapComponent: React.FC<GoogleMapProps> = ({ center, zoom, bounds, children
             const mapInstance = new g.maps.Map(ref.current, {
                 center,
                 zoom,
-                styles: [
+                styles: styles || [
                     {
                         "featureType": "all",
                         "elementType": "labels.text.fill",
@@ -54,6 +55,13 @@ const MapComponent: React.FC<GoogleMapProps> = ({ center, zoom, bounds, children
             setMap(mapInstance);
         }
     }, [ref, map]);
+
+    // Update styles when prop changes
+    useEffect(() => {
+        if (map && styles) {
+            map.setOptions({ styles });
+        }
+    }, [map, styles]);
 
     // Use bounds to fit the map if provided
     useEffect(() => {

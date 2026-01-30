@@ -4,7 +4,7 @@ import { Search, Lock, Unlock, Plus, ChevronLeft as ChevronLeftIcon, Trash2 } fr
 interface ListOptionsProps {
     step: any;
     stepIdx: number;
-    cargoCount: number;
+    stopCount: number;
     onSearch: (val: string) => void;
     onAdd: () => void;
     onToggleSearch: () => void;
@@ -15,7 +15,7 @@ interface ListOptionsProps {
 const ListOptions = ({
     step,
     stepIdx,
-    cargoCount,
+    stopCount,
     onSearch,
     onAdd,
     onToggleSearch,
@@ -31,7 +31,7 @@ const ListOptions = ({
                     <input
                         type="text"
                         autoFocus
-                        placeholder="Search cargo..."
+                        placeholder="Search stops..."
                         className="bg-transparent border-none outline-none text-[11px] w-full text-gray-700 font-medium min-w-0"
                         value={step.searchQuery}
                         onChange={(e) => onSearch(e.target.value)}
@@ -56,7 +56,7 @@ const ListOptions = ({
 
         {/* Right Section: Perpetual Icons */}
         <div className="flex items-center gap-2 shrink-0">
-            {cargoCount === 0 ? (
+            {stopCount === 0 ? (
                 <button
                     onClick={onDelete}
                     className="p-2.5 bg-white text-rose-500 rounded-xl border border-gray-100 hover:bg-rose-50 hover:border-rose-100 transition-all shadow-sm"
@@ -79,7 +79,7 @@ const ListOptions = ({
             <button
                 onClick={onAdd}
                 className="flex items-center justify-center p-2.5 bg-[#dbeafe] text-[#2563eb] rounded-2xl font-bold hover:bg-[#bfdbfe] transition-colors shadow-sm"
-                title="Add Cargo"
+                title="Add Stop"
             >
                 <Plus size={18} />
             </button>

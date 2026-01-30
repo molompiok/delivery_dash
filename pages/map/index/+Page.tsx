@@ -138,6 +138,7 @@ export default function Page() {
     }, [vehicleDetailId]);
 
     // URL params handling - only on mount or when params actually change
+    // URL params handling - only on mount or when params change
     useEffect(() => {
         if (zoneIdParam) {
             setZoneDetailId(zoneIdParam as string);
@@ -147,20 +148,32 @@ export default function Page() {
             setDriverDetailId(driverIdParam as string);
             setActiveTab('DRIVERS');
             setIsFollowing(true);
-            setIsFollowing(true);
         } else if (vehicleIdParam) {
             setVehicleDetailId(vehicleIdParam as string);
             setActiveTab('VEHICLES');
             setIsFollowing(true);
+        }
 
-            // Try to find if this vehicle has an active position to track
-            const positionWithVehicle = positions.find(p => p.vehicleId === vehicleIdParam);
-            if (positionWithVehicle) {
-                setActiveDriver(positionWithVehicle.driverId);
+        // Clean up URL parameters after processing
+        if (zoneIdParam || driverIdParam || vehicleIdParam) {
+            const url = new URL(window.location.href);
+            url.searchParams.delete('zone_id');
+            url.searchParams.delete('driver_id');
+            url.searchParams.delete('vehicle_id');
+            window.history.replaceState({}, '', url.pathname + url.search);
+        }
+    }, [zoneIdParam, driverIdParam, vehicleIdParam]);
+
+    // Separate effect for "Initial positioning" once positions are loaded after deep link
+    useEffect(() => {
+        if (vehicleDetailId && positions.length > 0 && !activeDriver) {
+            const pos = positions.find(p => p.vehicleId === vehicleDetailId);
+            if (pos) {
+                setActiveDriver(pos.driverId);
                 setIsFollowing(true);
             }
         }
-    }, [zoneIdParam, driverIdParam, vehicleIdParam]); // Removed positions from dependencies to avoid constant reset
+    }, [positions, vehicleDetailId]);
 
 
     const handleZoneEdit = (data: any) => {
@@ -663,12 +676,21 @@ export default function Page() {
                                             setIsFollowing(true);
                                         }}
                                     />
-                                ) : (
-                                    <VehicleDetail
-                                        vehicle={vehicles.find(v => v.id === vehicleDetailId)!}
-                                        onBack={() => setVehicleDetailId(null)}
-                                    />
-                                )
+                                ) : (() => {
+                                    const vhc = vehicles.find(v => v.id === vehicleDetailId);
+                                    if (!vhc) return (
+                                        <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-gray-50 rounded-2xl border border-dashed border-gray-200">
+                                            <div className="w-12 h-12 rounded-full border-4 border-indigo-600 border-t-transparent animate-spin mb-4" />
+                                            <p className="text-xs text-gray-500 font-bold uppercase tracking-widest">Chargement...</p>
+                                        </div>
+                                    );
+                                    return (
+                                        <VehicleDetail
+                                            vehicle={vhc}
+                                            onBack={() => setVehicleDetailId(null)}
+                                        />
+                                    );
+                                })()
                             )}
 
                             {activeTab === 'ORDERS' && (

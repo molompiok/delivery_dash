@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
     ChevronLeft,
     Plus,
@@ -17,24 +18,43 @@ import {
     Zap,
     Leaf,
     ShoppingBag,
-    X
+    X,
+    FileText,
+    User,
+    MapPin,
+    AlertTriangle
 } from 'lucide-react';
 import { arrayMove } from '@dnd-kit/sortable';
-import CargoCard from './components/CargoCard';
 import ListOptions from './components/ListOptions';
-import CargoListWrapper from './components/CargoListWrapper';
+import StopListWrapper from './components/StopListWrapper';
 import { GoogleMap, Marker, Polyline } from '../../../components/GoogleMap';
 import { useHeader } from '../../../context/HeaderContext';
 import { ConfirmModal } from '../../../components/ConfirmModal';
+import StopDetailPanel from './components/StopDetailPanel';
 
-const INITIAL_CARGO_LIST = [
+const INITIAL_STOP_LIST = [
     {
         id: '#43543534',
         type: 'Delivery',
         typeColor: 'bg-emerald-50 text-emerald-600',
-        stops: [
-            { date: '06.05.2023', time: '8:00 AM', location: 'Anytown, NY 12345', address: '123 Main St' },
-            { date: '12.05.2023', time: '12:00 AM', location: 'Springfield, IL 67890', address: '456 Elm Ave' }
+        address: {
+            id: 'addr_1',
+            name: 'Ava Corporate HQ',
+            street: '123 Main St',
+            city: 'New York',
+            country: 'USA',
+            call: '1234',
+            room: '402',
+            stage: '4'
+        },
+        opening: {
+            start: '08:00 AM',
+            end: '10:00 AM'
+        },
+        estimatedTime: '08:00 AM',
+        actions: [
+            { id: 1, productName: 'iPhone 15 Pro', quantity: 5, type: 'delivery', requirements: ['fragile'], status: 'Pending', secure: 'photo' },
+            { id: 2, productName: 'MacBook Air', quantity: 2, type: 'delivery', requirements: ['fragile', 'sec'], status: 'In progress', secure: 'scan' }
         ],
         client: { name: 'Ava Thompson', avatar: 'https://i.pravatar.cc/150?u=ava' }
     },
@@ -42,35 +62,67 @@ const INITIAL_CARGO_LIST = [
         id: '#65456456',
         type: 'Pick-Up',
         typeColor: 'bg-orange-50 text-orange-600',
-        stops: [
-            { date: '08.05.2023', time: '10:00 AM', location: 'Pleasantville, NY 12345', address: '789 Oak Dr' },
-            { date: '10.05.2023', time: '18:00 AM', location: 'Greenville, NY 12345', address: '987 Maple Rd' }
+        address: {
+            id: 'addr_2',
+            name: 'North Warehouse',
+            street: '456 Elm Ave',
+            city: 'Springfield',
+            country: 'USA'
+        },
+        opening: {
+            start: '10:00 AM',
+            end: '12:00 PM'
+        },
+        estimatedTime: '10:30 AM',
+        actions: [
+            { id: 1, productName: 'Lait Frais', quantity: 24, type: 'pickup', requirements: ['froid'], status: 'Pending', secure: 'none' },
+            { id: 2, productName: 'Yaourts Bio', quantity: 48, type: 'pickup', requirements: ['froid'], status: 'Pending', secure: 'scan' }
         ],
         client: { name: 'Lucas Nelson', avatar: 'https://i.pravatar.cc/150?u=lucas' }
-    },
-    {
-        id: '#45465464',
-        type: 'Transfer',
-        typeColor: 'bg-rose-50 text-rose-600',
-        stops: [
-            { date: '10.05.2023', time: '18:00 AM', location: 'Lakeside, IL 67890', address: '456 Tanager Drive' },
-            { date: '12.05.2023', time: '15:00 AM', location: 'Mountain View, IL 67890', address: '321 Maple Lane' }
-        ],
-        client: { name: 'Alex Rivera', avatar: 'https://i.pravatar.cc/150?u=alex' }
     }
 ];
 
 export default function Page() {
     const [searchQuery, setSearchQuery] = useState('');
     const [steps, setSteps] = useState([
-        { name: 'Step 1', cargoes: INITIAL_CARGO_LIST, searchQuery: '', isSearchExpanded: false, isLinked: false },
-        { name: 'Step 2', cargoes: [], searchQuery: '', isSearchExpanded: false, isLinked: false }
+        { name: 'Step 1', stops: INITIAL_STOP_LIST, searchQuery: '', isSearchExpanded: false, isLinked: false },
+        { name: 'Step 2', stops: [], searchQuery: '', isSearchExpanded: false, isLinked: false }
     ]);
     const [activeStep, setActiveStep] = useState(0);
+    const [direction, setDirection] = useState(0); // 1 for forward, -1 for backward
     const [isSidebarFullscreen, setIsSidebarFullscreen] = useState(false);
+    const [activeRouteTab, setActiveRouteTab] = useState<'details' | 'history'>('details');
     const { setHeaderContent, clearHeaderContent } = useHeader();
     const listRefs = useRef<{ [key: number]: HTMLDivElement | null }>({});
     const kanbanRef = useRef<HTMLDivElement | null>(null);
+
+    // Stop Detail Panel State
+    const [selectedStop, setSelectedStop] = useState<any>(null);
+    const [isStopDetailOpen, setIsStopDetailOpen] = useState(false);
+    const [selectedStopMeta, setSelectedStopMeta] = useState<{ stepIdx: number; stopIdx: number } | null>(null);
+
+    const handleOpenStopDetail = (stepIdx: number, stopIdx: number) => {
+        setSelectedStop(steps[stepIdx].stops[stopIdx]);
+        setSelectedStopMeta({ stepIdx, stopIdx });
+        setIsStopDetailOpen(true);
+    };
+
+    const handleUpdateStop = (updatedStop: any) => {
+        if (!selectedStopMeta) return;
+        const { stepIdx, stopIdx } = selectedStopMeta;
+
+        setSteps(prev => prev.map((s, sIdx) =>
+            sIdx === stepIdx
+                ? {
+                    ...s,
+                    stops: s.stops.map((stop, stIdx) =>
+                        stIdx === stopIdx ? updatedStop : stop
+                    )
+                }
+                : s
+        ));
+        setSelectedStop(updatedStop);
+    };
 
     // Alert Modal State
     const [alertConfig, setAlertConfig] = useState<{
@@ -89,7 +141,8 @@ export default function Page() {
 
     const handleAddStep = () => {
         const newStepIndex = steps.length;
-        setSteps(prev => [...prev, { name: `Step ${newStepIndex + 1}`, cargoes: [], searchQuery: '', isSearchExpanded: false, isLinked: false }]);
+        setDirection(1);
+        setSteps(prev => [...prev, { name: `Step ${newStepIndex + 1}`, stops: [], searchQuery: '', isSearchExpanded: false, isLinked: false }]);
         setActiveStep(newStepIndex);
 
         if (isSidebarFullscreen) {
@@ -116,7 +169,7 @@ export default function Page() {
         }, 100);
     };
 
-    const handleAddCargo = (stepIdx: number) => {
+    const handleAddStop = (stepIdx: number) => {
         const randomTypes = [
             { type: 'Delivery', color: 'bg-emerald-50 text-emerald-600' },
             { type: 'Pick-Up', color: 'bg-blue-50 text-blue-600' },
@@ -125,20 +178,32 @@ export default function Page() {
         const randomType = randomTypes[Math.floor(Math.random() * randomTypes.length)];
         const randomNames = ['Alex Rivera', 'Sarah Chen', 'Marc Dupont', 'Julie Martin'];
         const randomName = randomNames[Math.floor(Math.random() * randomNames.length)];
-
+        const randomAddresses = ['123 Main St, New York', '456 Elm Ave, Springfield', '789 Oak Dr, Pleasantville', '987 Maple Rd, Greenville'];
+        const randomAddress = randomAddresses[Math.floor(Math.random() * randomAddresses.length)];
+        //@ts-ignore
         setSteps(prev => prev.map((s, idx) =>
             idx === stepIdx
                 ? {
                     ...s,
-                    cargoes: [
-                        ...s.cargoes,
+                    stops: [
+                        ...s.stops,
                         {
                             id: `#${Math.floor(Math.random() * 10000000)}`,
                             type: randomType.type,
                             typeColor: randomType.color,
-                            stops: [
-                                { date: new Date().toLocaleDateString('fr-FR'), time: '10:00 AM', location: 'Point de départ', address: 'Adresse à définir' },
-                                { date: new Date().toLocaleDateString('fr-FR'), time: '02:30 PM', location: 'Destination', address: 'Adresse à définir' }
+                            address: {
+                                id: `addr_${Math.random()}`,
+                                name: randomName + "'s Warehouse",
+                                street: randomAddress,
+                                city: 'Unknown',
+                                country: 'USA'
+                            },
+                            opening: {
+                                start: '08:00 AM',
+                                end: '05:00 PM'
+                            },
+                            actions: [
+                                { id: Date.now(), productName: 'Nouveau Produit', quantity: 1, type: randomType.type === 'Pick-Up' ? 'pickup' : 'delivery', requirements: ['sec'], status: 'Pending', secure: 'none' }
                             ],
                             client: { name: randomName, avatar: `https://i.pravatar.cc/150?u=${randomName.replace(' ', '')}` }
                         }
@@ -173,30 +238,32 @@ export default function Page() {
             return;
         }
 
-        if (steps[stepIdx].cargoes.length > 0) {
-            showAlert("Étape non vide", "Veuillez d'abord supprimer tous les articles de cette étape avant de la supprimer.");
+        if (steps[stepIdx].stops.length > 0) {
+            showAlert("Étape non vide", "Veuillez d'abord supprimer tous les arrêts de cette étape avant de la supprimer.");
             return;
         }
 
         const newSteps = steps.filter((_, idx) => idx !== stepIdx);
         setSteps(newSteps);
 
-        // Adjust activeStep
+        // Adjust activeStep and set direction
         if (activeStep >= newSteps.length) {
+            setDirection(-1);
             setActiveStep(Math.max(0, newSteps.length - 1));
         } else if (activeStep === stepIdx && stepIdx > 0) {
+            setDirection(-1);
             setActiveStep(stepIdx - 1);
         }
     };
 
-    const handleReorderCargo = (stepIdx: number, activeId: string, overId: string) => {
+    const handleReorderStop = (stepIdx: number, activeId: string, overId: string) => {
         setSteps(prev => prev.map((s, idx) => {
             if (idx !== stepIdx) return s;
-            const oldIndex = s.cargoes.findIndex(c => c.id === activeId);
-            const newIndex = s.cargoes.findIndex(c => c.id === overId);
+            const oldIndex = s.stops.findIndex(c => c.id === activeId);
+            const newIndex = s.stops.findIndex(c => c.id === overId);
             return {
                 ...s,
-                cargoes: arrayMove(s.cargoes, oldIndex, newIndex)
+                stops: arrayMove(s.stops, oldIndex, newIndex)
             };
         }));
     };
@@ -205,10 +272,10 @@ export default function Page() {
         setSteps(prev => prev.map((s, idx) => {
             if (idx !== stepIdx) return s;
             const newIndex = direction === 'up' ? itemIdx - 1 : itemIdx + 1;
-            if (newIndex < 0 || newIndex >= s.cargoes.length) return s;
+            if (newIndex < 0 || newIndex >= s.stops.length) return s;
             return {
                 ...s,
-                cargoes: arrayMove(s.cargoes, itemIdx, newIndex)
+                stops: arrayMove(s.stops, itemIdx, newIndex)
             };
         }));
     };
@@ -245,6 +312,17 @@ export default function Page() {
         { id: 6, location: 'Mountain View, IL 67890', address: '321 Maple Lane' },
     ];
 
+    const historyStatus = [
+        { date: '28.01.2026', time: '08:00 AM', status: 'Created', description: 'Order initiated by system.', icon: CheckCircle2, iconColor: 'text-emerald-500', bgColor: 'bg-emerald-50' },
+        { date: '28.01.2026', time: '09:30 AM', status: 'Submited', description: 'Order details verified and submitted.', icon: FileText, iconColor: 'text-blue-500', bgColor: 'bg-blue-50' },
+        { date: '28.01.2026', time: '10:45 AM', status: 'Assigned', description: 'Assigned to Driver Artem Bezrukov.', icon: User, iconColor: 'text-purple-500', bgColor: 'bg-purple-50' },
+        { date: '28.01.2026', time: '11:15 AM', status: 'Accepted', description: 'Driver accepted the shipment.', icon: Truck, iconColor: 'text-orange-500', bgColor: 'bg-orange-50' },
+        { date: '29.01.2026', time: '07:30 AM', status: 'Arrived at', description: 'Anytown, NY 12345', icon: MapPin, iconColor: 'text-blue-600', bgColor: 'bg-blue-50' },
+        { date: '29.01.2026', time: '08:15 AM', status: 'Pickup confirmed', description: 'Loading started for items #43543534.', icon: CheckCircle2, iconColor: 'text-emerald-600', bgColor: 'bg-emerald-50' },
+        { date: '29.01.2026', time: '10:00 AM', status: 'Arrived at', description: 'Load #65456456 (Springfield, IL)', icon: MapPin, iconColor: 'text-blue-600', bgColor: 'bg-blue-50' },
+        { date: '29.01.2026', time: '11:30 AM', status: 'Pickup partial', description: 'Exception on load #65456456 (Load D not picked up).', icon: AlertTriangle, iconColor: 'text-rose-500', bgColor: 'bg-rose-50' },
+    ];
+
     const mapPath = [
         { lat: 40.7128, lng: -74.0060 },
         { lat: 41.1265, lng: -73.7140 },
@@ -258,7 +336,7 @@ export default function Page() {
         <div className="flex flex-col h-full bg-[#f4f7fa] overflow-hidden font-sans">
 
             <main className="flex flex-1 overflow-hidden">
-                {/* Left Sidebar: Cargo List */}
+                {/* Left Sidebar: Stop List */}
                 <aside
                     className={`flex flex-col bg-[#f4f7fa] border-r border-gray-100 px-4 pt-4 pb-2 h-full overflow-hidden transition-all duration-500 ease-in-out relative ${isSidebarFullscreen ? 'w-full' : 'w-[380px]'
                         }`}
@@ -292,7 +370,10 @@ export default function Page() {
                                 {steps.map((step, idx) => (
                                     <button
                                         key={idx}
-                                        onClick={() => setActiveStep(idx)}
+                                        onClick={() => {
+                                            setDirection(idx > activeStep ? 1 : -1);
+                                            setActiveStep(idx);
+                                        }}
                                         className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 group/tab ${activeStep === idx
                                             ? 'bg-blue-600 text-white shadow-lg shadow-blue-200'
                                             : 'bg-white/80 text-gray-400 border border-gray-100 hover:border-blue-200 hover:text-blue-500'
@@ -330,22 +411,22 @@ export default function Page() {
                     )}
                     <div
                         ref={kanbanRef}
-                        className={`flex-1 overflow-hidden ${isSidebarFullscreen ? 'flex flex-row gap-4 overflow-x-auto pb-4 scrollbar-hide px-4 lg:pr-60' : 'flex flex-col'}`}
+                        className={`flex-1 overflow-hidden ${isSidebarFullscreen ? 'flex flex-row gap-2 overflow-x-auto pb-4 scrollbar-hide px-4 lg:pr-60' : 'flex flex-col'}`}
                     >
                         {isSidebarFullscreen ? (
                             steps.map((step, stepIdx) => (
-                                <div key={stepIdx} className="w-[340px] shrink-0 flex flex-col h-full rounded-[32px] bg-white/20 p-1 border border-white/10 hover:bg-white/30 transition-colors">
+                                <div key={stepIdx} className="w-[340px] shrink-0 flex flex-col h-full rounded-[32px] bg-white/40 p-1 border border-white/10 hover:bg-white/30 transition-colors">
                                     <div className="flex items-center justify-between p-4 flex-shrink-0">
                                         <h3 className="text-[11px] font-black text-gray-900 uppercase tracking-widest">{step.name}</h3>
-                                        <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">{step.cargoes.length} items</span>
+                                        <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">{step.stops.length} stops</span>
                                     </div>
 
                                     <ListOptions
                                         step={step}
                                         stepIdx={stepIdx}
-                                        cargoCount={step.cargoes.length}
+                                        stopCount={step.stops.length}
                                         onSearch={(val) => handleSearch(stepIdx, val)}
-                                        onAdd={() => handleAddCargo(stepIdx)}
+                                        onAdd={() => handleAddStop(stepIdx)}
                                         onToggleSearch={() => handleToggleSearch(stepIdx)}
                                         onToggleLink={() => handleToggleLink(stepIdx)}
                                         onDelete={() => handleDeleteStep(stepIdx)}
@@ -355,59 +436,96 @@ export default function Page() {
                                         ref={el => { listRefs.current[stepIdx] = el; }}
                                         className="flex-1 overflow-y-auto scrollbar-hide p-3 pb-32"
                                     >
-                                        <CargoListWrapper
-                                            cargoes={step.cargoes}
+                                        <StopListWrapper
+                                            stops={step.stops}
                                             isLinked={step.isLinked}
-                                            onReorder={(activeId, overId) => handleReorderCargo(stepIdx, activeId, overId)}
+                                            onReorder={(activeId, overId) => handleReorderStop(stepIdx, activeId, overId)}
                                             onMoveItem={(idx, dir) => handleMoveItem(stepIdx, idx, dir)}
+                                            onOpenDetail={(stop) => {
+                                                const stopIdx = step.stops.findIndex(s => s.id === stop.id);
+                                                handleOpenStopDetail(stepIdx, stopIdx);
+                                            }}
                                         >
-                                            {step.cargoes.length === 0 && (
+                                            {step.stops.length === 0 && (
                                                 <div
-                                                    onClick={() => handleAddCargo(stepIdx)}
+                                                    onClick={() => handleAddStop(stepIdx)}
                                                     className="flex flex-col items-center justify-center py-12 border-2 border-dashed border-gray-200 rounded-[28px] text-gray-400 m-2 cursor-pointer hover:border-blue-300 hover:bg-blue-50/30 transition-all group"
                                                 >
                                                     <Plus size={24} className="text-gray-300 group-hover:text-blue-400 transition-colors mb-2" />
-                                                    <div className="text-[10px] font-black uppercase tracking-widest">Ajouter un passage</div>
+                                                    <div className="text-[10px] font-black uppercase tracking-widest">Add Stop</div>
                                                 </div>
                                             )}
-                                        </CargoListWrapper>
+                                        </StopListWrapper>
                                     </div>
                                 </div>
                             ))
                         ) : (
-                            <>
-                                <ListOptions
-                                    step={steps[activeStep]}
-                                    stepIdx={activeStep}
-                                    cargoCount={steps[activeStep].cargoes.length}
-                                    onSearch={(val) => handleSearch(activeStep, val)}
-                                    onAdd={() => handleAddCargo(activeStep)}
-                                    onToggleSearch={() => handleToggleSearch(activeStep)}
-                                    onToggleLink={() => handleToggleLink(activeStep)}
-                                    onDelete={() => handleDeleteStep(activeStep)}
-                                />
-                                <div
-                                    ref={el => { listRefs.current[activeStep] = el; }}
-                                    className="flex-1 overflow-y-auto scrollbar-hide pb-24 px-1"
-                                >
-                                    <CargoListWrapper
-                                        cargoes={steps[activeStep].cargoes}
-                                        isLinked={steps[activeStep].isLinked}
-                                        onReorder={(activeId, overId) => handleReorderCargo(activeStep, activeId, overId)}
-                                        onMoveItem={(idx, dir) => handleMoveItem(activeStep, idx, dir)}
+                            <div className="flex-1 flex flex-col relative overflow-hidden">
+                                <AnimatePresence initial={false} custom={direction}>
+                                    <motion.div
+                                        key={activeStep}
+                                        custom={direction}
+                                        variants={{
+                                            enter: (direction: number) => ({
+                                                x: direction > 0 ? '100%' : '-100%',
+                                                opacity: 0
+                                            }),
+                                            center: {
+                                                x: 0,
+                                                opacity: 1
+                                            },
+                                            exit: (direction: number) => ({
+                                                x: direction < 0 ? '100%' : '-100%',
+                                                opacity: 0
+                                            })
+                                        }}
+                                        initial="enter"
+                                        animate="center"
+                                        exit="exit"
+                                        transition={{
+                                            x: { type: "spring", stiffness: 300, damping: 30 },
+                                            opacity: { duration: 0.2 }
+                                        }}
+                                        className="absolute inset-0 flex flex-col pt-1"
                                     >
-                                        {steps[activeStep].cargoes.length === 0 && (
-                                            <div
-                                                onClick={() => handleAddCargo(activeStep)}
-                                                className="flex flex-col items-center justify-center py-12 border-2 border-dashed border-gray-200 rounded-[28px] text-gray-400 cursor-pointer hover:border-blue-300 hover:bg-blue-50/30 transition-all group"
+                                        <ListOptions
+                                            step={steps[activeStep]}
+                                            stepIdx={activeStep}
+                                            stopCount={steps[activeStep].stops.length}
+                                            onSearch={(val) => handleSearch(activeStep, val)}
+                                            onAdd={() => handleAddStop(activeStep)}
+                                            onToggleSearch={() => handleToggleSearch(activeStep)}
+                                            onToggleLink={() => handleToggleLink(activeStep)}
+                                            onDelete={() => handleDeleteStep(activeStep)}
+                                        />
+                                        <div
+                                            ref={el => { listRefs.current[activeStep] = el; }}
+                                            className="flex-1 overflow-y-auto scrollbar-hide pb-24 px-1"
+                                        >
+                                            <StopListWrapper
+                                                stops={steps[activeStep].stops}
+                                                isLinked={steps[activeStep].isLinked}
+                                                onReorder={(activeId, overId) => handleReorderStop(activeStep, activeId, overId)}
+                                                onMoveItem={(idx, dir) => handleMoveItem(activeStep, idx, dir)}
+                                                onOpenDetail={(stop) => {
+                                                    const stopIdx = steps[activeStep].stops.findIndex(s => s.id === stop.id);
+                                                    handleOpenStopDetail(activeStep, stopIdx);
+                                                }}
                                             >
-                                                <Plus size={24} className="text-gray-300 group-hover:text-blue-400 transition-colors mb-2" />
-                                                <div className="text-[10px] font-black uppercase tracking-widest">Ajouter un passage</div>
-                                            </div>
-                                        )}
-                                    </CargoListWrapper>
-                                </div>
-                            </>
+                                                {steps[activeStep].stops.length === 0 && (
+                                                    <div
+                                                        onClick={() => handleAddStop(activeStep)}
+                                                        className="flex flex-col items-center justify-center py-12 border-2 border-dashed border-gray-200 rounded-[28px] text-gray-400 cursor-pointer hover:border-blue-300 hover:bg-blue-50/30 transition-all group"
+                                                    >
+                                                        <Plus size={24} className="text-gray-300 group-hover:text-blue-400 transition-colors mb-2" />
+                                                        <div className="text-[10px] font-black uppercase tracking-widest">Add Stop</div>
+                                                    </div>
+                                                )}
+                                            </StopListWrapper>
+                                        </div>
+                                    </motion.div>
+                                </AnimatePresence>
+                            </div>
                         )}
                     </div>
                 </aside>
@@ -446,26 +564,64 @@ export default function Page() {
                             </div>
                         </div>
 
-                        {/* Route Details */}
+                        {/* Route & History Tabs */}
                         <div className="w-[340px] shrink-0">
-                            <h2 className="text-[11px] font-black text-gray-400 uppercase tracking-widest mb-4">Route Details</h2>
-                            <div className="bg-[#f4f7fa]/50 rounded-[32px] p-4 border border-gray-50">
-                                <div className="space-y-6 relative">
-                                    {/* Route line */}
-                                    <div className="absolute left-[11px] top-[10px] bottom-[10px] w-0 border-l-2 border-dashed border-gray-300"></div>
+                            <div className="flex items-center gap-4 mb-4 border-b border-gray-100 pb-2">
+                                <button
+                                    onClick={() => setActiveRouteTab('details')}
+                                    className={`text-[11px] font-black uppercase tracking-widest pb-1 transition-all ${activeRouteTab === 'details' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
+                                >
+                                    Route Details
+                                </button>
+                                <button
+                                    onClick={() => setActiveRouteTab('history')}
+                                    className={`text-[11px] font-black uppercase tracking-widest pb-1 transition-all ${activeRouteTab === 'history' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
+                                >
+                                    History Status
+                                </button>
+                            </div>
 
-                                    {routeDetails.map((stop) => (
-                                        <div key={stop.id} className="flex gap-4 relative">
-                                            <div className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center text-[10px] font-black text-white z-10 shadow-sm">
-                                                {stop.id}
+                            <div className="bg-[#f4f7fa]/50 rounded-[32px] p-5 border border-gray-50 h-[380px] overflow-y-auto scrollbar-hide">
+                                {activeRouteTab === 'details' ? (
+                                    <div className="space-y-6 relative">
+                                        {/* Route line */}
+                                        <div className="absolute left-[11px] top-[10px] bottom-[10px] w-0 border-l-2 border-dashed border-gray-300"></div>
+
+                                        {routeDetails.map((stop) => (
+                                            <div key={stop.id} className="flex gap-4 relative">
+                                                <div className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center text-[10px] font-black text-white z-10 shadow-sm">
+                                                    {stop.id}
+                                                </div>
+                                                <div className="pt-0.5">
+                                                    <div className="text-xs font-bold text-gray-900 mb-0.5">{stop.location}</div>
+                                                    <div className="text-[10px] font-medium text-gray-400 uppercase">{stop.address}</div>
+                                                </div>
                                             </div>
-                                            <div className="pt-0.5">
-                                                <div className="text-xs font-bold text-gray-900 mb-0.5">{stop.location}</div>
-                                                <div className="text-[10px] font-medium text-gray-400 uppercase">{stop.address}</div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="space-y-6 relative">
+                                        {/* History Timeline line */}
+                                        <div className="absolute left-[11px] top-[10px] bottom-[10px] w-0 border-l-2 border-gray-200"></div>
+
+                                        {historyStatus.map((item, idx) => (
+                                            <div key={idx} className="flex gap-4 relative">
+                                                <div className={`flex-shrink-0 w-6 h-6 rounded-lg ${item.bgColor} flex items-center justify-center z-10 shadow-sm`}>
+                                                    <item.icon size={12} className={item.iconColor} />
+                                                </div>
+                                                <div className="pt-0.5 min-w-0">
+                                                    <div className="flex items-center gap-2 mb-0.5">
+                                                        <span className="text-xs font-black text-gray-900">{item.status}</span>
+                                                        <span className="text-[9px] font-bold text-gray-400 uppercase">{item.time}</span>
+                                                    </div>
+                                                    <div className="text-[10px] font-medium text-gray-500 leading-tight">
+                                                        {item.description}
+                                                    </div>
+                                                </div>
                                             </div>
-                                        </div>
-                                    ))}
-                                </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -495,7 +651,7 @@ export default function Page() {
                                         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-32 bg-blue-100 rounded-full blur-[80px] opacity-30"></div>
                                         <img
                                             src="https://images.unsplash.com/photo-1601584115197-04ecc0da31d7?auto=format&fit=crop&q=80&w=800"
-                                            alt="Cargo Truck"
+                                            alt="Delivery Truck"
                                             className="w-72 h-44 object-contain relative z-10 drop-shadow-2xl brightness-105"
                                         />
                                     </div>
@@ -523,7 +679,7 @@ export default function Page() {
                                                 <CheckCircle2 size={18} />
                                             </div>
                                             <div>
-                                                <div className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-0.5">Available Cargo</div>
+                                                <div className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-0.5">Available Load</div>
                                                 <div className="text-sm font-bold text-gray-900">6,791kg / 8,000kg</div>
                                             </div>
                                         </div>
@@ -600,7 +756,7 @@ export default function Page() {
 
                             <div className="flex-1 space-y-0.5">
                                 <div className="flex items-center justify-between text-[10px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-50 pb-2 px-2 mb-2">
-                                    <span>Cargo Type</span>
+                                    <span>Load Type</span>
                                     <span>Weight</span>
                                 </div>
 
@@ -650,6 +806,13 @@ export default function Page() {
                 description={alertConfig.description}
                 confirmLabel="OK"
                 showCancel={false}
+            />
+
+            <StopDetailPanel
+                isOpen={isStopDetailOpen}
+                onClose={() => setIsStopDetailOpen(false)}
+                stop={selectedStop}
+                onUpdate={handleUpdateStop}
             />
 
             <style>{`
