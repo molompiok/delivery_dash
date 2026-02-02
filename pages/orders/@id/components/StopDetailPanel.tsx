@@ -178,36 +178,22 @@ const SequentialDatePicker: React.FC<SequentialDatePickerProps> = ({ label, valu
 interface StopDetailPanelProps {
     isOpen: boolean;
     onClose: () => void;
+    onSave: () => void;  // Explicit save action (Done button)
     stop: any;
-    order?: any;
-    pathPrefix?: string;
     onUpdate: (updatedStop: any) => void;
     onDelete: () => void;
-    onRestore?: () => void;
 }
 
 const StopDetailPanel: React.FC<StopDetailPanelProps> = ({
     isOpen,
     onClose,
+    onSave,
     stop,
-    order,
     onUpdate,
-    onDelete,
-    onRestore,
-    pathPrefix
+    onDelete
 }) => {
     const [view, setView] = useState<'stop' | 'product' | 'validation-edit' | 'map'>('stop');
     const [direction, setDirection] = useState(0);
-    const [isConfirmingRestore, setIsConfirmingRestore] = useState(false);
-
-    const hasError = (fieldPath: string) => {
-        const fullPath = pathPrefix ? `${pathPrefix}.${fieldPath}` : fieldPath;
-        return order?.validationErrors?.some((e: any) => e.path === fullPath);
-    };
-
-    const getErrorClass = (path: string) => {
-        return hasError(path) ? 'bg-red-50 border-red-200 ring-red-100' : '';
-    };
 
     // Map State
     const [mapCenter, setMapCenter] = useState<google.maps.LatLngLiteral>({ lat: 48.8566, lng: 2.3522 }); // Default Paris
@@ -703,7 +689,6 @@ const StopDetailPanel: React.FC<StopDetailPanelProps> = ({
                                         value={product.productName || ''}
                                         placeholder={product.type === 'service' ? "Installation, Maintenance..." : "iPhone 15 Pro..."}
                                         onChange={(val) => handleProductChange(editingProductIdx, 'productName', val)}
-                                        hasError={hasError(`actions[${editingProductIdx}].productName`)}
                                     />
 
                                     {product.type === 'service' ? (
@@ -717,7 +702,6 @@ const StopDetailPanel: React.FC<StopDetailPanelProps> = ({
                                                     value={product.service_time || 10}
                                                     type="number"
                                                     onChange={(val) => handleProductChange(editingProductIdx, 'service_time', Number(val))}
-                                                    hasError={hasError(`actions[${editingProductIdx}].service_time`)}
                                                 />
                                             </div>
                                         </div>
@@ -728,7 +712,6 @@ const StopDetailPanel: React.FC<StopDetailPanelProps> = ({
                                                 value={product.quantity || 1}
                                                 type="number"
                                                 onChange={(val) => handleProductChange(editingProductIdx, 'quantity', Number(val))}
-                                                hasError={hasError(`actions[${editingProductIdx}].quantity`)}
                                             />
                                             <EditableField
                                                 label="Price ($)"
@@ -803,7 +786,7 @@ const StopDetailPanel: React.FC<StopDetailPanelProps> = ({
                                 {product.packagingType === 'fluid' ? (
                                     <div className="grid grid-cols-2 gap-4">
                                         <div className="flex flex-col gap-1.5">
-                                            <label className="text-[10px] uppercase tracking-widest px-1 text-gray-400 font-bold">Weight (kg)</label>
+                                            <label className="text-[10px] uppercase tracking-widest px-1 text-gray-400 font-bold">Weight (g)</label>
                                             <div className="flex items-center gap-3 p-3 bg-white rounded-2xl border border-gray-100 shadow-sm focus-within:border-emerald-200 transition-all">
                                                 <div className="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg">
                                                     <Weight size={14} />
@@ -811,8 +794,8 @@ const StopDetailPanel: React.FC<StopDetailPanelProps> = ({
                                                 <input
                                                     type="number"
                                                     className="flex-1 bg-transparent text-sm font-bold text-gray-900 outline-none"
-                                                    value={product.weight || 0}
-                                                    onChange={(e) => handleProductChange(editingProductIdx, 'weight', Number(e.target.value))}
+                                                    value={product.weight_g || 0}
+                                                    onChange={(e) => handleProductChange(editingProductIdx, 'weight_g', Number(e.target.value))}
                                                 />
                                             </div>
                                         </div>
@@ -853,7 +836,7 @@ const StopDetailPanel: React.FC<StopDetailPanelProps> = ({
                                             ))}
                                         </div>
                                         <div className="flex flex-col gap-1.5">
-                                            <label className="text-[10px] uppercase tracking-widest px-1 text-gray-400 font-bold">Weight (kg)</label>
+                                            <label className="text-[10px] uppercase tracking-widest px-1 text-gray-400 font-bold">Weight (g)</label>
                                             <div className="flex items-center gap-3 p-3 bg-white rounded-2xl border border-gray-100 shadow-sm focus-within:border-emerald-200 transition-all">
                                                 <div className="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg">
                                                     <Weight size={14} />
@@ -861,8 +844,8 @@ const StopDetailPanel: React.FC<StopDetailPanelProps> = ({
                                                 <input
                                                     type="number"
                                                     className="flex-1 bg-transparent text-sm font-bold text-gray-900 outline-none"
-                                                    value={product.weight || 0}
-                                                    onChange={(e) => handleProductChange(editingProductIdx, 'weight', Number(e.target.value))}
+                                                    value={product.weight_g || 0}
+                                                    onChange={(e) => handleProductChange(editingProductIdx, 'weight_g', Number(e.target.value))}
                                                 />
                                             </div>
                                         </div>
@@ -1173,15 +1156,6 @@ const StopDetailPanel: React.FC<StopDetailPanelProps> = ({
                     >
                         <Trash2 size={20} />
                     </button>
-                    {(stop.isPendingChange || (stop.actions && stop.actions.some((a: any) => a.isPendingChange))) && (
-                        <button
-                            onClick={() => setIsConfirmingRestore(true)}
-                            className="p-2 hover:bg-orange-50 text-orange-400 hover:text-orange-600 rounded-xl transition-colors"
-                            title="Restore stable version"
-                        >
-                            <RotateCcw size={20} />
-                        </button>
-                    )}
                     <div className="flex flex-col">
                         <span className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em] mb-0.5">
                             Stop Details
@@ -1486,7 +1460,7 @@ const StopDetailPanel: React.FC<StopDetailPanelProps> = ({
                                     service_time: 10,
                                     packagingType: 'box',
                                     dimensions: { width: 0, height: 0, depth: 0, volume: 0 },
-                                    weight: 0,
+                                    weight_g: 0,
                                     unitaryPrice: 0,
                                     type: stop.type === 'Pick-Up' ? 'pickup' : 'service',
                                     requirements: [],
@@ -1624,7 +1598,7 @@ const StopDetailPanel: React.FC<StopDetailPanelProps> = ({
                     Cancel
                 </button>
                 <button
-                    onClick={onClose}
+                    onClick={onSave}
                     className="flex-[2] px-6 py-3 text-[11px] font-black text-white bg-blue-600 hover:bg-blue-700 rounded-2xl uppercase tracking-widest shadow-lg shadow-blue-200 transition-all"
                 >
                     Done
@@ -1670,18 +1644,6 @@ const StopDetailPanel: React.FC<StopDetailPanelProps> = ({
                 description="Cette action est irréversible. Toutes les informations associées seront perdues."
                 confirmLabel="Supprimer"
                 confirmVariant="danger"
-            />
-            <ConfirmModal
-                isOpen={isConfirmingRestore}
-                onClose={() => setIsConfirmingRestore(false)}
-                onConfirm={() => {
-                    onRestore?.();
-                    setIsConfirmingRestore(false);
-                }}
-                title="Restaurer la version stable ?"
-                description="Toutes les modifications en attente pour cet arrêt seront annulées."
-                confirmLabel="Restaurer"
-                confirmVariant="primary"
             />
         </div>
     );

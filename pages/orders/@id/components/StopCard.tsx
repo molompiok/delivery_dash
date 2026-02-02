@@ -58,9 +58,6 @@ const StopCard = ({
     const visibleActions = isExpanded ? stop.actions : stop.actions.slice(0, 3);
     const hasMoreActions = stop.actions.length > 3;
 
-    const isModified = stop.isPendingChange || (stop.actions && stop.actions.some((a: any) => a.isPendingChange || (a.id && !String(a.id).startsWith('act_'))));
-    const isDeleted = stop.isDeleteRequired;
-
     return (
         <motion.div
             layout={!isAnyDragging}
@@ -76,8 +73,8 @@ const StopCard = ({
             style={style}
             key={stop.id}
             onClick={() => onOpenDetail?.(stop)}
-            className={`bg-white rounded-[16px] p-4 shadow-sm border flex flex-col transition-shadow cursor-default group relative ${isDragging ? 'opacity-50 shadow-2xl z-50 ring-2 ring-blue-500/20' : 'hover:shadow-md'
-                } ${isModified ? 'bg-orange-50/50 border-orange-100' : 'border-gray-50'} ${isDeleted ? 'border-red-200 bg-red-50/30 opacity-70' : ''}`}
+            className={`bg-white rounded-[16px] p-4 shadow-sm border border-gray-50 flex flex-col transition-shadow cursor-default group relative ${isDragging ? 'opacity-50 shadow-2xl z-50 ring-2 ring-blue-500/20' : 'hover:shadow-md'
+                }`}
         >
             <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -224,6 +221,7 @@ const StopCard = ({
                 )}
             </div>
 
+            {/* Client info - Only show if name or phone exists */}
             {(stop.client.name || stop.client.phone) && (
                 <div className="pt-4 border-t border-gray-50 flex items-center justify-between gap-2">
                     <div className="flex items-center gap-3 min-w-0">
