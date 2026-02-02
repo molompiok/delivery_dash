@@ -97,11 +97,11 @@ export const DriverDetail: React.FC<DriverDetailProps> = ({
                                     </div>
                                     <div className="flex items-center gap-2 mb-1">
                                         <div className="w-1.5 h-1.5 rounded-full bg-blue-400"></div>
-                                        <p className="text-[10px] text-gray-500 truncate">{order.pickupAddress}</p>
+                                        <p className="text-[10px] text-gray-500 truncate">{order.pickupAddress?.formattedAddress || order.pickupAddress}</p>
                                     </div>
                                     <div className="flex items-center gap-2">
                                         <div className="w-1.5 h-1.5 rounded-full bg-emerald-400"></div>
-                                        <p className="text-[10px] text-gray-500 truncate">{order.deliveryAddress}</p>
+                                        <p className="text-[10px] text-gray-500 truncate">{order.deliveryAddress?.formattedAddress || order.deliveryAddress}</p>
                                     </div>
                                 </div>
                             ))

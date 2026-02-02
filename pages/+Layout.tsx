@@ -79,9 +79,9 @@ function Topbar({ currentPath }: { currentPath: string }) {
     { href: '/drivers', icon: Users, label: 'Chauffeurs' },
     { href: '/orders', icon: ShoppingBag, label: 'Commandes' },
     { href: '/map', icon: MapIcon, label: 'Carte Live' },
-    { href: '/schedules', icon: Calendar, label: 'Horaires' },
-    { href: '/zones', icon: Navigation, label: 'Zones' },
-    { href: '/documents', icon: FileText, label: 'Documents' },
+    // { href: '/schedules', icon: Calendar, label: 'Horaires' },
+    // { href: '/zones', icon: Navigation, label: 'Zones' },
+    // { href: '/documents', icon: FileText, label: 'Documents' },
   ];
 
   return (

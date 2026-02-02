@@ -5,6 +5,7 @@ interface ListOptionsProps {
     step: any;
     stepIdx: number;
     stopCount: number;
+    totalSteps: number;
     onSearch: (val: string) => void;
     onAdd: () => void;
     onToggleSearch: () => void;
@@ -16,6 +17,7 @@ const ListOptions = ({
     step,
     stepIdx,
     stopCount,
+    totalSteps,
     onSearch,
     onAdd,
     onToggleSearch,
@@ -56,7 +58,7 @@ const ListOptions = ({
 
         {/* Right Section: Perpetual Icons */}
         <div className="flex items-center gap-2 shrink-0">
-            {stopCount === 0 ? (
+            {stopCount === 0 && totalSteps > 1 && (
                 <button
                     onClick={onDelete}
                     className="p-2.5 bg-white text-rose-500 rounded-xl border border-gray-100 hover:bg-rose-50 hover:border-rose-100 transition-all shadow-sm"
@@ -64,7 +66,8 @@ const ListOptions = ({
                 >
                     <Trash2 size={18} />
                 </button>
-            ) : (
+            )}
+            {stopCount !== 0 && (
                 <button
                     onClick={onToggleLink}
                     className={`p-2.5 rounded-xl border transition-all shadow-sm ${step.isLinked

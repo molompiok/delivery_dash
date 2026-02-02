@@ -11,6 +11,7 @@ interface EditableFieldProps {
     maxLength?: number;
     collapsible?: boolean;
     collapseLimit?: number;
+    hasError?: boolean;
 }
 
 const EditableField: React.FC<EditableFieldProps> = ({
@@ -22,10 +23,11 @@ const EditableField: React.FC<EditableFieldProps> = ({
     className = '',
     maxLength = 250,
     collapsible = false,
-    collapseLimit = 500
+    collapseLimit = 500,
+    hasError = false
 }) => {
     const [isEditing, setIsEditing] = useState(false);
-    const [tempValue, setTempValue] = useState(String(value));
+    const [tempValue, setTempValue] = useState(String(value || ''));
     const [isExpanded, setIsExpanded] = useState(false);
     const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
 
@@ -66,6 +68,8 @@ const EditableField: React.FC<EditableFieldProps> = ({
         ? displayValue.slice(0, collapseLimit) + '...'
         : (isGeneralOverLimit ? displayValue.slice(0, 40) + '...' : displayValue);
 
+    const effectiveIsEditing = isEditing || !value;
+
     return (
         <div className={`flex flex-col gap-1.5 ${className}`}>
             {label && (
@@ -74,13 +78,13 @@ const EditableField: React.FC<EditableFieldProps> = ({
                 </label>
             )}
             <div
-                className={`group relative min-h-[38px] flex items-center transition-all ${isEditing ? 'z-10' : ''}`}
+                className={`group relative min-h-[38px] flex items-center transition-all ${effectiveIsEditing ? 'z-10' : ''}`}
             >
-                {isEditing ? (
+                {effectiveIsEditing ? (
                     type === 'textarea' ? (
                         <textarea
                             ref={inputRef as any}
-                            className="w-full bg-white border-2 border-blue-500 rounded-xl p-2.5 text-sm font-bold text-gray-900 outline-none shadow-lg shadow-blue-500/10 min-h-[80px] resize-none"
+                            className={`w-full bg-white border rounded-xl p-2.5 text-sm font-bold text-gray-900 outline-none transition-all focus:border-blue-500 focus:shadow-lg focus:shadow-blue-500/10 min-h-[80px] resize-none ${hasError ? 'bg-red-50 border-red-200' : 'border-gray-100'}`}
                             value={tempValue}
                             onChange={(e) => setTempValue(e.target.value)}
                             onBlur={handleBlur}
@@ -92,7 +96,7 @@ const EditableField: React.FC<EditableFieldProps> = ({
                         <input
                             ref={inputRef as any}
                             type={type}
-                            className="w-full bg-white border-2 border-blue-500 rounded-xl px-3 py-2 text-sm font-bold text-gray-900 outline-none shadow-lg shadow-blue-500/10"
+                            className={`w-full bg-white border rounded-xl px-3 py-2 text-sm font-bold text-gray-900 outline-none transition-all focus:border-blue-500 focus:shadow-lg focus:shadow-blue-500/10 ${hasError ? 'bg-red-50 border-red-200' : 'border-gray-100'}`}
                             value={tempValue}
                             onChange={(e) => setTempValue(e.target.value)}
                             onBlur={handleBlur}
@@ -103,7 +107,7 @@ const EditableField: React.FC<EditableFieldProps> = ({
                     )
                 ) : (
                     <div
-                        className="w-full flex flex-col rounded-xl hover:bg-white hover:shadow-sm border border-transparent hover:border-gray-100 transition-all cursor-pointer group/field"
+                        className={`w-full flex flex-col rounded-xl hover:bg-white hover:shadow-sm border transition-all cursor-pointer group/field ${hasError ? 'bg-red-50 border-red-100' : 'border-transparent hover:border-gray-100'}`}
                         onClick={() => setIsEditing(true)}
                     >
                         <div className="flex items-center justify-between px-3 py-2">

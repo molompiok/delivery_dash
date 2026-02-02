@@ -17,7 +17,8 @@ import {
     QrCode,
     ShieldCheck,
     ChevronRight,
-    ChevronDown as ChevronDownIcon
+    ChevronDown as ChevronDownIcon,
+    Wrench
 } from 'lucide-react';
 
 interface StopCardProps {
@@ -57,6 +58,9 @@ const StopCard = ({
     const visibleActions = isExpanded ? stop.actions : stop.actions.slice(0, 3);
     const hasMoreActions = stop.actions.length > 3;
 
+    const isModified = stop.isPendingChange || (stop.actions && stop.actions.some((a: any) => a.isPendingChange || (a.id && !String(a.id).startsWith('act_'))));
+    const isDeleted = stop.isDeleteRequired;
+
     return (
         <motion.div
             layout={!isAnyDragging}
@@ -72,8 +76,8 @@ const StopCard = ({
             style={style}
             key={stop.id}
             onClick={() => onOpenDetail?.(stop)}
-            className={`bg-white rounded-[16px] p-4 shadow-sm border border-gray-50 flex flex-col transition-shadow cursor-default group relative ${isDragging ? 'opacity-50 shadow-2xl z-50 ring-2 ring-blue-500/20' : 'hover:shadow-md'
-                }`}
+            className={`bg-white rounded-[16px] p-4 shadow-sm border flex flex-col transition-shadow cursor-default group relative ${isDragging ? 'opacity-50 shadow-2xl z-50 ring-2 ring-blue-500/20' : 'hover:shadow-md'
+                } ${isModified ? 'bg-orange-50/50 border-orange-100' : 'border-gray-50'} ${isDeleted ? 'border-red-200 bg-red-50/30 opacity-70' : ''}`}
         >
             <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -146,9 +150,22 @@ const StopCard = ({
                                     <span className="text-xs font-bold text-gray-900 truncate">{action.productName}</span>
                                 </div>
                                 <div className="flex items-center gap-1">
-                                    <span className="text-[10px] font-black text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-md">x{action.quantity}</span>
-                                    <div className={`p-1 rounded-md ${action.type === 'pickup' ? 'bg-orange-50 text-orange-600' : 'bg-emerald-50 text-emerald-600'}`}>
-                                        {action.type === 'pickup' ? <ArrowUpRight size={14} /> : <ArrowDownLeft size={14} />}
+                                    {action.type === 'service' ? (
+                                        <span className="text-[10px] font-black text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-md">
+                                            {action.service_time || 10} min
+                                        </span>
+                                    ) : (
+                                        <span className="text-[10px] font-black text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-md">
+                                            x{action.quantity}
+                                        </span>
+                                    )}
+                                    <div className={`p-1 rounded-md ${action.type === 'pickup' ? 'bg-orange-50 text-orange-600' :
+                                        action.type === 'delivery' ? 'bg-emerald-50 text-emerald-600' :
+                                            'bg-blue-50 text-blue-600'
+                                        }`}>
+                                        {action.type === 'pickup' ? <ArrowUpRight size={14} /> :
+                                            action.type === 'delivery' ? <ArrowDownLeft size={14} /> :
+                                                <Wrench size={14} />}
                                     </div>
                                 </div>
                             </div>
@@ -207,31 +224,43 @@ const StopCard = ({
                 )}
             </div>
 
-            <div className="pt-4 border-t border-gray-50 flex items-center justify-between gap-2">
-                <div className="flex items-center gap-3 min-w-0">
-                    <img src={stop.client.avatar} alt={stop.client.name} className="w-8 h-8 rounded-full border border-gray-100 shrink-0" />
-                    <div className="min-w-0">
-                        <div className="text-[11px] font-bold text-gray-900 truncate">{stop.client.name}</div>
-                        <div className="flex items-center gap-2">
-                            <span className="text-[10px] font-medium text-gray-400 uppercase shrink-0">Client</span>
-                            {stop.estimatedTime && (
-                                <div className="flex items-center gap-1 px-1.5 py-0.5 bg-gray-50 text-gray-400 rounded-md shrink-0">
-                                    <Clock size={10} />
-                                    <span className="text-[9px] font-black">{stop.estimatedTime}</span>
-                                </div>
-                            )}
+            {(stop.client.name || stop.client.phone) && (
+                <div className="pt-4 border-t border-gray-50 flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-3 min-w-0">
+                        {stop.client.avatar ? (
+                            <img src={stop.client.avatar} alt={stop.client.name} className="w-8 h-8 rounded-full border border-gray-100 shrink-0" />
+                        ) : (
+                            <div className="w-8 h-8 rounded-full bg-blue-50 border border-blue-100 flex items-center justify-center shrink-0">
+                                <span className="text-[10px] font-black text-blue-600 uppercase">
+                                    {stop.client.name ? stop.client.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2) : '?'}
+                                </span>
+                            </div>
+                        )}
+                        <div className="min-w-0">
+                            <div className="text-[11px] font-bold text-gray-900 truncate">{stop.client.name || 'Sans Nom'}</div>
+                            <div className="flex items-center gap-2">
+                                <span className="text-[10px] font-medium text-gray-400 uppercase shrink-0">Client</span>
+                                {stop.estimatedTime && (
+                                    <div className="flex items-center gap-1 px-1.5 py-0.5 bg-gray-50 text-gray-400 rounded-md shrink-0">
+                                        <Clock size={10} />
+                                        <span className="text-[9px] font-black">{stop.estimatedTime}</span>
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
+                    {stop.client.phone && (
+                        <div className="flex gap-2 shrink-0">
+                            <button className="p-2 bg-gray-50 text-blue-600 rounded-full hover:bg-blue-50 transition-colors">
+                                <Phone size={14} />
+                            </button>
+                            <button className="p-2 bg-gray-50 text-blue-600 rounded-full hover:bg-blue-50 transition-colors">
+                                <MessageSquare size={14} />
+                            </button>
+                        </div>
+                    )}
                 </div>
-                <div className="flex gap-2 shrink-0">
-                    <button className="p-2 bg-gray-50 text-blue-600 rounded-full hover:bg-blue-50 transition-colors">
-                        <Phone size={14} />
-                    </button>
-                    <button className="p-2 bg-gray-50 text-blue-600 rounded-full hover:bg-blue-50 transition-colors">
-                        <MessageSquare size={14} />
-                    </button>
-                </div>
-            </div>
+            )}
         </motion.div>
     );
 };

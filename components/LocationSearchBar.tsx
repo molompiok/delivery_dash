@@ -15,9 +15,17 @@ interface LocationSearchBarProps {
     onLocationSelect: (location: { lat: number; lng: number, address: string }) => void;
     initialValue?: string;
     placeholder?: string;
+    wrapperClassName?: string;
+    inputClassName?: string;
 }
 
-const LocationSearchBar: React.FC<LocationSearchBarProps> = ({ onLocationSelect, initialValue = "", placeholder = "Rechercher un lieu..." }) => {
+const LocationSearchBar: React.FC<LocationSearchBarProps> = ({
+    onLocationSelect,
+    initialValue = "",
+    placeholder = "Rechercher un lieu...",
+    wrapperClassName = "bg-white rounded-[20px] shadow-lg border border-gray-200",
+    inputClassName = "text-gray-700 placeholder-gray-400"
+}) => {
     const [query, setQuery] = useState(initialValue);
 
     useEffect(() => {
@@ -96,14 +104,14 @@ const LocationSearchBar: React.FC<LocationSearchBarProps> = ({ onLocationSelect,
     };
 
     return (
-        <div className="relative w-full max-w-md z-[1000]">
-            <div className="relative flex items-center bg-white rounded-lg shadow-lg border border-gray-200">
+        <div className="relative w-full z-[1000]">
+            <div className={`relative flex items-center ${wrapperClassName}`}>
                 <div className="pl-3 text-gray-400">
                     <FaSearch />
                 </div>
                 <input
                     type="text"
-                    className="w-full px-3 py-3 rounded-lg focus:outline-none text-gray-700 placeholder-gray-400"
+                    className={`w-full px-3 py-2 rounded-lg focus:outline-none ${inputClassName}`}
                     placeholder={placeholder}
                     value={query}
                     onChange={(e) => handleSearch(e.target.value)}

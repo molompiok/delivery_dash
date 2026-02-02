@@ -1,5 +1,5 @@
 const getApiUrl = () => {
-    if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
+    if ((import.meta as any).env?.VITE_API_URL) return (import.meta as any).env.VITE_API_URL;
     if (typeof window !== 'undefined') {
         return `http://${window.location.hostname}:3333/v1`;
     }

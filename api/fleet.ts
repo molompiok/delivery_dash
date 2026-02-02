@@ -3,7 +3,7 @@ import { Vehicle } from './types';
 
 // Base URL for file access
 const getFileBaseUrl = () => {
-    if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL.replace('/v1', '');
+    if ((import.meta as any).env?.VITE_API_URL) return (import.meta as any).env.VITE_API_URL.replace('/v1', '');
     if (typeof window !== 'undefined') {
         return `http://${window.location.hostname}:3333`;
     }
