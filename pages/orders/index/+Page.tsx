@@ -31,6 +31,16 @@ export default function Page() {
     const [showFilters, setShowFilters] = useState(false);
     const { setHeaderContent, clearHeaderContent } = useHeader();
 
+    const handleNewOrder = async () => {
+        try {
+            const { order } = await ordersApi.initiate();
+            window.location.href = `/orders/${order.id}`;
+        } catch (err) {
+            console.error("Failed to initiate order:", err);
+            setError("Erreur lors de la création de la commande.");
+        }
+    };
+
     useEffect(() => {
         setHeaderContent(
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 w-full">
@@ -39,13 +49,13 @@ export default function Page() {
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Temps réel</p>
                 </div>
                 <div className="flex items-center gap-3">
-                    <a
-                        href="/orders/new"
+                    <button
+                        onClick={handleNewOrder}
                         className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest shadow-lg shadow-indigo-100 transition-all hover:scale-[1.02] active:scale-[0.98]"
                     >
                         <Plus size={16} />
                         <span>Nouvelle Mission</span>
-                    </a>
+                    </button>
                 </div>
             </div>
         );
