@@ -69,6 +69,7 @@ interface Stop {
     // Tracking fields for server sync
     isNew?: boolean; // Created locally, not yet saved
     isModified?: boolean; // Modified locally
+    isPending?: boolean; // Currently being created on server
 }
 
 interface PageStep {
@@ -104,65 +105,6 @@ export default function Page() {
     const [isStopDetailOpen, setIsStopDetailOpen] = useState(false);
     const [selectedStopMeta, setSelectedStopMeta] = useState<{ stepIdx: number; stopIdx: number } | null>(null);
 
-    // --- LOCALSTORAGE DRAFT SYSTEM (Single key per order) ---
-    // Structure: { stops: { [stopId]: stopData }, lastModified: ISO }
-    const ORDER_DRAFT_KEY = `order_draft_${id}`;
-
-    interface OrderDraft {
-        steps: any[];
-        stops: { [stopId: string]: any }; // Legacy
-        lastModified: string;
-    }
-
-    const getOrderDraft = (): OrderDraft | null => {
-        if (typeof window === 'undefined') return null;
-        try {
-            const raw = localStorage.getItem(ORDER_DRAFT_KEY);
-            if (raw) {
-                return JSON.parse(raw);
-            }
-        } catch (e) {
-            console.error("Failed to parse order draft", e);
-        }
-        return null;
-    };
-
-    const saveOrderDraft = (stepsData: any[]) => {
-        if (typeof window === 'undefined') return;
-        try {
-            const draft: OrderDraft = {
-                stops: {}, // Legacy support if needed, but we now save full steps
-                steps: stepsData,
-                lastModified: new Date().toISOString()
-            };
-            localStorage.setItem(ORDER_DRAFT_KEY, JSON.stringify(draft));
-        } catch (e) {
-            console.error("Failed to save order draft", e);
-        }
-    };
-
-    // Debounced Auto-Save
-    useEffect(() => {
-        if (steps.length === 0) return;
-
-        const hasModifications = steps.some(step =>
-            step.stops.some((stop: any) => stop.isModified || stop.isNew)
-        );
-
-        if (hasModifications) {
-            const timer = setTimeout(() => {
-                saveOrderDraft(steps);
-            }, 1000);
-            return () => clearTimeout(timer);
-        }
-    }, [steps]);
-
-
-    const clearAllDrafts = () => {
-        if (typeof window === 'undefined') return;
-        localStorage.removeItem(ORDER_DRAFT_KEY);
-    };
-
     const handleOpenStopDetail = (stepIdx: number, stopIdx: number, stopOverride?: any) => {
         const stop = stopOverride || steps[stepIdx].stops[stopIdx];
         if (!stop) return;
@@ -170,6 +112,12 @@ export default function Page() {
         setSelectedStop(stop);
         setSelectedStopMeta({ stepIdx, stopIdx });
         setIsStopDetailOpen(true);
+    };
+
+    const handleCloseStopDetail = () => {
+        setIsStopDetailOpen(false);
+        setSelectedStop(null);
+        setSelectedStopMeta(null);
     };
 
     // Fleet & Drivers for assignment
@@ -189,7 +137,7 @@ export default function Page() {
 
     const mapServerToLocalSteps = (serverSteps: ApiStep[]): PageStep[] => {
         if (!serverSteps || serverSteps.length === 0) {
-            return [{ id: undefined, name: 'Step 1', stops: [], searchQuery: '', isSearchExpanded: false, isLinked: false, isNew: true }];
+            return [];
         }
 
         return serverSteps.map((s, idx) => ({
@@ -200,7 +148,7 @@ export default function Page() {
             isSearchExpanded: false,
             stops: (s.stops || []).map(st => {
                 const addressExtra = st.metadata?.address_extra || {};
-                const clientData = st.metadata?.client || {};
+                const clientData = st.client || {};
                 const openingHours = clientData.opening_hours || {};
 
                 return {
@@ -220,9 +168,9 @@ export default function Page() {
                         country: st.address?.country || '',
                         lat: st.address?.lat,
                         lng: st.address?.lng,
-                        call: addressExtra.call || '',
-                        room: addressExtra.room || '',
-                        stage: addressExtra.stage || ''
+                        call: st.address?.call || '',
+                        room: st.address?.room || '',
+                        stage: st.address?.stage || ''
                     },
                     opening: {
                         start: openingHours.start || st.arrivalWindowStart || '08:00',
@@ -258,7 +206,7 @@ export default function Page() {
                         phone: clientData.phone || '',
                         email: clientData.email || '',
                         clientId: clientData.clientId,
-                        opening: openingHours
+                        opening_hours: openingHours
                     },
                     metadata: st.metadata
                 };
@@ -270,39 +218,11 @@ export default function Page() {
         if (showLoading) setIsLoading(true);
         try {
             const response = await ordersApi.get(id);
-            const serverOrder = response.entity || (response as any).order || response;
+            const serverOrder = (response as any).entity || (response as any).order || response;
 
-            // Fix: serverOrder.steps is the array we need to map
             const serverSteps = Array.isArray(serverOrder.steps) ? serverOrder.steps : [];
             const mappedSteps = mapServerToLocalSteps(serverSteps);
-
-            // Check for Local Draft Recovery
-            const draft = getOrderDraft();
-            if (draft && draft.steps && draft.lastModified) {
-                const serverUpdatedAt = serverOrder.updated_at || serverOrder.updatedAt;
-                const isDraftNewer = !serverUpdatedAt || new Date(draft.lastModified) > new Date(serverUpdatedAt);
-
-                if (isDraftNewer) {
-                    setAlertConfig({
-                        isOpen: true,
-                        title: "Récupération",
-                        description: "Vous avez des modifications non enregistrées pour cette commande. Voulez-vous les restaurer ?",
-                        onConfirm: () => {
-                            setSteps(draft.steps);
-                            setAlertConfig(prev => ({ ...prev, isOpen: false }));
-                        },
-                        onClose: () => {
-                            setSteps(mappedSteps);
-                            clearAllDrafts(); // Discard if user says no
-                        }
-                    });
-                } else {
-                    setSteps(mappedSteps);
-                }
-            } else {
-                setSteps(mappedSteps);
-            }
-
+            setSteps(mappedSteps);
             setOrder(serverOrder);
         } catch (error) {
             console.error("Failed to fetch order", error);
@@ -457,8 +377,9 @@ export default function Page() {
         if (!order || !id) return;
 
         try {
-            const result = await ordersApi.pushUpdates(id);
-            setOrder(result.order);
+            await ordersApi.pushUpdates(id);
+            // Important: Re-fetch the whole order to get back ORIGINAL IDs (shadows merged)
+            await fetchOrder(true);
             showAlert("Mise à jour envoyée", `Les modifications ont été envoyées au chauffeur.`);
         } catch (error: any) {
             console.error("Push updates failed", error);
@@ -467,152 +388,71 @@ export default function Page() {
         }
     };
 
-    // Save stop to server (called when closing panel or pressing Done)
-    const handleSaveStop = async () => {
-        if (!selectedStopMeta || !selectedStop) return;
-        const { stepIdx, stopIdx } = selectedStopMeta;
-        const step = steps[stepIdx];
-        if (!step) return;
-
-        const stop = selectedStop;
-        const stepId = step.id;
-
-        // If step doesn't have an ID yet, we need to save the step first
-        if (!stepId) {
-            console.log("Step not saved yet, cannot save stop");
-            return;
-        }
-
-        // Map local actions to API format (snake_case Pivot JSON)
-        // Local Verification: Strict ID Consistency
-        const actionsPayload = (stop.actions || []).map((action: any) => {
-            const ti_id = action._transitItemId || action.transitItemId;
-            if (ti_id && action.transitItemId && ti_id !== action.transitItemId) {
-                console.error("Local Inconsistency detected: ", ti_id, action.transitItemId);
-            }
-            return {
-                type: action.type?.toLowerCase() || 'service',
-                quantity: action.quantity || 1,
-                transit_item_id: action._transitItemId || action.transitItemId, // Priority if linking
-                transit_item: action.type !== 'service' ? {
-                    id: (action._transitItemId || action.transitItemId) || undefined, // Strict Match Ensure
-                    name: action.productName || 'Product',
-                    description: action.productDescription || '',
-                    product_url: action.productUrl || undefined,
-                    packaging_type: action.packagingType || 'box',
-                    weight_g: action.weight_g || 0, // Explicit grams
-                    unitary_price: action.unitaryPrice || 0,
-                    dimensions: action.dimensions ? {
-                        width_cm: action.dimensions.width,
-                        height_cm: action.dimensions.height,
-                        depth_cm: action.dimensions.depth,
-                        volume_l: action.dimensions.volume
-                    } : undefined,
-                    requirements: action.requirements || []
-                } : undefined,
-                service_time: (action.service_time || 10) * 60, // Convert minutes to seconds
-                confirmation_rules: {
-                    photo: (action.confirmation?.photo || []).map((p: any) => ({
-                        name: p.name || 'Photo',
-                        pickup: p.pickup ?? true,
-                        delivery: p.delivery ?? false,
-                        compare: p.compare ?? false,
-                        reference: p.reference || null
-                    })),
-                    code: (action.confirmation?.code || []).map((c: any) => ({
-                        name: c.name || 'Code',
-                        pickup: c.pickup ?? false,
-                        delivery: c.delivery ?? true,
-                        compare: c.compare ?? false,
-                        reference: c.reference || null
-                    }))
-                },
-                metadata: action.metadata || {}
-            };
-        });
-
-        // Build Standard Pivot JSON Payload
-        const stopPayload = {
-            address: {
-                address_id: stop.address?.addressId || undefined,
-                street: stop.address?.street || '',
-                city: stop.address?.city || '',
-                country: stop.address?.country || '',
-                lat: stop.address?.lat,
-                lng: stop.address?.lng,
-                call: stop.address?.call || '',
-                room: stop.address?.room || '',
-                stage: stop.address?.stage || ''
-            },
-            client: {
-                client_id: stop.client?.clientId || undefined,
-                name: stop.client?.name || '',
-                phone: stop.client?.phone || '',
-                email: stop.client?.email || '',
-                avatar: stop.client?.avatar || '',
-                opening_hours: {
-                    duration: stop.client?.opening?.duration || 0,
-                    start: stop.client?.opening?.start || null,
-                    end: stop.client?.opening?.end || null
+    const syncShadowId = (type: 'stop' | 'action', oldId: string, newId: string) => {
+        setSteps(prev => prev.map(step => ({
+            ...step,
+            stops: step.stops.map(stop => {
+                if (type === 'stop' && stop.id === oldId) {
+                    const updatedStop = { ...stop, id: newId };
+                    if (selectedStop?.id === oldId) setSelectedStop(updatedStop);
+                    return updatedStop;
                 }
-            },
-            sequence: stopIdx,
-            actions: actionsPayload,
-            metadata: {
-                ...(stop.metadata || {}),
-                type: stop.type || 'Service'
-            }
-        };
 
-        console.log("Saving stop with payload:", JSON.stringify(stopPayload, null, 2));
+                const updatedActions = stop.actions.map(action => {
+                    if (type === 'action' && action.id === oldId) {
+                        return { ...action, id: newId };
+                    }
+                    return action;
+                });
 
+                const actionsChanged = stop.actions.some((a, i) => a.id !== updatedActions[i].id);
+                if (actionsChanged) {
+                    const updatedStop = { ...stop, actions: updatedActions };
+                    if (selectedStop?.id === stop.id) setSelectedStop(updatedStop);
+                    return updatedStop;
+                }
+
+                return stop;
+            })
+        })));
+    };
+
+    // --- GRANULAR UPDATES (REAL-TIME SYNC) ---
+    const handleGranularUpdate = async (type: 'stop' | 'action', entityId: string, payload: any) => {
         try {
-            if (stop.isNew) {
-                // Create new stop - stepId is first argument, payload is second
-                const response = await ordersApi.addStop(stepId, stopPayload);
-                const savedStop = response?.entity || response?.stop;
-
-                if (!savedStop?.id) {
-                    console.error("API didn't return a valid stop:", response);
-                    showAlert("Erreur", "Le serveur n'a pas retourné un stop valide.");
-                    return false;
+            let result: any;
+            if (type === 'stop') {
+                result = await ordersApi.updateStop(entityId, payload);
+                const updatedStop = result.stop;
+                if (updatedStop && updatedStop.id !== entityId) {
+                    // ID changed! It's a shadow clone. Adopt new ID.
+                    syncShadowId('stop', entityId, updatedStop.id);
                 }
-
-                // Update local state with server ID and clear draft
-                setSteps(prev => prev.map((s, sIdx) =>
-                    sIdx === stepIdx
-                        ? {
-                            ...s,
-                            stops: s.stops.map((st, stIdx) =>
-                                stIdx === stopIdx
-                                    ? { ...st, id: savedStop.id, isNew: false, isModified: false }
-                                    : st
-                            )
-                        }
-                        : s
-                ));
-            } else if (stop.isModified && stop.id) {
-                // Update existing stop  
-                await ordersApi.updateStop(stop.id, stopPayload);
-
-                // Clear modified flag and localStorage draft
-                setSteps(prev => prev.map((s, sIdx) =>
-                    sIdx === stepIdx
-                        ? {
-                            ...s,
-                            stops: s.stops.map((st, stIdx) =>
-                                stIdx === stopIdx ? { ...st, isModified: false } : st
-                            )
-                        }
-                        : s
-                ));
+            } else {
+                result = await ordersApi.updateAction(entityId, payload);
+                const updatedAction = result.action;
+                if (updatedAction && updatedAction.id !== entityId) {
+                    syncShadowId('action', entityId, updatedAction.id);
+                }
             }
-            return true;
+            console.log(`[SYNC] ${type} ${entityId} updated successfully`);
         } catch (error: any) {
-            console.error("Failed to save stop", error);
-            showAlert("Erreur", error.response?.data?.message || "Impossible de sauvegarder l'arrêt.");
+            console.error(`[SYNC] Failed to update ${type}`, error);
+        }
+    };
+
+    const handleAddAction = async (stopId: string, payload: any) => {
+        try {
+            const result = await ordersApi.addAction(stopId, payload);
+            const action = result.action;
+
+            // Re-fetch or update local state to get the new action ID
             await fetchOrder(false);
-            return false;
+            return action;
+        } catch (error: any) {
+            console.error("Failed to add action", error);
+            showAlert("Erreur", "Impossible d'ajouter le produit/service.");
+            return null;
         }
     };
 
@@ -693,15 +533,16 @@ export default function Page() {
 
         try {
             // Call API to create step
-            const { step } = await ordersApi.addStep(id, {
+            const result = await ordersApi.addStep(id, {
                 sequence: newStepIndex,
                 linked: false
             });
+            const step = result.step || (result as any).entity;
 
             // Update step with server ID
             setSteps(prev => prev.map((s, idx) =>
                 idx === newStepIndex
-                    ? { ...s, id: step.id, isNew: false }
+                    ? { ...s, id: step?.id, isNew: false }
                     : s
             ));
         } catch (error: any) {
@@ -736,45 +577,88 @@ export default function Page() {
         }, 100);
     };
 
-    const handleAddStop = (stepIdx: number) => {
-        const defaultType = { type: 'Service', color: 'bg-blue-50 text-blue-600' };
+    const handleAddStop = async (stepIdx: number) => {
+        const step = steps[stepIdx];
+        if (!step?.id) {
+            showAlert("Erreur", "L'étape n'est pas encore enregistrée sur le serveur.");
+            return;
+        }
 
-        const newStop: Stop = {
-            id: `temp_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
-            type: defaultType.type,
-            typeColor: defaultType.color,
-            address: {
-                id: '',
-                name: '',
-                street: '',
-                city: '',
-                country: ''
-            },
-            opening: {
-                start: '08:00',
-                end: '18:00'
-            },
-            actions: [
-                { id: `action_${Date.now()}`, productName: 'Service', quantity: 1, type: 'service', service_time: 10, requirements: [], status: 'Pending', secure: 'none' }
-            ],
-            client: { name: '', avatar: '', phone: '' },
-            isNew: true // Flag for tracking unsaved stops
+        const nextStopIdx = step.stops.length;
+        const tempId = `pending_${Date.now()}`;
+
+        // Optimistically add a "pending" stop to the UI
+        const pendingStop: Stop = {
+            id: tempId,
+            type: 'Point',
+            typeColor: 'bg-gray-100',
+            address: { id: '', name: 'Nouveau point', street: '', city: '', country: '' },
+            opening: { start: '08:00', end: '18:00' },
+            actions: [],
+            client: { name: 'En cours...', avatar: '' },
+            isPending: true
         };
 
-        const nextStopIdx = steps[stepIdx].stops.length;
-
         setSteps(prev => prev.map((s, idx) =>
-            idx === stepIdx
-                ? {
-                    ...s,
-                    stops: [...s.stops, newStop]
-                }
-                : s
+            idx === stepIdx ? { ...s, stops: [...s.stops, pendingStop] } : s
         ));
 
-        // Auto-open stop detail
-        handleOpenStopDetail(stepIdx, nextStopIdx, newStop);
-        scrollToBottom(stepIdx);
+        const stopPayload = {
+            sequence: nextStopIdx,
+            address: { street: '', city: '', country: '' },
+            actions: []
+        };
+
+        try {
+            const result = await ordersApi.addStop(step.id, stopPayload);
+            const savedStop = result?.stop || result?.entity;
+
+            if (!savedStop) throw new Error("Server returned empty stop");
+
+            // Standardize the server stop to our local PageStop structure
+            const newLocalStop: Stop = {
+                id: savedStop.id,
+                type: (savedStop.actions && savedStop.actions.length > 0)
+                    ? (savedStop.actions[0].type === 'PICKUP' ? 'Collecte' : savedStop.actions[0].type === 'DELIVERY' ? 'Livraison' : 'Service')
+                    : 'Point',
+                typeColor: (savedStop.actions && savedStop.actions.length > 0)
+                    ? (savedStop.actions[0].type === 'PICKUP' ? 'bg-orange-50 text-orange-600' : savedStop.actions[0].type === 'DELIVERY' ? 'bg-emerald-50 text-emerald-600' : 'bg-blue-50 text-blue-600')
+                    : 'bg-gray-100 text-gray-400',
+                address: {
+                    id: savedStop.address?.id || '',
+                    name: savedStop.address?.label || 'Nouveau point',
+                    street: savedStop.address?.street || '',
+                    city: savedStop.address?.city || '',
+                    country: savedStop.address?.country || ''
+                },
+                opening: { start: '08:00', end: '18:00' },
+                actions: savedStop.actions || [],
+                client: { name: 'Client...', avatar: '' }
+            };
+
+            // Replace the pending stop with the real one
+            setSteps(prev => prev.map((s, idx) =>
+                idx === stepIdx
+                    ? { ...s, stops: s.stops.map(st => st.id === tempId ? newLocalStop : st) }
+                    : s
+            ));
+
+            // Open detail and scroll
+            const newStopIdx = steps[stepIdx].stops.length; // Approximate, but will be corrected by refresh
+            handleOpenStopDetail(stepIdx, newStopIdx, newLocalStop);
+            scrollToBottom(stepIdx);
+
+            // Refresh full order in background to get all calculated fields (ID, etc)
+            fetchOrder(false);
+
+        } catch (error: any) {
+            console.error("Failed to add stop immediately", error);
+            // Remove the pending stop on error
+            setSteps(prev => prev.map((s, idx) =>
+                idx === stepIdx ? { ...s, stops: s.stops.filter(st => st.id !== tempId) } : s
+            ));
+            showAlert("Erreur", "Impossible de créer l'arrêt sur le serveur.");
+        }
     };
 
     const handleSearch = (stepIdx: number, value: string) => {
@@ -1109,17 +993,19 @@ export default function Page() {
                                         }}
                                         className="absolute inset-0 flex flex-col pt-1"
                                     >
-                                        <ListOptions
-                                            step={steps[activeStep]}
-                                            stepIdx={activeStep}
-                                            stopCount={steps[activeStep]?.stops?.length || 0}
-                                            totalSteps={steps.length}
-                                            onSearch={(val) => handleSearch(activeStep, val)}
-                                            onAdd={() => handleAddStop(activeStep)}
-                                            onToggleSearch={() => handleToggleSearch(activeStep)}
-                                            onToggleLink={() => handleToggleLink(activeStep)}
-                                            onDelete={() => handleDeleteStep(activeStep)}
-                                        />
+                                        {steps[activeStep] && (
+                                            <ListOptions
+                                                step={steps[activeStep]}
+                                                stepIdx={activeStep}
+                                                stopCount={steps[activeStep]?.stops?.length || 0}
+                                                totalSteps={steps.length}
+                                                onSearch={(val) => handleSearch(activeStep, val)}
+                                                onAdd={() => handleAddStop(activeStep)}
+                                                onToggleSearch={() => handleToggleSearch(activeStep)}
+                                                onToggleLink={() => handleToggleLink(activeStep)}
+                                                onDelete={() => handleDeleteStep(activeStep)}
+                                            />
+                                        )}
                                         <div
                                             ref={el => { listRefs.current[activeStep] = el; }}
                                             className="flex-1 overflow-y-auto scrollbar-hide pb-24 px-1"
@@ -1393,7 +1279,7 @@ export default function Page() {
                             <div className="flex-1 space-y-0.5">
                                 <div className="flex items-center justify-between text-[10px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-50 pb-2 px-2 mb-2">
                                     <span>Load Type</span>
-                                    <span>Weight</span>
+                                    <span>Weight (g)</span>
                                 </div>
 
                                 <div className="text-center py-8 border-2 border-dashed border-gray-100 rounded-3xl text-gray-400 text-[10px] font-black uppercase tracking-widest">
@@ -1417,21 +1303,15 @@ export default function Page() {
 
             <StopDetailPanel
                 isOpen={isStopDetailOpen}
-                onClose={() => {
-                    // Just close: data is preserved in 'steps' state and localStorage
-                    setIsStopDetailOpen(false);
-                }}
-                onSave={async () => {
-                    // Done: save changes to API
-                    const success = await handleSaveStop();
-                    if (success) {
-                        setIsStopDetailOpen(false);
-                    }
-                }}
+                onClose={handleCloseStopDetail}
                 stop={selectedStop}
-                onUpdate={(newStop) => {
+                orderId={id}
+                availableTransitItems={order?.transitItems || []}
+                onUpdate={async (newStop, fieldPath, value) => {
                     if (!selectedStopMeta) return;
                     const { stepIdx, stopIdx } = selectedStopMeta;
+
+                    // Update local state first (Optimistic)
                     setSteps(prev => prev.map((s, sIdx) =>
                         sIdx === stepIdx
                             ? {
@@ -1443,6 +1323,55 @@ export default function Page() {
                             : s
                     ));
                     setSelectedStop(newStop);
+
+                    // Sync to server
+                    let payload: any = {};
+                    if (fieldPath) {
+                        // Build nested object from fieldPath
+                        const parts = fieldPath.split('.');
+                        let current = payload;
+                        for (let i = 0; i < parts.length - 1; i++) {
+                            current[parts[i]] = {};
+                            current = current[parts[i]];
+                        }
+                        current[parts[parts.length - 1]] = value;
+                    } else {
+                        // Fallback to minimal full payload if no fieldPath provided
+                        payload = {
+                            address: newStop.address,
+                            client: newStop.client,
+                            metadata: newStop.metadata
+                        };
+                    }
+
+                    await handleGranularUpdate('stop', newStop.id, payload);
+                }}
+                onUpdateAction={async (actionId, data) => {
+                    // Map local action back to API (snake_case)
+                    const payload = {
+                        type: data.type,
+                        quantity: data.quantity,
+                        transit_item_id: data.transitItemId,
+                        service_time: (data.service_time || 0) * 60,
+                        confirmation_rules: data.confirmation,
+                        metadata: {
+                            productName: data.productName,
+                            productDescription: data.productDescription,
+                            unitaryPrice: data.unitaryPrice,
+                            packagingType: data.packagingType,
+                            weight_g: data.weight_g,
+                            dimensions: data.dimensions
+                        }
+                    };
+                    await handleGranularUpdate('action', actionId, payload);
+                }}
+                onAddAction={async (stopId, type) => {
+                    const payload = {
+                        type: type || 'service',
+                        quantity: 1,
+                        service_time: 600
+                    };
+                    return await handleAddAction(stopId, payload);
                 }}
                 onDelete={() => {
                     if (selectedStopMeta) {

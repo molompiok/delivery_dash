@@ -29,6 +29,8 @@ const EditableField: React.FC<EditableFieldProps> = ({
     const [isExpanded, setIsExpanded] = useState(false);
     const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
 
+    const isEmpty = !value && value !== 0;
+
     useEffect(() => {
         setTempValue(String(value));
     }, [value]);
@@ -66,6 +68,9 @@ const EditableField: React.FC<EditableFieldProps> = ({
         ? displayValue.slice(0, collapseLimit) + '...'
         : (isGeneralOverLimit ? displayValue.slice(0, 40) + '...' : displayValue);
 
+    // Determine if we should show input mode
+    const showInput = isEditing || isEmpty;
+
     return (
         <div className={`flex flex-col gap-1.5 ${className}`}>
             {label && (
@@ -76,13 +81,17 @@ const EditableField: React.FC<EditableFieldProps> = ({
             <div
                 className={`group relative min-h-[38px] flex items-center transition-all ${isEditing ? 'z-10' : ''}`}
             >
-                {isEditing ? (
+                {showInput ? (
                     type === 'textarea' ? (
                         <textarea
                             ref={inputRef as any}
-                            className="w-full bg-white border-2 border-blue-500 rounded-xl p-2.5 text-sm font-bold text-gray-900 outline-none shadow-lg shadow-blue-500/10 min-h-[80px] resize-none"
+                            className={`w-full bg-white rounded-xl p-2.5 text-sm font-bold text-gray-900 outline-none min-h-[80px] resize-none transition-all ${isEditing
+                                    ? 'border-2 border-blue-500 shadow-lg shadow-blue-500/10'
+                                    : 'border border-gray-100 hover:border-gray-200 focus:border-blue-500 focus:border-2 focus:shadow-lg focus:shadow-blue-500/10'
+                                }`}
                             value={tempValue}
                             onChange={(e) => setTempValue(e.target.value)}
+                            onFocus={() => setIsEditing(true)}
                             onBlur={handleBlur}
                             onKeyDown={handleKeyDown}
                             placeholder={placeholder}
@@ -92,9 +101,13 @@ const EditableField: React.FC<EditableFieldProps> = ({
                         <input
                             ref={inputRef as any}
                             type={type}
-                            className="w-full bg-white border-2 border-blue-500 rounded-xl px-3 py-2 text-sm font-bold text-gray-900 outline-none shadow-lg shadow-blue-500/10"
+                            className={`w-full bg-white rounded-xl px-3 py-2 text-sm font-bold text-gray-900 outline-none transition-all ${isEditing
+                                    ? 'border-2 border-blue-500 shadow-lg shadow-blue-500/10'
+                                    : 'border border-gray-100 hover:border-gray-200 focus:border-blue-500 focus:border-2 focus:shadow-lg focus:shadow-blue-500/10'
+                                }`}
                             value={tempValue}
                             onChange={(e) => setTempValue(e.target.value)}
+                            onFocus={() => setIsEditing(true)}
                             onBlur={handleBlur}
                             onKeyDown={handleKeyDown}
                             placeholder={placeholder}
@@ -107,7 +120,7 @@ const EditableField: React.FC<EditableFieldProps> = ({
                         onClick={() => setIsEditing(true)}
                     >
                         <div className="flex items-center justify-between px-3 py-2">
-                            <span className={`text-sm font-bold text-gray-900 break-words flex-1 ${!tempValue ? 'text-gray-300 italic' : ''}`}>
+                            <span className="text-sm font-bold text-gray-900 break-words flex-1">
                                 {truncatedValue}
                             </span>
                             <Edit3
@@ -138,3 +151,4 @@ const EditableField: React.FC<EditableFieldProps> = ({
 };
 
 export default EditableField;
+

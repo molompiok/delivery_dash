@@ -74,6 +74,21 @@ export interface Stop {
         country?: string;
         lat?: number;
         lng?: number;
+        call?: string;
+        room?: string;
+        stage?: string;
+    };
+    client?: {
+        name?: string;
+        avatar?: string;
+        email?: string;
+        phone?: string;
+        clientId?: string;
+        opening_hours?: {
+            start?: string;
+            end?: string;
+            duration?: number;
+        };
     };
     arrivalWindowStart?: string;
     arrivalWindowEnd?: string;
@@ -202,6 +217,7 @@ export interface Order {
     jobs?: any[];
     totalDistanceMeters?: number;
     totalDurationSeconds?: number;
+    transitItems: NonNullable<Action['transitItem']>[];
 }
 
 export const ordersApi = {
@@ -233,6 +249,16 @@ export const ordersApi = {
 
     update: async (id: string, payload: any) => {
         const response = await client.put<{ order: Order; warnings?: ValidationIssue[] }>(`/orders/${id}`, payload);
+        return response.data;
+    },
+
+    addItem: async (id: string, payload: any) => {
+        const response = await client.post<any>(`/orders/${id}/items`, payload);
+        return response.data;
+    },
+
+    updateItem: async (id: string, payload: any) => {
+        const response = await client.patch<any>(`/items/${id}`, payload);
         return response.data;
     },
 

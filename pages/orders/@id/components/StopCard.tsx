@@ -58,12 +58,24 @@ const StopCard = ({
     const visibleActions = isExpanded ? stop.actions : stop.actions.slice(0, 3);
     const hasMoreActions = stop.actions.length > 3;
 
+    if (stop.isPending) {
+        return (
+            <div
+                ref={setNodeRef}
+                style={style}
+                className="bg-white/50 rounded-[16px] p-4 border border-blue-100 flex flex-col items-center justify-center py-8 animate-pulse grayscale"
+            >
+                <div className="w-8 h-8 rounded-full border-2 border-blue-200 border-t-blue-600 animate-spin mb-3"></div>
+                <div className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Création en cours...</div>
+            </div>
+        );
+    }
+
     return (
         <motion.div
             layout={!isAnyDragging}
             initial={false}
             transition={isAnyDragging ? { type: false } : {
-                // Default transition for layout/permutations (Slow)
                 type: "spring",
                 stiffness: 40,
                 damping: 20,
@@ -73,8 +85,8 @@ const StopCard = ({
             style={style}
             key={stop.id}
             onClick={() => onOpenDetail?.(stop)}
-            className={`bg-white rounded-[16px] p-4 shadow-sm border border-gray-50 flex flex-col transition-shadow cursor-default group relative ${isDragging ? 'opacity-50 shadow-2xl z-50 ring-2 ring-blue-500/20' : 'hover:shadow-md'
-                }`}
+            className={`bg-white rounded-[16px] p-4 shadow-sm border flex flex-col transition-shadow cursor-default group relative ${isDragging ? 'opacity-50 shadow-2xl z-50 ring-2 ring-blue-500/20' : 'hover:shadow-md'
+                } ${stop.isPendingChange ? 'bg-emerald-50/80 border-emerald-100 shadow-emerald-500/5' : 'border-gray-50'}`}
         >
             <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -112,7 +124,7 @@ const StopCard = ({
                     </div>
                     <div className="flex flex-col min-w-0">
                         <h3 className="text-sm font-bold text-gray-900 truncate tracking-tight">
-                            {typeof stop.address === 'object' ? stop.address.street : (stop.address || "Indéfini")}
+                            {typeof stop.address === 'object' ? stop.address.street || 'En attente...' : (stop.address || "Indéfini")}
                         </h3>
                         <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest truncate">{stop.id}</span>
                     </div>
