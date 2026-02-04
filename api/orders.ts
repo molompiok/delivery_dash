@@ -64,6 +64,7 @@ export interface ActionPayload {
 export interface Stop {
     id: string;
     sequence: number;
+    status?: 'PENDING' | 'ARRIVED' | 'COMPLETED' | 'FAILED';
     addressId?: string;
     address: {
         id?: string;
@@ -218,6 +219,7 @@ export interface Order {
     totalDistanceMeters?: number;
     totalDurationSeconds?: number;
     transitItems: NonNullable<Action['transitItem']>[];
+    hasPendingChanges?: boolean;
 }
 
 export const ordersApi = {
@@ -275,6 +277,11 @@ export const ordersApi = {
 
     pushUpdates: async (id: string) => {
         const response = await client.post<{ order: Order; message: string }>(`/orders/${id}/push-updates`);
+        return response.data;
+    },
+
+    revertChanges: async (id: string) => {
+        const response = await client.post<{ order: Order; message: string }>(`/orders/${id}/revert`);
         return response.data;
     },
 

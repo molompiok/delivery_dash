@@ -16,6 +16,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import StopCard from './StopCard';
+import { ChevronDownIcon } from 'lucide-react';
 
 interface SortableStopItemProps {
     stop: any;
@@ -137,10 +138,10 @@ const StopListWrapper = ({
                             {stops.map((stop, idx) => (
                                 <div key={stop.id} className="relative group/linked">
                                     {/* Circular connection point on the rail */}
-                                    <div className="absolute -left-[18.5px] top-11 w-[9px] h-[9px] rounded-full border-2 border-blue-600 bg-white z-20 shadow-sm transition-all group-hover/linked:scale-125 group-hover/linked:border-blue-700"></div>
-
-                                    {/* Minimal horizontal bridge connector */}
-                                    <div className="absolute -left-[14px] top-[48px] w-2 h-[1.5px] bg-blue-600/10 group-hover/linked:bg-blue-600/30 transition-colors"></div>
+                                    <div className="absolute -left-[19px] top-11 w-[9px] h-[9px] rounded-full border-2 border-blue-600 bg-white z-20 shadow-sm transition-all group-hover/linked:scale-125 group-hover/linked:border-blue-700"></div>
+                                    <div className="absolute -left-[23px] top-14 z-20 group-hover/linked:scale-125 group-hover/linked:border-blue-700">
+                                        <ChevronDownIcon className="w-4 h-4 text-blue-600" />
+                                    </div>
 
                                     <SortableStopItem
                                         stop={stop}

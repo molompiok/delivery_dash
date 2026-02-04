@@ -6,7 +6,7 @@ import { ordersApi } from '../../../../api/orders';
 // Import extracted components
 import {
     SequentialDatePicker,
-    CreateItemView,
+    TransitItemDetailView,
     MapSelectorView,
     ValidationDetailView,
     ProductDetailView,
@@ -83,26 +83,36 @@ const StopDetailPanel: React.FC<StopDetailPanelProps> = ({
 
         try {
             const action = await onAddAction(stop.id, type);
-            if (action) {
-                setIsCreatingAction(false);
-            } else {
+            if (!action) {
                 setCreationError("Impossible de créer le produit.");
+                setIsCreatingAction(false);
             }
+            // Note: We don't set isCreatingAction(false) immediately.
+            // We wait for the new action to appear in stop.actions via the useEffect below.
         } catch (err) {
             setCreationError("Une erreur est survenue lors de la création.");
+            setIsCreatingAction(false);
         }
     };
 
     // Auto-select the newly created action when stop actions change
     useEffect(() => {
-        if (!isCreatingAction && pendingActionType && stop?.actions) {
-            const newActionIdx = stop.actions.length - 1;
-            if (newActionIdx >= 0) {
+        if (isCreatingAction && stop?.actions) {
+            // Check if an action of the pending type was added
+            const hasNewAction = stop.actions.some((a: any) =>
+                a.type?.toLowerCase() === pendingActionType?.toLowerCase() ||
+                (pendingActionType === 'pickup' && a.type === 'PICKUP') ||
+                (pendingActionType === 'service' && a.type === 'SERVICE')
+            );
+
+            if (hasNewAction) {
+                const newActionIdx = stop.actions.length - 1;
                 setEditingProductIdx(newActionIdx);
                 setPendingActionType(null);
+                setIsCreatingAction(false);
             }
         }
-    }, [stop?.actions, isCreatingAction]);
+    }, [stop?.actions, isCreatingAction, pendingActionType]);
 
     const handleOpenCreateItemForm = () => {
         setNewItemForm({
@@ -114,7 +124,40 @@ const StopDetailPanel: React.FC<StopDetailPanelProps> = ({
             requirements: []
         });
         setDirection(1);
-        setView('create-item');
+        setView('transit-item-detail');
+    };
+
+    const handleOpenEditItemForm = (item: any) => {
+        const itemToUse = item || stop.actions?.[editingProductIdx || 0]?.transitItem;
+        if (!itemToUse) {
+            // If item is still missing but we have an ID, we could fetch it, 
+            // but for now let's at least initialize with the ID and empty values
+            const currentProduct = stop.actions?.[editingProductIdx || 0];
+            if (currentProduct?.transitItemId) {
+                setNewItemForm({
+                    name: currentProduct.productName || '',
+                    weight_g: 0,
+                    unitary_price: 0,
+                    packaging_type: 'box',
+                    dimensions: { width_cm: 0, height_cm: 0, depth_cm: 0 },
+                    requirements: []
+                });
+                setDirection(1);
+                setView('transit-item-detail');
+            }
+            return;
+        }
+
+        setNewItemForm({
+            name: itemToUse.name || '',
+            weight_g: itemToUse.weight_g || 0,
+            unitary_price: itemToUse.unitary_price || 0,
+            packaging_type: itemToUse.packaging_type || 'box',
+            dimensions: itemToUse.dimensions || { width_cm: 0, height_cm: 0, depth_cm: 0 },
+            requirements: itemToUse.metadata?.requirements || []
+        });
+        setDirection(1);
+        setView('transit-item-detail');
     };
 
     const handleConfirmCreateTransitItem = async () => {
@@ -132,7 +175,11 @@ const StopDetailPanel: React.FC<StopDetailPanelProps> = ({
             const newItem = result.entity || result.item;
 
             if (newItem) {
-                handleProductChange(editingProductIdx, 'transitItemId', newItem.id);
+                handleProductChange(editingProductIdx, '', {
+                    transitItemId: newItem.id,
+                    transitItem: newItem
+                });
+
                 setTransitItemSearch('');
                 setDirection(-1);
                 setView('product');
@@ -152,21 +199,19 @@ const StopDetailPanel: React.FC<StopDetailPanelProps> = ({
 
     const product = editingProductIdx !== null ? stop.actions?.[editingProductIdx] : null;
 
-    const handleTransitItemChange = async (itemId: string, field: string, value: any) => {
-        if (!itemId || editingProductIdx === null) return;
+    const handleTransitItemChange = async (itemId: string | undefined, field: string, value: any) => {
+        const idToUpdate = itemId || product?.transitItemId;
+        if (!idToUpdate) return;
 
-        // Optimistic update of local state
-        const updatedAction = {
-            ...product,
-            transitItem: {
-                ...product?.transitItem,
-                [field]: value
-            }
-        };
-        handleProductChange(editingProductIdx, '', updatedAction);
+        // Optimistic update of local state in the action
+        if (editingProductIdx !== null) {
+            const currentItem = product?.transitItem || {};
+            const updatedItem = { ...currentItem, [field]: value };
+            handleProductChange(editingProductIdx, 'transitItem', updatedItem);
+        }
 
         try {
-            await ordersApi.updateItem(itemId, { [field]: value });
+            await ordersApi.updateItem(idToUpdate, { [field]: value });
         } catch (error) {
             console.error("Failed to update transit item", error);
         }
@@ -216,6 +261,7 @@ const StopDetailPanel: React.FC<StopDetailPanelProps> = ({
     };
 
     const renderContent = () => {
+        const product = editingProductIdx !== null ? stop.actions?.[editingProductIdx] : null;
         switch (view) {
             case 'stop':
                 return (
@@ -262,6 +308,7 @@ const StopDetailPanel: React.FC<StopDetailPanelProps> = ({
                         handleProductChange={handleProductChange}
                         handleTransitItemChange={handleTransitItemChange}
                         handleCreateTransitItem={handleCreateTransitItem}
+                        handleOpenEditItemForm={handleOpenEditItemForm}
                         performAddAction={performAddAction}
                     />
                 );
@@ -280,16 +327,18 @@ const StopDetailPanel: React.FC<StopDetailPanelProps> = ({
                         handleProductChange={handleProductChange}
                     />
                 );
-            case 'create-item':
+            case 'transit-item-detail':
                 return (
-                    <CreateItemView
+                    <TransitItemDetailView
                         direction={direction}
-                        newItemForm={newItemForm}
+                        transitItemForm={newItemForm}
                         isCreatingTransitItem={isCreatingTransitItem}
+                        isEditing={product?.transitItemId ? true : false}
                         setDirection={setDirection}
                         setView={setView}
-                        setNewItemForm={setNewItemForm}
+                        setTransitItemForm={setNewItemForm}
                         handleConfirmCreateTransitItem={handleConfirmCreateTransitItem}
+                        handleTransitItemChange={(field, value) => handleTransitItemChange(undefined, field, value)}
                     />
                 );
             case 'map':

@@ -45,6 +45,7 @@ interface Stop {
     id: string;
     type: string;
     typeColor: string;
+    status?: 'PENDING' | 'ARRIVED' | 'COMPLETED' | 'FAILED';
     address: {
         id: string;
         addressId?: string;
@@ -70,6 +71,7 @@ interface Stop {
     isNew?: boolean; // Created locally, not yet saved
     isModified?: boolean; // Modified locally
     isPending?: boolean; // Currently being created on server
+    isPendingChange?: boolean; // Modified on server (Shadow)
 }
 
 interface PageStep {
@@ -91,6 +93,7 @@ export default function Page() {
     const [isLoading, setIsLoading] = useState(true);
     const [steps, setSteps] = useState<PageStep[]>([]);
     const [validationIssues, setValidationIssues] = useState<ValidationIssue[]>([]);
+    const [showRevertModal, setShowRevertModal] = useState(false);
 
     const [activeStep, setActiveStep] = useState(0);
     const [direction, setDirection] = useState(0);
@@ -135,6 +138,16 @@ export default function Page() {
         }
     }, [id]);
 
+    // Keep selectedStop in sync with steps data
+    useEffect(() => {
+        if (selectedStopMeta && steps[selectedStopMeta.stepIdx]) {
+            const currentStop = steps[selectedStopMeta.stepIdx].stops[selectedStopMeta.stopIdx];
+            if (currentStop && JSON.stringify(currentStop) !== JSON.stringify(selectedStop)) {
+                setSelectedStop(currentStop);
+            }
+        }
+    }, [steps, selectedStopMeta]);
+
     const mapServerToLocalSteps = (serverSteps: ApiStep[]): PageStep[] => {
         if (!serverSteps || serverSteps.length === 0) {
             return [];
@@ -153,6 +166,7 @@ export default function Page() {
 
                 return {
                     id: st.id,
+                    status: st.status,
                     type: (st.actions && st.actions.length > 0)
                         ? (st.actions[0].type === 'PICKUP' ? 'Collecte' : st.actions[0].type === 'DELIVERY' ? 'Livraison' : 'Service')
                         : 'Service',
@@ -208,7 +222,8 @@ export default function Page() {
                         clientId: clientData.clientId,
                         opening_hours: openingHours
                     },
-                    metadata: st.metadata
+                    metadata: st.metadata,
+                    isPendingChange: st.isPendingChange
                 };
             })
         }));
@@ -388,24 +403,52 @@ export default function Page() {
         }
     };
 
-    const syncShadowId = (type: 'stop' | 'action', oldId: string, newId: string) => {
+    // Revert pending changes
+    const handleRevert = () => {
+        console.log("Revert button clicked");
+        if (!order || !id) return;
+        setShowRevertModal(true);
+        console.log("Modal state set to true");
+    };
+
+    const executeRevert = async () => {
+        if (!order || !id) return;
+        try {
+            await ordersApi.revertChanges(id);
+            await fetchOrder(true); // Full reload to clear shadows
+            showAlert("Modifications annulées", "Toutes les modifications en attente ont été supprimées.");
+        } catch (error: any) {
+            console.error("Revert failed", error);
+            showAlert("Erreur", error.response?.data?.message || error.message || "Impossible d'annuler les modifications.");
+        }
+    };
+
+    const syncEntityUpdate = (type: 'stop' | 'action', oldId: string, newEntity: any) => {
         setSteps(prev => prev.map(step => ({
             ...step,
             stops: step.stops.map(stop => {
                 if (type === 'stop' && stop.id === oldId) {
-                    const updatedStop = { ...stop, id: newId };
+                    const updatedStop = {
+                        ...stop,
+                        id: newEntity.id,
+                        isPendingChange: newEntity.isPendingChange
+                    };
                     if (selectedStop?.id === oldId) setSelectedStop(updatedStop);
                     return updatedStop;
                 }
 
                 const updatedActions = stop.actions.map(action => {
                     if (type === 'action' && action.id === oldId) {
-                        return { ...action, id: newId };
+                        return {
+                            ...action,
+                            id: newEntity.id,
+                            isPendingChange: newEntity.isPendingChange
+                        };
                     }
                     return action;
                 });
 
-                const actionsChanged = stop.actions.some((a, i) => a.id !== updatedActions[i].id);
+                const actionsChanged = stop.actions.some((a, i) => a.id !== updatedActions[i].id || a.isPendingChange !== updatedActions[i].isPendingChange);
                 if (actionsChanged) {
                     const updatedStop = { ...stop, actions: updatedActions };
                     if (selectedStop?.id === stop.id) setSelectedStop(updatedStop);
@@ -424,17 +467,18 @@ export default function Page() {
             if (type === 'stop') {
                 result = await ordersApi.updateStop(entityId, payload);
                 const updatedStop = result.stop;
-                if (updatedStop && updatedStop.id !== entityId) {
-                    // ID changed! It's a shadow clone. Adopt new ID.
-                    syncShadowId('stop', entityId, updatedStop.id);
+                if (updatedStop) {
+                    syncEntityUpdate('stop', entityId, updatedStop);
                 }
             } else {
                 result = await ordersApi.updateAction(entityId, payload);
                 const updatedAction = result.action;
-                if (updatedAction && updatedAction.id !== entityId) {
-                    syncShadowId('action', entityId, updatedAction.id);
+                if (updatedAction) {
+                    syncEntityUpdate('action', entityId, updatedAction);
                 }
             }
+            // Mark order as modified locally
+            setOrder(prev => prev ? { ...prev, hasPendingChanges: true } : null);
             console.log(`[SYNC] ${type} ${entityId} updated successfully`);
         } catch (error: any) {
             console.error(`[SYNC] Failed to update ${type}`, error);
@@ -448,6 +492,7 @@ export default function Page() {
 
             // Re-fetch or update local state to get the new action ID
             await fetchOrder(false);
+            setOrder(prev => prev ? { ...prev, hasPendingChanges: true } : null);
             return action;
         } catch (error: any) {
             console.error("Failed to add action", error);
@@ -476,6 +521,7 @@ export default function Page() {
         setIsStopDetailOpen(false);
         setSelectedStop(null);
         setSelectedStopMeta(null);
+        setOrder(prev => prev ? { ...prev, hasPendingChanges: true } : null);
 
         // If it's not a new local-only stop, call API
         if (!isNewStop && stopId) {
@@ -545,6 +591,7 @@ export default function Page() {
                     ? { ...s, id: step?.id, isNew: false }
                     : s
             ));
+            setOrder(prev => prev ? { ...prev, hasPendingChanges: true } : null);
         } catch (error: any) {
             console.error("Failed to add step", error);
             // Rollback optimistic update
@@ -643,6 +690,8 @@ export default function Page() {
                     : s
             ));
 
+            setOrder(prev => prev ? { ...prev, hasPendingChanges: true } : null);
+
             // Open detail and scroll
             const newStopIdx = steps[stepIdx].stops.length; // Approximate, but will be corrected by refresh
             handleOpenStopDetail(stepIdx, newStopIdx, newLocalStop);
@@ -673,10 +722,34 @@ export default function Page() {
         ));
     };
 
-    const handleToggleLink = (stepIdx: number) => {
+    const handleToggleLink = async (stepIdx: number) => {
+        const step = steps[stepIdx];
+        const newLinked = !step.isLinked;
+
+        // Optimistic UI update
         setSteps(prev => prev.map((s, idx) =>
-            idx === stepIdx ? { ...s, isLinked: !s.isLinked } : s
+            idx === stepIdx ? { ...s, isLinked: newLinked } : s
         ));
+        setOrder(prev => prev ? { ...prev, hasPendingChanges: true } : null);
+
+        // Server sync
+        if (step.id) {
+            try {
+                const result = await ordersApi.updateStep(step.id, { linked: newLinked });
+                const updatedStep = result.step || (result as any).entity;
+                if (updatedStep) {
+                    setSteps(prev => prev.map((s, idx) =>
+                        idx === stepIdx ? { ...s, id: updatedStep.id } : s
+                    ));
+                }
+            } catch (error) {
+                console.error("Failed to sync step link status", error);
+                // Rollback
+                setSteps(prev => prev.map((s, idx) =>
+                    idx === stepIdx ? { ...s, isLinked: step.isLinked } : s
+                ));
+            }
+        }
     };
 
     const handleDeleteStep = async (stepIdx: number) => {
@@ -696,6 +769,8 @@ export default function Page() {
         // Optimistic UI update
         const newSteps = steps.filter((_, idx) => idx !== stepIdx);
         setSteps(newSteps);
+
+        setOrder(prev => prev ? { ...prev, hasPendingChanges: true } : null);
 
         // If step has server ID, call API
         if (stepId) {
@@ -724,28 +799,71 @@ export default function Page() {
         }
     };
 
-    const handleReorderStop = (stepIdx: number, activeId: string, overId: string) => {
+    const handleReorderStop = async (stepIdx: number, activeId: string, overId: string) => {
+        const step = steps[stepIdx];
+        const oldIndex = step.stops.findIndex(c => c.id === activeId);
+        const newIndex = step.stops.findIndex(c => c.id === overId);
+
+        if (oldIndex === newIndex) return;
+
+        const newStops = arrayMove(step.stops, oldIndex, newIndex);
+
+        // Optimistic UI update
         setSteps(prev => prev.map((s, idx) => {
             if (idx !== stepIdx) return s;
-            const oldIndex = s.stops.findIndex(c => c.id === activeId);
-            const newIndex = s.stops.findIndex(c => c.id === overId);
             return {
                 ...s,
-                stops: arrayMove(s.stops, oldIndex, newIndex)
+                stops: newStops
             };
         }));
+        setOrder(prev => prev ? { ...prev, hasPendingChanges: true } : null);
+
+        // Server sync: iterate through affected stops and update sequences
+        try {
+            await Promise.all(newStops.map((stop, index) => {
+                // Only update if sequence actually changed (though index is our source of truth now)
+                // For simplicity and to ensure server consistency, we update all in the changed step
+                if (stop.id && !stop.id.startsWith('temp_') && !stop.id.startsWith('pending_')) {
+                    return ordersApi.updateStop(stop.id, { sequence: index });
+                }
+                return Promise.resolve();
+            }));
+        } catch (error) {
+            console.error("Failed to sync stop reordering", error);
+            // Full refresh to ensure correct state on error
+            fetchOrder(false);
+        }
     };
 
-    const handleMoveItem = (stepIdx: number, itemIdx: number, direction: 'up' | 'down') => {
+    const handleMoveItem = async (stepIdx: number, itemIdx: number, direction: 'up' | 'down') => {
+        const step = steps[stepIdx];
+        const newIndex = direction === 'up' ? itemIdx - 1 : itemIdx + 1;
+        if (newIndex < 0 || newIndex >= step.stops.length) return;
+
+        const newStops = arrayMove(step.stops, itemIdx, newIndex);
+
+        // Optimistic UI update
         setSteps(prev => prev.map((s, idx) => {
             if (idx !== stepIdx) return s;
-            const newIndex = direction === 'up' ? itemIdx - 1 : itemIdx + 1;
-            if (newIndex < 0 || newIndex >= s.stops.length) return s;
             return {
                 ...s,
-                stops: arrayMove(s.stops, itemIdx, newIndex)
+                stops: newStops
             };
         }));
+        setOrder(prev => prev ? { ...prev, hasPendingChanges: true } : null);
+
+        // Server sync
+        try {
+            await Promise.all(newStops.map((stop, index) => {
+                if (stop.id && !stop.id.startsWith('temp_') && !stop.id.startsWith('pending_')) {
+                    return ordersApi.updateStop(stop.id, { sequence: index });
+                }
+                return Promise.resolve();
+            }));
+        } catch (error) {
+            console.error("Failed to sync stop movement", error);
+            fetchOrder(false);
+        }
     };
 
     useEffect(() => {
@@ -791,12 +909,12 @@ export default function Page() {
                             </button>
                         </>
                     )}
-                    {isPending && (
+                    {isPending && order?.hasPendingChanges && (
                         <>
                             <button
-                                onClick={() => fetchOrder(false)}
-                                className="p-2 text-gray-500 hover:bg-gray-100 rounded-xl transition-colors"
-                                title="Actualiser"
+                                onClick={handleRevert}
+                                className="p-2 text-rose-500 hover:bg-rose-50 rounded-xl transition-colors border border-transparent hover:border-rose-100"
+                                title="Annuler les modifications"
                             >
                                 <RotateCcw size={18} />
                             </button>
@@ -1378,6 +1496,16 @@ export default function Page() {
                         handleDeleteStopInStep(selectedStopMeta.stepIdx, selectedStopMeta.stopIdx);
                     }
                 }}
+            />
+
+            <ConfirmModal
+                isOpen={showRevertModal}
+                onClose={() => setShowRevertModal(false)}
+                onConfirm={executeRevert}
+                title="Annuler les modifications ?"
+                description="Toutes les modifications en attente seront définitivement perdues. Cette action est irréversible."
+                confirmLabel="Annuler les modifications"
+                confirmVariant="danger"
             />
 
             <style>{`

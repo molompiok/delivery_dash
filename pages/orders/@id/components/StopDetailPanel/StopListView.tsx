@@ -1,5 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
+import { formatId } from '../../../../../api/utils';
 import { ChevronLeft, ChevronRight, Trash2, MapPin, User, Package, Check, Save, Plus, Clock, Calendar, Map as MapIcon, ArrowUpRight, ArrowDownLeft, Wrench } from 'lucide-react';
 import EditableField from '../EditableField';
 import LocationSearchBar from '../../../../../components/LocationSearchBar';
@@ -52,7 +53,7 @@ const StopListView: React.FC<StopListViewProps> = ({
         className="absolute inset-0 flex flex-col bg-[#f8fafc]"
     >
         {/* Header */}
-        <div className={`flex items-center justify-between p-4 border-b shrink-0 transition-colors ${stop.isPendingChange ? 'bg-emerald-50 border-emerald-100' : 'bg-white border-gray-100'}`}>
+        <div className={`flex items-center justify-between p-4 border-b shrink-0 transition-colors ${stop.isPendingChange ? 'bg-blue-50 border-blue-100' : 'bg-white border-gray-100'}`}>
             <div className="flex items-center gap-3">
                 <button
                     onClick={onClose}
@@ -65,7 +66,7 @@ const StopListView: React.FC<StopListViewProps> = ({
                         Stop Details
                     </span>
                     <h2 className="text-xl tracking-tight line-clamp-1 break-all font-bold text-gray-900">
-                        {stop.id}
+                        {formatId(stop.id)}
                     </h2>
                 </div>
             </div>
@@ -90,9 +91,6 @@ const StopListView: React.FC<StopListViewProps> = ({
                         </div>
                         <div className="flex flex-col">
                             <h3 className="text-[12px] uppercase tracking-widest text-gray-400 font-bold">Location & Address</h3>
-                            {stop.address?.addressId && (
-                                <span className="text-[9px] font-black text-emerald-600 uppercase tracking-tighter">#{stop.address.addressId}</span>
-                            )}
                         </div>
                     </div>
 
@@ -110,9 +108,9 @@ const StopListView: React.FC<StopListViewProps> = ({
                             }`}
                     >
                         {stop.address?.addressId ? (
-                            <><Check size={12} /> Saved</>
+                            <><Check size={12} /> Imported</>
                         ) : (
-                            <><Save size={12} /> Save Address</>
+                            <><Save size={12} /> Import</>
                         )}
                     </button>
                 </div>
@@ -232,9 +230,6 @@ const StopListView: React.FC<StopListViewProps> = ({
                         </div>
                         <div className="flex flex-col">
                             <h3 className="text-[12px] uppercase tracking-widest text-gray-400 font-bold">Client & Contact</h3>
-                            {stop.client?.clientId && (
-                                <span className="text-[9px] font-black text-emerald-600 uppercase tracking-tighter">#{stop.client.clientId}</span>
-                            )}
                         </div>
                     </div>
 
@@ -252,9 +247,9 @@ const StopListView: React.FC<StopListViewProps> = ({
                             }`}
                     >
                         {stop.client?.clientId ? (
-                            <><Check size={12} /> Saved</>
+                            <><Check size={12} /> Imported</>
                         ) : (
-                            <><Save size={12} /> Save Client</>
+                            <><Save size={12} /> Import</>
                         )}
                     </button>
                 </div>

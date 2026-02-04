@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { formatId } from '../../../../api/utils';
 import {
     Edit3,
     Phone,
@@ -18,7 +19,8 @@ import {
     ShieldCheck,
     ChevronRight,
     ChevronDown as ChevronDownIcon,
-    Wrench
+    Wrench,
+    Truck
 } from 'lucide-react';
 
 interface StopCardProps {
@@ -86,9 +88,9 @@ const StopCard = ({
             key={stop.id}
             onClick={() => onOpenDetail?.(stop)}
             className={`bg-white rounded-[16px] p-4 shadow-sm border flex flex-col transition-shadow cursor-default group relative ${isDragging ? 'opacity-50 shadow-2xl z-50 ring-2 ring-blue-500/20' : 'hover:shadow-md'
-                } ${stop.isPendingChange ? 'bg-emerald-50/80 border-emerald-100 shadow-emerald-500/5' : 'border-gray-50'}`}
+                } ${stop.isPendingChange ? 'border-blue-500 border-2 shadow-blue-500/10' : 'border-gray-50'}`}
         >
-            <div className="flex items-start justify-between gap-3">
+            <div className="flex items-start justify-between gap-3 mb-2">
                 <div className="flex items-center gap-2 flex-1 min-w-0">
                     {/* Drag & Reorder Zone */}
                     <div className="relative group/reorder shrink-0">
@@ -126,13 +128,32 @@ const StopCard = ({
                         <h3 className="text-sm font-bold text-gray-900 truncate tracking-tight">
                             {typeof stop.address === 'object' ? stop.address.street || 'En attente...' : (stop.address || "Indéfini")}
                         </h3>
-                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest truncate">{stop.id}</span>
+                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest truncate">{formatId(stop.id)}</span>
                     </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                    <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${stop.typeColor} whitespace-nowrap`}>
-                        {stop.type}
-                    </span>
+                    <div className="flex items-center gap-2">
+                        {stop.status === 'PENDING' && (
+                            <span className="flex items-center gap-1 text-[9px] font-black text-gray-600 bg-gray-50 px-1.5 py-0.5 rounded-md uppercase tracking-wide">
+                                <Clock size={10} /> En attente
+                            </span>
+                        )}
+                        {stop.status === 'COMPLETED' && (
+                            <span className="flex items-center gap-1 text-[9px] font-black text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-md uppercase tracking-wide">
+                                <ShieldCheck size={10} /> Validé
+                            </span>
+                        )}
+                        {stop.status === 'FAILED' && (
+                            <span className="flex items-center gap-1 text-[9px] font-black text-red-600 bg-red-50 px-1.5 py-0.5 rounded-md uppercase tracking-wide">
+                                <AlertCircle size={10} /> Échec
+                            </span>
+                        )}
+                        {stop.status === 'ARRIVED' && (
+                            <span className="flex items-center gap-1 text-[9px] font-black text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-md uppercase tracking-wide">
+                                <Truck size={10} /> Arrivé
+                            </span>
+                        )}
+                    </div>
                     <button
                         onClick={(e) => { e.stopPropagation(); onOpenDetail?.(stop); }}
                         className="p-1.5 hover:bg-gray-50 rounded-lg text-gray-400 transition-colors shrink-0"

@@ -49,7 +49,7 @@ export interface NewItemFormState {
     requirements: string[];
 }
 
-export type ViewType = 'stop' | 'product' | 'validation-edit' | 'map' | 'create-item';
+export type ViewType = 'stop' | 'product' | 'validation-edit' | 'map' | 'transit-item-detail';
 
 // Animation variants for view transitions
 export const variants: Variants = {

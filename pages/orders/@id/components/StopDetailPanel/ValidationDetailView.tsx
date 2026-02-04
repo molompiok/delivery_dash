@@ -45,7 +45,7 @@ const ValidationDetailView: React.FC<ValidationDetailViewProps> = ({
                 transition={transition}
                 className="absolute inset-0 flex flex-col bg-[#f8fafc]"
             >
-                <div className={`flex items-center gap-4 p-6 border-b transition-colors ${stop.isPendingChange ? 'bg-emerald-50 border-emerald-100' : 'bg-white border-gray-100'}`}>
+                <div className={`flex items-center gap-4 p-6 border-b transition-colors ${stop.isPendingChange ? 'bg-blue-50 border-blue-100' : 'bg-white border-gray-100'}`}>
                     <button
                         onClick={() => {
                             setDirection(-1);
@@ -154,7 +154,7 @@ const ValidationDetailView: React.FC<ValidationDetailViewProps> = ({
             className="absolute inset-0 flex flex-col bg-[#f8fafc]"
         >
             {/* Header */}
-            <div className={`flex items-center gap-4 p-6 border-b transition-colors ${stop.isPendingChange ? 'bg-emerald-50 border-emerald-100' : 'bg-white border-gray-100'}`}>
+            <div className={`flex items-center gap-4 p-6 border-b transition-colors ${stop.isPendingChange ? 'bg-blue-50 border-blue-100' : 'bg-white border-gray-100'}`}>
                 <button
                     onClick={() => {
                         setDirection(-1);

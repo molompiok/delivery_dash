@@ -86,8 +86,8 @@ const EditableField: React.FC<EditableFieldProps> = ({
                         <textarea
                             ref={inputRef as any}
                             className={`w-full bg-white rounded-xl p-2.5 text-sm font-bold text-gray-900 outline-none min-h-[80px] resize-none transition-all ${isEditing
-                                    ? 'border-2 border-blue-500 shadow-lg shadow-blue-500/10'
-                                    : 'border border-gray-100 hover:border-gray-200 focus:border-blue-500 focus:border-2 focus:shadow-lg focus:shadow-blue-500/10'
+                                ? 'border-2 border-blue-500 shadow-lg shadow-blue-500/10'
+                                : 'border border-gray-100 hover:border-gray-200 focus:border-blue-500 focus:border-2 focus:shadow-lg focus:shadow-blue-500/10'
                                 }`}
                             value={tempValue}
                             onChange={(e) => setTempValue(e.target.value)}
@@ -102,8 +102,8 @@ const EditableField: React.FC<EditableFieldProps> = ({
                             ref={inputRef as any}
                             type={type}
                             className={`w-full bg-white rounded-xl px-3 py-2 text-sm font-bold text-gray-900 outline-none transition-all ${isEditing
-                                    ? 'border-2 border-blue-500 shadow-lg shadow-blue-500/10'
-                                    : 'border border-gray-100 hover:border-gray-200 focus:border-blue-500 focus:border-2 focus:shadow-lg focus:shadow-blue-500/10'
+                                ? 'border-2 border-blue-500 shadow-lg shadow-blue-500/10'
+                                : 'border border-gray-100 hover:border-gray-200 focus:border-blue-500 focus:border-2 focus:shadow-lg focus:shadow-blue-500/10'
                                 }`}
                             value={tempValue}
                             onChange={(e) => setTempValue(e.target.value)}
