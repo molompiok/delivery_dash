@@ -39,12 +39,15 @@ export const DriverList: React.FC<DriverListProps> = ({
             </div>
             {drivers.map(driver => {
                 const isActive = activeDriverId === driver.id;
+                const livePos = positions.find(p => p.driverId === driver.id);
+                const currentStatus = livePos?.status || driver.status;
 
                 let statusColor = 'bg-gray-400';
                 let statusText = 'Hors ligne';
-                if (driver.status === 'ONLINE') { statusColor = 'bg-emerald-500'; statusText = 'En attente'; }
-                if (driver.status === 'BUSY') { statusColor = 'bg-blue-500'; statusText = 'En course'; }
-                if (driver.status === 'PAUSE') { statusColor = 'bg-amber-500'; statusText = 'En pause'; }
+                if (currentStatus === 'ONLINE') { statusColor = 'bg-emerald-500'; statusText = 'En attente'; }
+                if (currentStatus === 'BUSY') { statusColor = 'bg-blue-500'; statusText = 'En course'; }
+                if (currentStatus === 'PAUSE') { statusColor = 'bg-amber-500'; statusText = 'En pause'; }
+                if (currentStatus === 'OFFLINE') { statusColor = 'bg-gray-400'; statusText = 'Hors ligne'; }
 
                 return (
                     <div

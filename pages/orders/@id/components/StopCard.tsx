@@ -177,7 +177,11 @@ const StopCard = ({
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-2 min-w-0">
                                     <ChevronRight size={14} />
-                                    <span className="text-xs font-bold text-gray-900 truncate">{action.productName}</span>
+                                    <span className="text-xs font-bold text-gray-900 truncate">
+                                        {(['pickup', 'delivery'].includes(action.type?.toLowerCase()) && action.transitItem?.name)
+                                            ? action.transitItem.name
+                                            : action.productName}
+                                    </span>
                                 </div>
                                 <div className="flex items-center gap-1">
                                     {action.type === 'service' ? (

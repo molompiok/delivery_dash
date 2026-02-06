@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Loader2, ChevronLeft, ChevronRight, Package, Truck, Maximize, Minimize } from 'lucide-react';
 import { mockService, DriverPosition, Zone, Driver } from '../../../api/mock';
 import { zoneService } from '../../../api/zones';
-import { GoogleMap, Marker, Circle, Polygon, DrawingManager, Rectangle, HexagonDrawer } from '../../../components/GoogleMap';
+import { MapLibre as GoogleMap, Marker, Circle, Polygon, DrawingManager, Rectangle, HexagonDrawer } from '../../../components/MapLibre';
 import { AnimatePresence } from 'framer-motion';
 import { usePageContext } from 'vike-react/usePageContext';
 

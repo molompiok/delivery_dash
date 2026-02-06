@@ -429,7 +429,9 @@ const StopListView: React.FC<StopListViewProps> = ({
                                         </div>
                                         <div className="flex flex-col min-w-0">
                                             <span className="text-sm font-bold text-gray-900 truncate group-hover:text-blue-600 transition-colors">
-                                                {action.productName || action.product?.name || 'New Product'}
+                                                {(['pickup', 'delivery'].includes(action.type?.toLowerCase()) && action.transitItem?.name)
+                                                    ? action.transitItem.name
+                                                    : (action.productName || action.product?.name || 'New Product')}
                                             </span>
                                             <div className="flex gap-2 mt-1">
                                                 <span className="text-[10px] text-gray-400">

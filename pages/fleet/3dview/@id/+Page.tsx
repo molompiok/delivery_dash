@@ -32,7 +32,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { Vehicle3DModel } from './components/Vehicle3DModel';
 import { useHeader } from '../../../../context/HeaderContext';
-import { GoogleMap, Marker } from '../../../../components/GoogleMap';
+import { MapLibre as GoogleMap, Marker } from '../../../../components/MapLibre';
 import { fleetService } from '../../../../api/fleet';
 import { authService } from '../../../../api/auth';
 import { Vehicle } from '../../../../api/types';

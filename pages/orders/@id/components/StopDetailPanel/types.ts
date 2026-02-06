@@ -42,7 +42,7 @@ export interface StopDetailPanelProps {
 
 export interface NewItemFormState {
     name: string;
-    weight_g: number;
+    weight: number;
     unitary_price: number;
     packaging_type: 'box' | 'fluid';
     dimensions: { width_cm: number; height_cm: number; depth_cm: number };

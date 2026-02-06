@@ -27,7 +27,7 @@ export interface Action {
         description?: string;
         product_url?: string;
         packaging_type?: 'box' | 'fluid';
-        weight_g?: number; // unified in grams
+        weight?: number; // unified in grams
         unitary_price?: number;
         dimensions?: {
             width_cm?: number;
@@ -101,6 +101,7 @@ export interface Stop {
 }
 
 export interface StopPayload {
+    sequence:number,
     address_text?: string;
     coordinates?: [number, number];
     arrival_window_start?: string;
@@ -220,6 +221,10 @@ export interface Order {
     totalDurationSeconds?: number;
     transitItems: NonNullable<Action['transitItem']>[];
     hasPendingChanges?: boolean;
+    live_route?: any;
+    pending_route?: any;
+    actual_trace?: any;
+    route_metadata?: { live_source: string; pending_source: string };
 }
 
 export const ordersApi = {
@@ -246,6 +251,21 @@ export const ordersApi = {
 
     get: async (id: string) => {
         const response = await client.get<Order>(`/orders/${id}`);
+        return response.data;
+    },
+
+    getRoute: async (id: string, include?: string[], options: { force?: boolean } = {}) => {
+        const includeParam = include ? `include=${include.join(',')}` : '';
+        const forceParam = options.force ? `force=true` : '';
+        const params = [includeParam, forceParam].filter(Boolean).join('&');
+        const queryString = params ? `?${params}` : '';
+
+        const response = await client.get<{
+            live_route: any;
+            pending_route: any;
+            actual_trace: any;
+            metadata: { live_source: string; pending_source: string }
+        }>(`/orders/${id}/route${queryString}`);
         return response.data;
     },
 

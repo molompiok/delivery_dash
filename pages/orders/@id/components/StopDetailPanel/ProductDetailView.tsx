@@ -157,7 +157,7 @@ const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                         </span>
                         <div className="flex flex-col">
                             <h2 className="text-xl tracking-tight line-clamp-1 break-all">
-                                {product.productName || 'New Product'}
+                                {(product.type === 'service' ? product.productName : product.transitItem?.name) || product.productName || 'New Product'}
                             </h2>
                             {product.productId && (
                                 <span className="text-[10px] font-black uppercase text-gray-400 tracking-widest mt-0.5 bg-gray-50 px-1.5 py-0.5 rounded w-fit">
@@ -344,7 +344,9 @@ const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                                     {/* Name & ID */}
                                     <div className="flex flex-col min-w-0 flex-1">
                                         <span className="text-sm font-bold text-gray-900 truncate pr-2">
-                                            {product.transitItem?.name || product.productName || 'Article'}
+                                            {product.type === 'service'
+                                                ? (product.productName || 'Service')
+                                                : (product.transitItem?.name || product.productName || 'Article')}
                                         </span>
                                         <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest mt-0.5">
                                             {formatId(product.transitItemId)}

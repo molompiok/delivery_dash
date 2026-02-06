@@ -1,19 +1,19 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { ChevronLeft, MapPin } from 'lucide-react';
-import { GoogleMap, Marker } from '../../../../../components/GoogleMap';
+import { MapLibre as GoogleMap, Marker, LatLng } from '../../../../../components/MapLibre';
 import LocationSearchBar from '../../../../../components/LocationSearchBar';
 import { variants, transition, ViewType } from './types';
 
 interface MapSelectorViewProps {
     direction: number;
     stop: any;
-    mapCenter: google.maps.LatLngLiteral;
-    selectedLocation: google.maps.LatLngLiteral | null;
+    mapCenter: LatLng;
+    selectedLocation: LatLng | null;
     setDirection: (dir: number) => void;
     setView: (view: ViewType) => void;
-    setMapCenter: (center: google.maps.LatLngLiteral) => void;
-    setSelectedLocation: (loc: google.maps.LatLngLiteral | null) => void;
+    setMapCenter: (center: LatLng) => void;
+    setSelectedLocation: (loc: LatLng | null) => void;
     handleFieldChange: (fieldPath: string, value: any) => void;
 }
 

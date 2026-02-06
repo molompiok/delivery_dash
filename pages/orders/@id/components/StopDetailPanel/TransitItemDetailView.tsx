@@ -119,10 +119,10 @@ const TransitItemDetailView: React.FC<TransitItemDetailViewProps> = ({
                         <div className="grid grid-cols-2 gap-4">
                             <EditableField
                                 label="Weight (g)"
-                                value={newItemForm.weight_g}
+                                value={newItemForm.weight}
                                 type="number"
                                 placeholder="0"
-                                onChange={(val) => onFieldChange('weight_g', Number(val))}
+                                onChange={(val) => onFieldChange('weight', Number(val))}
                             />
                             <EditableField
                                 label="Unitary Price (€)"

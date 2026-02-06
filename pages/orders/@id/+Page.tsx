@@ -27,18 +27,20 @@ import {
     Loader2,
     RotateCcw,
     Send,
-    Check
+    Check,
+    Layers
 } from 'lucide-react';
 import { arrayMove } from '@dnd-kit/sortable';
 import ListOptions from './components/ListOptions';
 import StopListWrapper from './components/StopListWrapper';
-import { GoogleMap, Marker, Polyline } from '../../../components/GoogleMap';
+import { MapLibre as GoogleMap, Marker, Polyline } from '../../../components/MapLibre';
 import { useHeader } from '../../../context/HeaderContext';
 import { ConfirmModal } from '../../../components/ConfirmModal';
 import StopDetailPanel from './components/StopDetailPanel';
 import { ordersApi, Order, Step as ApiStep, ValidationIssue } from '../../../api/orders';
 import { driverService } from '../../../api/drivers';
 import { fleetService } from '../../../api/fleet';
+import { trackingApi } from '../../../api/tracking';
 import { User as UserType, CompanyDriverSetting, Vehicle } from '../../../api/types';
 
 interface Stop {
@@ -92,13 +94,21 @@ export default function Page() {
     const [order, setOrder] = useState<Order | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [steps, setSteps] = useState<PageStep[]>([]);
+    const [driverLocation, setDriverLocation] = useState<any>(null); // Real-time position
     const [validationIssues, setValidationIssues] = useState<ValidationIssue[]>([]);
     const [showRevertModal, setShowRevertModal] = useState(false);
 
     const [activeStep, setActiveStep] = useState(0);
+    const [isRouteLoading, setIsRouteLoading] = useState(false);
     const [direction, setDirection] = useState(0);
     const [isSidebarFullscreen, setIsSidebarFullscreen] = useState(false);
     const [activeRouteTab, setActiveRouteTab] = useState<'details' | 'history'>('details');
+    const [visibleLayers, setVisibleLayers] = useState({
+        live: true,
+        pending: true,
+        actual: true
+    });
+    const [isLayerMenuOpen, setIsLayerMenuOpen] = useState(false);
     const { setHeaderContent, clearHeaderContent } = useHeader();
     const listRefs = useRef<{ [key: number]: HTMLDivElement | null }>({});
     const kanbanRef = useRef<HTMLDivElement | null>(null);
@@ -206,7 +216,7 @@ export default function Page() {
                         transitItemId: a.transitItemId,
                         productUrl: a.transitItem?.product_url || a.metadata?.productUrl,
                         packagingType: a.transitItem?.packaging_type || a.metadata?.packagingType,
-                        weight_g: a.transitItem?.weight_g || a.metadata?.weight_g || a.metadata?.weight, // unified in grams
+                        weight: a.transitItem?.weight || a.metadata?.weight || a.metadata?.weight, // unified in grams
                         dimensions: a.transitItem?.dimensions ? {
                             width: a.transitItem.dimensions.width_cm,
                             height: a.transitItem.dimensions.height_cm,
@@ -239,11 +249,33 @@ export default function Page() {
             const mappedSteps = mapServerToLocalSteps(serverSteps);
             setSteps(mappedSteps);
             setOrder(serverOrder);
+
+            // Deferred route loading
+            fetchRoute();
         } catch (error) {
             console.error("Failed to fetch order", error);
             showAlert("Erreur", "Impossible de charger les détails de la commande.");
         } finally {
             if (showLoading) setIsLoading(false);
+        }
+    };
+
+    const fetchRoute = async (options: { force?: boolean } = {}) => {
+        if (!id) return;
+        setIsRouteLoading(true);
+        try {
+            const routeData = await ordersApi.getRoute(id, ['live', 'pending', 'trace'], options);
+            setOrder(prev => prev ? {
+                ...prev,
+                live_route: routeData.live_route,
+                pending_route: routeData.pending_route,
+                actual_trace: routeData.actual_trace,
+                route_metadata: routeData.metadata
+            } : null);
+        } catch (error) {
+            console.error("Failed to fetch route", error);
+        } finally {
+            setIsRouteLoading(false);
         }
     };
 
@@ -280,6 +312,28 @@ export default function Page() {
         }
     };
 
+    // --- REAL-TIME TRACKING POLLING ---
+    useEffect(() => {
+        if (!id || !order?.driverId) {
+            setDriverLocation(null);
+            return;
+        }
+
+        const pollLocation = async () => {
+            try {
+                const pos = await trackingApi.getDriverLocation(order.driverId!);
+                setDriverLocation(pos);
+            } catch (error) {
+                // Silently ignore polling errors
+                console.debug("[TRACKING] Polling failed", error);
+            }
+        };
+
+        pollLocation(); // Immediate first fetch
+        const interval = setInterval(pollLocation, 5000); // 5s interval matching mobile app
+        return () => clearInterval(interval);
+    }, [id, order?.driverId]);
+
     // This function is now only used for logging/debugging purposes
     const mapStepsForDebug = (currentSteps: PageStep[], driver: CompanyDriverSetting | null, vehicle: Vehicle | null) => {
         const transitItems: any[] = [];
@@ -298,7 +352,7 @@ export default function Page() {
                         name: action.productName || 'Nouveau Produit',
                         description: action.productDescription || '',
                         packaging_type: action.packagingType === 'fluid' ? 'fluid' : 'box',
-                        weight_g: (action.weight || 0) * 1000,
+                        weight: (action.weight || 0) * 1000,
                         volume_l: action.dimensions?.volume || 0, // For fluid items
                         dimensions: {
                             width_cm: action.dimensions?.width || 0,
@@ -934,11 +988,47 @@ export default function Page() {
     }, [setHeaderContent, clearHeaderContent, order, id]);
 
 
-    const routeDetails: any[] = [];
+    const livePath = React.useMemo(() => {
+        if (!order?.live_route?.geometry) return [];
+        return order.live_route.geometry.coordinates.map(([lng, lat]: [number, number]) => ({ lat, lng }));
+    }, [order?.live_route]);
+
+    const pendingPath = React.useMemo(() => {
+        if (!order?.pending_route?.geometry) return [];
+        return order.pending_route.geometry.coordinates.map(([lng, lat]: [number, number]) => ({ lat, lng }));
+    }, [order?.pending_route]);
+
+    const tracePath = React.useMemo(() => {
+        if (!order?.actual_trace?.geometry) return [];
+        return order.actual_trace.geometry.coordinates.map(([lng, lat]: [number, number]) => ({ lat, lng }));
+    }, [order?.actual_trace]);
+
+    const routeDetails = React.useMemo(() => {
+        const activeRoute = order?.pending_route || order?.live_route;
+        if (!activeRoute?.stops) return [];
+
+        return activeRoute.stops.map((s: any) => {
+            const stopEntity = steps.flatMap(st => st.stops).find(st => st.id === s.stopId);
+            return {
+                id: s.sequence + 1,
+                location: stopEntity?.address?.name || `Point ${s.sequence + 1}`,
+                address: stopEntity?.address?.street || 'Adresse inconnue',
+                timing: s.arrival ? `Arrivée +${Math.round(s.arrival / 60)}min` : ''
+            };
+        });
+    }, [order?.pending_route, order?.live_route, steps]);
 
     const historyStatus: any[] = [];
 
-    const mapPath: any[] = [];
+    const mapMarkers = React.useMemo(() => {
+        return steps.flatMap(s => s.stops)
+            .filter(s => s.address?.lat && s.address?.lng)
+            .map(s => ({
+                lat: s.address.lat!,
+                lng: s.address.lng!,
+                label: s.id.slice(-3)
+            }));
+    }, [steps]);
 
     // Loading state
     if (isLoading) {
@@ -1169,19 +1259,146 @@ export default function Page() {
                             <h2 className="text-[11px] font-black text-gray-400 uppercase tracking-widest mb-4">Map Overview</h2>
                             <div className="w-full h-[400px] rounded-[16px] overflow-hidden border border-gray-100 shadow-sm relative">
                                 <GoogleMap
-                                    center={{ lat: 40.5, lng: -81.0 }}
-                                    zoom={5}
+                                    center={mapMarkers[0] || { lat: 48.8566, lng: 2.3522 }}
+                                    zoom={12}
                                     className="w-full h-full"
                                 >
-                                    {mapPath.map((pos, i) => (
-                                        <Marker key={i} position={pos} label={(i + 1).toString()} />
+                                    {mapMarkers.map((m, i) => (
+                                        <Marker key={i} position={{ lat: m.lat, lng: m.lng }} label={m.label} />
                                     ))}
-                                    <Polyline path={mapPath} strokeColor="#2563eb" strokeWeight={4} />
+                                    {/* Live Route in Blue */}
+                                    {visibleLayers.live && (
+                                        <Polyline path={livePath} strokeColor="#2563eb" strokeWeight={6} strokeOpacity={0.8} />
+                                    )}
+
+                                    {/* Pending Route in Emerald */}
+                                    {visibleLayers.pending && order?.hasPendingChanges && (
+                                        <Polyline path={pendingPath} strokeColor="#10b981" strokeWeight={4} strokeOpacity={0.9} />
+                                    )}
+
+                                    {/* Actual Trace in Green Dashed */}
+                                    {visibleLayers.actual && tracePath.length > 0 && (
+                                        <Polyline
+                                            path={tracePath}
+                                            strokeColor="#10b981"
+                                            strokeWeight={3}
+                                            strokeOpacity={0.6}
+                                            // @ts-ignore
+                                            icons={[{
+                                                icon: { path: 'M 0,-1 0,1', strokeOpacity: 1, scale: 2 },
+                                                offset: '0',
+                                                repeat: '10px'
+                                            }]}
+                                        />
+                                    )}
+
+                                    {/* Real-time Driver Marker */}
+                                    {driverLocation && (
+                                        <Marker
+                                            position={{ lat: driverLocation.lat, lng: driverLocation.lng }}
+                                            icon={{
+                                                path: typeof window !== 'undefined' ? (window as any).google?.maps?.SymbolPath?.FORWARD_CLOSED_ARROW : undefined,
+                                                scale: 6,
+                                                fillColor: '#2563eb',
+                                                fillOpacity: 1,
+                                                strokeWeight: 2,
+                                                strokeColor: '#ffffff',
+                                                rotation: driverLocation.heading || 0
+                                            }}
+                                            // @ts-ignore
+                                            title={`Chauffeur en direct - Mis à jour à ${new Date(driverLocation.updated_at).toLocaleTimeString()}`}
+                                        />
+                                    )}
                                 </GoogleMap>
+
+                                {/* Route Loading Overlay */}
+                                <AnimatePresence>
+                                    {isRouteLoading && (
+                                        <motion.div
+                                            initial={{ opacity: 0 }}
+                                            animate={{ opacity: 1 }}
+                                            exit={{ opacity: 0 }}
+                                            className="absolute inset-0 bg-white/40 backdrop-blur-[2px] z-[10] flex items-center justify-center"
+                                        >
+                                            <div className="bg-white px-4 py-2 rounded-full shadow-lg border border-gray-100 flex items-center gap-3">
+                                                <Loader2 className="animate-spin text-blue-600" size={18} />
+                                                <span className="text-[11px] font-bold text-gray-700 uppercase tracking-wider">Calcul de l'itinéraire...</span>
+                                            </div>
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
                                 {/* Map controls overlay */}
                                 <div className="absolute right-4 top-4 flex flex-col gap-2">
-                                    <button className="p-2 bg-white rounded-lg shadow-md hover:bg-gray-50 text-gray-600">+</button>
-                                    <button className="p-2 bg-white rounded-lg shadow-md hover:bg-gray-50 text-gray-600">-</button>
+                                    <div className="relative">
+                                        <button
+                                            onClick={() => setIsLayerMenuOpen(!isLayerMenuOpen)}
+                                            className={`p-2 rounded-lg shadow-md transition-all ${isLayerMenuOpen ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+                                        >
+                                            <Layers size={18} />
+                                        </button>
+
+                                        <AnimatePresence>
+                                            {isLayerMenuOpen && (
+                                                <motion.div
+                                                    initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                                                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                                                    exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                                                    className="absolute right-0 top-12 w-48 bg-white rounded-2xl shadow-2xl border border-gray-100 p-2 z-50"
+                                                >
+                                                    <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-3 py-2 border-b border-gray-50 mb-1">Affichage Carte</div>
+
+                                                    <button
+                                                        onClick={() => setVisibleLayers(prev => ({ ...prev, live: !prev.live }))}
+                                                        className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition-colors ${visibleLayers.live ? 'bg-blue-50 text-blue-700' : 'text-gray-500 hover:bg-gray-50'}`}
+                                                    >
+                                                        <span className="text-[11px] font-bold">Route Planifiée</span>
+                                                        <div className={`w-2 h-2 rounded-full ${visibleLayers.live ? 'bg-blue-600' : 'bg-gray-200'}`} />
+                                                    </button>
+
+                                                    <button
+                                                        onClick={() => setVisibleLayers(prev => ({ ...prev, pending: !prev.pending }))}
+                                                        className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition-colors ${visibleLayers.pending ? 'bg-emerald-50 text-emerald-700' : 'text-gray-500 hover:bg-gray-50'}`}
+                                                    >
+                                                        <span className="text-[11px] font-bold">Modifications</span>
+                                                        <div className={`w-2 h-2 rounded-full ${visibleLayers.pending ? 'bg-emerald-500' : 'bg-gray-200'}`} />
+                                                    </button>
+
+                                                    <button
+                                                        onClick={() => setVisibleLayers(prev => ({ ...prev, actual: !prev.actual }))}
+                                                        className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition-colors ${visibleLayers.actual ? 'bg-green-50 text-green-700' : 'text-gray-500 hover:bg-gray-50'}`}
+                                                    >
+                                                        <span className="text-[11px] font-bold">Tracé Réel</span>
+                                                        <div className={`w-2 h-2 rounded-full ${visibleLayers.actual ? 'bg-green-500' : 'bg-gray-200'}`} />
+                                                    </button>
+
+                                                    {/* Sources Tooltip */}
+                                                    <div className="mt-2 p-2 bg-gray-50 rounded-lg border border-gray-100">
+                                                        <div className="text-[9px] text-gray-400 font-bold mb-1 uppercase tracking-wider">Sources du tracé</div>
+                                                        <div className="flex flex-col gap-1">
+                                                            <div className="flex justify-between items-center text-[10px]">
+                                                                <span className="text-gray-500">Prévu:</span>
+                                                                <span className="font-mono bg-white px-1 rounded border border-gray-100">{order?.route_metadata?.live_source || '...'}</span>
+                                                            </div>
+                                                            <div className="flex justify-between items-center text-[10px]">
+                                                                <span className="text-gray-500">Modif.:</span>
+                                                                <span className="font-mono bg-white px-1 rounded border border-gray-100">{order?.route_metadata?.pending_source || '...'}</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </motion.div>
+                                            )}
+                                        </AnimatePresence>
+                                    </div>
+
+                                    <button
+                                        onClick={() => fetchRoute({ force: true })}
+                                        disabled={isRouteLoading}
+                                        className={`p-2 bg-white rounded-lg shadow-md text-gray-600 hover:bg-gray-50 transition-all ${isRouteLoading ? 'opacity-50' : ''}`}
+                                        title="Recalculer la route (VROOM)"
+                                    >
+                                        <RotateCcw size={18} className={isRouteLoading ? 'animate-spin' : ''} />
+                                    </button>
+
                                 </div>
                                 <div className="absolute right-4 bottom-4">
                                     <button className="p-2 bg-white rounded-lg shadow-md hover:bg-gray-50 text-gray-600">
@@ -1215,14 +1432,17 @@ export default function Page() {
                                             {/* Route line */}
                                             <div className="absolute left-[11px] top-[10px] bottom-[10px] w-0 border-l-2 border-dashed border-gray-300"></div>
 
-                                            {routeDetails.map((stop) => (
+                                            {routeDetails.map((stop: any) => (
                                                 <div key={stop.id} className="flex gap-4 relative">
                                                     <div className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center text-[10px] font-black text-white z-10 shadow-sm">
                                                         {stop.id}
                                                     </div>
-                                                    <div className="pt-0.5">
-                                                        <div className="text-xs font-bold text-gray-900 mb-0.5">{stop.location}</div>
-                                                        <div className="text-[10px] font-medium text-gray-400 uppercase">{stop.address}</div>
+                                                    <div className="pt-0.5 flex-1">
+                                                        <div className="flex items-center justify-between mb-0.5">
+                                                            <div className="text-xs font-bold text-gray-900">{stop.location}</div>
+                                                            <div className="text-[9px] font-black text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-md uppercase tracking-tighter">{stop.timing}</div>
+                                                        </div>
+                                                        <div className="text-[10px] font-medium text-gray-400 uppercase line-clamp-1">{stop.address}</div>
                                                     </div>
                                                 </div>
                                             ))}
@@ -1477,7 +1697,7 @@ export default function Page() {
                             productDescription: data.productDescription,
                             unitaryPrice: data.unitaryPrice,
                             packagingType: data.packagingType,
-                            weight_g: data.weight_g,
+                            weight: data.weight,
                             dimensions: data.dimensions
                         }
                     };

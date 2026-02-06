@@ -57,7 +57,7 @@ const StopDetailPanel: React.FC<StopDetailPanelProps> = ({
     // New Transit Item Form State
     const [newItemForm, setNewItemForm] = useState<NewItemFormState>({
         name: '',
-        weight_g: 0,
+        weight: 0,
         unitary_price: 0,
         packaging_type: 'box',
         dimensions: { width_cm: 0, height_cm: 0, depth_cm: 0 },
@@ -117,7 +117,7 @@ const StopDetailPanel: React.FC<StopDetailPanelProps> = ({
     const handleOpenCreateItemForm = () => {
         setNewItemForm({
             name: '',
-            weight_g: 0,
+            weight: 0,
             unitary_price: 0,
             packaging_type: 'box',
             dimensions: { width_cm: 0, height_cm: 0, depth_cm: 0 },
@@ -136,7 +136,7 @@ const StopDetailPanel: React.FC<StopDetailPanelProps> = ({
             if (currentProduct?.transitItemId) {
                 setNewItemForm({
                     name: currentProduct.productName || '',
-                    weight_g: 0,
+                    weight: 0,
                     unitary_price: 0,
                     packaging_type: 'box',
                     dimensions: { width_cm: 0, height_cm: 0, depth_cm: 0 },
@@ -150,7 +150,7 @@ const StopDetailPanel: React.FC<StopDetailPanelProps> = ({
 
         setNewItemForm({
             name: itemToUse.name || '',
-            weight_g: itemToUse.weight_g || 0,
+            weight: itemToUse.weight || 0,
             unitary_price: itemToUse.unitary_price || 0,
             packaging_type: itemToUse.packaging_type || 'box',
             dimensions: itemToUse.dimensions || { width_cm: 0, height_cm: 0, depth_cm: 0 },
@@ -167,7 +167,7 @@ const StopDetailPanel: React.FC<StopDetailPanelProps> = ({
             const result = await ordersApi.addItem(orderId, {
                 name: newItemForm.name || 'Nouveau produit',
                 packaging_type: newItemForm.packaging_type,
-                weight_g: newItemForm.weight_g,
+                weight: newItemForm.weight,
                 unitary_price: newItemForm.unitary_price,
                 dimensions: newItemForm.dimensions,
                 metadata: { requirements: newItemForm.requirements }

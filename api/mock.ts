@@ -125,6 +125,26 @@ export const mockService = {
     },
 
     async getDriverPositions(): Promise<DriverPosition[]> {
+        try {
+            const { trackingApi } = await import('./tracking');
+            const realPositions = await trackingApi.getAllDriversLocations();
+
+            if (realPositions && realPositions.length > 0) {
+                return realPositions.map(rp => ({
+                    driverId: rp.id,
+                    vehicleId: '', // We don't have vehicle info in condensed state yet
+                    lat: rp.lat,
+                    lng: rp.lng,
+                    heading: rp.heading || 0,
+                    speed: 0,
+                    status: (rp as any).status || 'ONLINE',
+                    ordersInProgress: 0
+                }));
+            }
+        } catch (e) {
+            console.warn('Failed to fetch real driver positions, using mock', e);
+        }
+
         let driverIds: string[] = [];
         try {
             const drivers = await this.getDrivers();

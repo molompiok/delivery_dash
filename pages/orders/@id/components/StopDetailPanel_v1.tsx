@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, MapPin, Clock, Package, Trash2, Plus, User, Phone, Mail, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Euro, Boxes, Weight, Link as LinkIcon, Camera, QrCode, PenTool, AlertTriangle, ThermometerSnowflake, AlertCircle, Image as ImageIcon, FileText, CheckCircle2, ArrowUpRight, ArrowDownLeft, Upload, Save, Check, Calendar, ArrowRight, Droplets, Wrench, Timer, Map as MapIcon, RotateCcw, Search } from 'lucide-react';
-import { GoogleMap, Marker } from '../../../../components/GoogleMap';
+import { MapLibre as GoogleMap, Marker, LatLng } from '../../../../components/MapLibre';
 import LocationSearchBar from '../../../../components/LocationSearchBar';
 import { ConfirmModal } from '../../../../components/ConfirmModal';
 import DatePicker from 'react-datepicker';
@@ -196,8 +196,8 @@ const StopDetailPanel: React.FC<StopDetailPanelProps> = ({
     const [direction, setDirection] = useState(0);
 
     // Map State
-    const [mapCenter, setMapCenter] = useState<google.maps.LatLngLiteral>({ lat: 48.8566, lng: 2.3522 }); // Default Paris
-    const [selectedLocation, setSelectedLocation] = useState<google.maps.LatLngLiteral | null>(null);
+    const [mapCenter, setMapCenter] = useState<LatLng>({ lat: 48.8566, lng: 2.3522 }); // Default Paris
+    const [selectedLocation, setSelectedLocation] = useState<LatLng | null>(null);
     const [editingProductIdx, setEditingProductIdx] = useState<number | null>(null);
     const [selectedValidationType, setSelectedValidationType] = useState<'photo' | 'code' | null>(null);
     const [editingValidationIdx, setEditingValidationIdx] = useState<number | null>(null);
@@ -794,8 +794,8 @@ const StopDetailPanel: React.FC<StopDetailPanelProps> = ({
                                                 <input
                                                     type="number"
                                                     className="flex-1 bg-transparent text-sm font-bold text-gray-900 outline-none"
-                                                    value={product.weight_g || 0}
-                                                    onChange={(e) => handleProductChange(editingProductIdx, 'weight_g', Number(e.target.value))}
+                                                    value={product.weight || 0}
+                                                    onChange={(e) => handleProductChange(editingProductIdx, 'weight', Number(e.target.value))}
                                                 />
                                             </div>
                                         </div>
@@ -844,8 +844,8 @@ const StopDetailPanel: React.FC<StopDetailPanelProps> = ({
                                                 <input
                                                     type="number"
                                                     className="flex-1 bg-transparent text-sm font-bold text-gray-900 outline-none"
-                                                    value={product.weight_g || 0}
-                                                    onChange={(e) => handleProductChange(editingProductIdx, 'weight_g', Number(e.target.value))}
+                                                    value={product.weight || 0}
+                                                    onChange={(e) => handleProductChange(editingProductIdx, 'weight', Number(e.target.value))}
                                                 />
                                             </div>
                                         </div>
@@ -1460,7 +1460,7 @@ const StopDetailPanel: React.FC<StopDetailPanelProps> = ({
                                     service_time: 10,
                                     packagingType: 'box',
                                     dimensions: { width: 0, height: 0, depth: 0, volume: 0 },
-                                    weight_g: 0,
+                                    weight: 0,
                                     unitaryPrice: 0,
                                     type: stop.type === 'Pick-Up' ? 'pickup' : 'service',
                                     requirements: [],
