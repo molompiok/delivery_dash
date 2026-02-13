@@ -23,8 +23,8 @@ const LocationSearchBar: React.FC<LocationSearchBarProps> = ({
     onLocationSelect,
     initialValue = "",
     placeholder = "Rechercher un lieu...",
-    wrapperClassName = "bg-white rounded-[20px] shadow-lg border border-gray-200",
-    inputClassName = "text-gray-700 placeholder-gray-400"
+    wrapperClassName = "rounded-[20px] shadow-lg border backdrop-blur-2xl",
+    inputClassName = "placeholder-gray-400 dark:placeholder-slate-500"
 }) => {
     const [query, setQuery] = useState(initialValue);
 
@@ -42,24 +42,39 @@ const LocationSearchBar: React.FC<LocationSearchBarProps> = ({
 
     useEffect(() => {
         const socket = socketClient.connect();
-        if (!socket.connected) socket.connect();
+        console.log("LocationSearchBar: Connecting socket...", socket.id);
+        if (!socket.connected) {
+            console.log("LocationSearchBar: Socket not connected, force connecting...");
+            socket.connect();
+        }
 
         socket.on("search_result", (data: { requestId: number, results: SearchResult[] }) => {
+            console.log("LocationSearchBar: Received result:", data);
             // Drop responses that are older than our last request
-            if (data.requestId < lastRequestId.current) return;
+            if (data.requestId < lastRequestId.current) {
+                console.log("LocationSearchBar: Dropping old request", data.requestId, lastRequestId.current);
+                return;
+            }
 
             setResults(data.results || []);
             setIsLoading(false);
             setIsOpen(true);
         });
 
+        socket.on("connect_error", (err) => {
+            console.error("LocationSearchBar: Socket connect error:", err);
+        });
+
         return () => {
+            console.log("LocationSearchBar: Cleaning up socket listeners");
             socket.off("search_result");
+            socket.off("connect_error");
         };
     }, []);
 
     const handleSearch = useCallback((input: string) => {
         setQuery(input);
+        console.log("LocationSearchBar: handleSearch", input);
 
         if (input.length < 3) {
             setResults([]);
@@ -77,11 +92,14 @@ const LocationSearchBar: React.FC<LocationSearchBarProps> = ({
             lastRequestId.current = requestId;
 
             const socket = socketClient.getSocket();
+            console.log("LocationSearchBar: Emitting search_place", input, requestId, socket?.id);
             if (socket) {
                 socket.emit("search_place", {
                     query: input,
                     requestId: requestId
                 });
+            } else {
+                console.error("LocationSearchBar: No socket available to emit");
             }
         }, 300);
 
@@ -105,13 +123,20 @@ const LocationSearchBar: React.FC<LocationSearchBarProps> = ({
 
     return (
         <div className="relative w-full z-[1000]">
-            <div className={`relative flex items-center ${wrapperClassName}`}>
-                <div className="pl-3 text-gray-400">
+            <div
+                className={`relative flex items-center ${wrapperClassName}`}
+                style={{
+                    backgroundColor: 'var(--header-bg)',
+                    borderColor: 'var(--header-border)'
+                }}
+            >
+                <div className="pl-3" style={{ color: 'var(--header-icon)' }}>
                     <FaSearch />
                 </div>
                 <input
                     type="text"
-                    className={`w-full px-3 py-2 rounded-lg focus:outline-none ${inputClassName}`}
+                    className={`w-full px-3 py-2 rounded-lg bg-transparent focus:outline-none ${inputClassName}`}
+                    style={{ color: 'var(--header-text)' }}
                     placeholder={placeholder}
                     value={query}
                     onChange={(e) => handleSearch(e.target.value)}
@@ -120,25 +145,26 @@ const LocationSearchBar: React.FC<LocationSearchBarProps> = ({
                 {query && (
                     <button
                         onClick={clearSearch}
-                        className="pr-3 text-gray-400 hover:text-gray-600 focus:outline-none"
+                        className="pr-3 hover:opacity-70 focus:outline-none transition-opacity"
+                        style={{ color: 'var(--header-icon)' }}
                     >
                         <FaTimes />
                     </button>
                 )}
                 {isLoading && (
                     <div className="absolute right-10">
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary-500"></div>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-indigo-500"></div>
                     </div>
                 )}
             </div>
 
             {/* Results Dropdown */}
             {isOpen && results.length > 0 && (
-                <div className="absolute w-full mt-2 bg-white rounded-lg shadow-xl border border-gray-100 max-h-80 overflow-y-auto">
+                <div className="absolute w-full mt-2 bg-white dark:bg-slate-900 rounded-lg shadow-xl border border-gray-100 dark:border-slate-800 max-h-80 overflow-y-auto">
                     {results.map((item, index) => (
                         <div
                             key={index}
-                            className="px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-50 last:border-none duration-150 transition-colors"
+                            className="px-4 py-3 hover:bg-gray-50 dark:hover:bg-slate-800 cursor-pointer border-b border-gray-50 dark:border-slate-800 last:border-none duration-150 transition-colors"
                             onClick={() => handleSelect(item)}
                         >
                             <div className="flex items-start">
@@ -146,13 +172,13 @@ const LocationSearchBar: React.FC<LocationSearchBarProps> = ({
                                     {item.source === 'google' ? <FaMapMarkerAlt className="text-red-500" /> : <FaLocationArrow className="text-blue-500" />}
                                 </span>
                                 <div>
-                                    <p className="text-sm font-medium text-gray-800 line-clamp-1">{item.display_name.split(',')[0]}</p>
-                                    <p className="text-xs text-gray-500 line-clamp-1">{item.display_name}</p>
+                                    <p className="text-sm font-medium text-gray-800 dark:text-slate-200 line-clamp-1">{item.display_name.split(',')[0]}</p>
+                                    <p className="text-xs text-gray-500 dark:text-slate-400 line-clamp-1">{item.display_name}</p>
                                 </div>
                             </div>
                         </div>
                     ))}
-                    <div className="px-2 py-1 bg-gray-50 text-[10px] text-right text-gray-400">
+                    <div className="px-2 py-1 bg-gray-50 dark:bg-slate-800/50 text-[10px] text-right text-gray-400 dark:text-slate-500">
                         Source: {results[0]?.source === 'google' ? 'Google Maps' : 'OpenStreetMap'}
                     </div>
                 </div>

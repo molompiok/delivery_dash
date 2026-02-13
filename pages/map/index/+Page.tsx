@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from 'react';
-import { Loader2, ChevronLeft, ChevronRight, Package, Truck, Maximize, Minimize } from 'lucide-react';
+import { Loader2, ChevronLeft, ChevronRight, Package, Truck, Maximize, Minimize, Menu } from 'lucide-react';
 import { mockService, DriverPosition, Zone, Driver } from '../../../api/mock';
 import { zoneService } from '../../../api/zones';
 import { MapLibre as GoogleMap, Marker, Circle, Polygon, DrawingManager, Rectangle, HexagonDrawer } from '../../../components/MapLibre';
 import { AnimatePresence } from 'framer-motion';
 import { usePageContext } from 'vike-react/usePageContext';
+import { useTheme } from '../../../context/ThemeContext';
 
 // Refactored Components
+import { useHeader } from '../../../context/HeaderContext';
 // Refactored Components
 import { SidebarHeader } from './components/SidebarHeader';
 import { TabNavigation } from './components/TabNavigation';
@@ -19,10 +21,13 @@ import { VehicleDetail } from './components/VehicleDetail';
 import { DeleteConfirmationModal } from './components/DeleteConfirmationModal';
 import { Vehicle } from '../../../api/types';
 import LocationSearchBar from '../../../components/LocationSearchBar';
+import { socketClient } from '../../../api/socket';
 
 type MapTab = 'DRIVERS' | 'ZONES' | 'ORDERS' | 'VEHICLES';
 
 export default function Page() {
+    const { headerHeight } = useHeader();
+    const { theme } = useTheme();
     const pageContext = usePageContext();
     const zoneIdParam = pageContext.urlParsed.search.zone_id;
     const driverIdParam = pageContext.urlParsed.search.driver_id;
@@ -54,6 +59,14 @@ export default function Page() {
     const [driverDetailId, setDriverDetailId] = useState<string | null>(null);
     const [driverOrders, setDriverOrders] = useState<any[]>([]);
     const [detailsLoading, setDetailsLoading] = useState(false);
+    const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1200);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const handleResize = () => setWindowWidth(window.innerWidth);
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
 
     // Fullscreen State
     const [isFullscreen, setIsFullscreen] = useState(false);
@@ -227,6 +240,31 @@ export default function Page() {
         });
 
         return () => clearInterval(interval);
+    }, []);
+
+    useEffect(() => {
+        const socket = socketClient.connect();
+        const userStr = localStorage.getItem('delivery_user');
+        if (userStr) {
+            try {
+                const user = JSON.parse(userStr);
+                const companyId = user.effectiveCompanyId || user.companyId;
+                if (companyId) {
+                    socket.emit('join', `fleet:${companyId}`);
+                    console.log(`[MAP] Subscribed to fleet:${companyId}`);
+                }
+            } catch (e) { }
+        }
+
+        socket.on('route_updated', (payload: any) => {
+            console.log('[MAP] Route update received, refreshing positions:', payload);
+            // Refresh positions immediately
+            mockService.getDriverPositions().then(setPositions);
+        });
+
+        return () => {
+            socket.off('route_updated');
+        };
     }, []);
 
     useEffect(() => {
@@ -494,25 +532,40 @@ export default function Page() {
 
 
     return (
-        <div className={`${isFullscreen ? 'fixed inset-0 z-50 bg-gray-100' : 'h-full w-full relative bg-gray-100'} overflow-hidden`}>
+        <div className={`${isFullscreen ? 'fixed inset-0 z-50 bg-[#f4f7fa] dark:bg-slate-950' : 'h-full w-full relative bg-[#f4f7fa] dark:bg-slate-950'} overflow-hidden transition-colors duration-500`}>
             {/* Fullscreen Toggle Button */}
             <button
                 onClick={() => setIsFullscreen(!isFullscreen)}
-                className="absolute top-4 left-4 z-20 p-2.5 bg-white/95 backdrop-blur-sm hover:bg-white rounded-lg shadow-lg border border-gray-200 text-gray-600 hover:text-emerald-600 transition-all hover:scale-105"
+                className="absolute right-2 md:right-4 z-20 p-2 md:p-2.5 bg-white dark:bg-slate-900/95 backdrop-blur-sm hover:bg-white dark:bg-slate-900 rounded-lg shadow-lg border border-gray-200 dark:border-slate-800 text-gray-600 dark:text-gray-400 hover:text-emerald-600 transition-all hover:scale-105"
+                style={{ top: isFullscreen ? (windowWidth < 650 ? '12px' : '16px') : `${headerHeight}px` }}
                 title={isFullscreen ? "Quitter le plein écran" : "Plein écran"}
             >
                 {isFullscreen ? <Minimize size={20} /> : <Maximize size={20} />}
             </button>
 
             {/* Location Search Bar */}
-            <div className="absolute top-4 left-20 z-20 w-full max-w-md pointer-events-auto">
+            <div
+                className="absolute left-1/2 -translate-x-1/2 z-20 w-full pointer-events-auto px-4 transition-all duration-300"
+                style={{
+                    top: isFullscreen ? (windowWidth < 650 ? '12px' : '16px') : `${headerHeight}px`,
+                    maxWidth: windowWidth < 650 ? 'calc(100% - 130px)' : '400px'
+                }}
+            >
                 <LocationSearchBar onLocationSelect={(loc) => {
                     setMapCenter({ lat: loc.lat, lng: loc.lng });
                     setMapZoom(16);
                 }} />
             </div>
 
-            <GoogleMap center={mapCenter} zoom={mapZoom} className="w-full h-full" onCenterChanged={handleCenterChanged} onZoomChanged={handleZoomChanged}>
+            <GoogleMap
+                center={mapCenter}
+                zoom={mapZoom}
+                className="w-full h-full"
+                onCenterChanged={handleCenterChanged}
+                onZoomChanged={handleZoomChanged}
+                // @ts-ignore
+                theme={theme}
+            >
                 {zones.map(zone => {
                     if (!showZones && activeZone !== zone.id) return null;
                     if (!zone.isActive && activeZone !== zone.id) return null;
@@ -557,9 +610,18 @@ export default function Page() {
                 })}
             </GoogleMap>
 
-            {/* Sidebar UI */}
-            <div className={`absolute top-6 right-6 z-10 transition-all duration-300 ease-in-out ${panelCollapsed ? 'translate-x-[calc(100%+24px)]' : 'translate-x-0'}`}>
-                <div className={`bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl border border-white/20 pointer-events-auto w-[350px] max-w-[90vw] overflow-hidden flex flex-col ${isFullscreen ? 'h-[calc(100vh-48px)]' : 'h-[calc(100vh-250px)]'}`}>
+            {/* Sidebar UI (Left side, Full Height, Glass Style) */}
+            <div
+                className={`absolute left-2 md:left-4 z-30 transition-all duration-500 ease-in-out ${panelCollapsed ? '-translate-x-[calc(100%+60px)] opacity-0' : 'translate-x-0 opacity-100'}`}
+                style={{
+                    top: isFullscreen ? (windowWidth < 650 ? '12px' : '24px') : `${headerHeight}px`,
+                    bottom: windowWidth < 650 ? '12px' : '24px',
+                    right: windowWidth < 650 ? '8px' : 'auto'
+                }}
+            >
+                <div className={`bg-white/40 dark:bg-slate-900/40 backdrop-blur-2xl rounded-[24px] md:rounded-[32px] shadow-2xl border border-white/20 dark:border-slate-800 pointer-events-auto overflow-hidden flex flex-col h-full transition-all duration-500`}
+                    style={{ width: windowWidth < 650 ? '100%' : '400px' }}
+                >
                     <SidebarHeader isFollowing={isFollowing} onToggleFollow={() => setIsFollowing(!isFollowing)} />
                     <TabNavigation activeTab={activeTab} onTabChange={setActiveTab} />
 
@@ -712,13 +774,29 @@ export default function Page() {
                     </div>
                 </div>
 
-                <button onClick={() => setPanelCollapsed(!panelCollapsed)} className="absolute top-1/2 -translate-y-1/2 -left-6 w-12 h-12 bg-white rounded-full shadow-xl border border-gray-100 flex items-center justify-center text-gray-600 hover:text-emerald-600 active:scale-95 transition-all pointer-events-auto">
-                    {panelCollapsed ? <ChevronLeft size={24} /> : <ChevronRight size={24} />}
+                <button
+                    onClick={() => setPanelCollapsed(!panelCollapsed)}
+                    className={`absolute top-1/2 -translate-y-1/2 -right-3 md:-right-6 w-8 md:w-12 h-16 md:h-24 bg-white/60 dark:bg-slate-900/60 backdrop-blur-2xl rounded-full shadow-2xl border border-white/20 dark:border-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-400 hover:text-emerald-600 active:scale-95 transition-all pointer-events-auto group z-40`}
+                >
+                    <div className="flex flex-col items-center gap-1">
+                        {panelCollapsed ? <ChevronRight size={20} className="md:w-6 md:h-6" /> : <ChevronLeft size={20} className="md:w-6 md:h-6" />}
+                    </div>
                 </button>
             </div>
 
+            {/* Floating Mobile Toggle (when sidebar is hidden) */}
+            {panelCollapsed && (
+                <button
+                    onClick={() => setPanelCollapsed(false)}
+                    className="absolute left-2 md:left-4 z-40 p-3 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 dark:border-slate-800 text-emerald-600 transition-all hover:scale-105 active:scale-95"
+                    style={{ top: isFullscreen ? (windowWidth < 650 ? '12px' : '16px') : `${headerHeight}px` }}
+                >
+                    <Menu size={24} />
+                </button>
+            )}
+
             {loading && (
-                <div className="absolute inset-0 flex items-center justify-center bg-white/50 backdrop-blur-sm z-50">
+                <div className="absolute inset-0 flex items-center justify-center bg-white dark:bg-slate-900/50 backdrop-blur-sm z-50">
                     <Loader2 className="animate-spin text-emerald-600" size={48} />
                 </div>
             )}

@@ -19,8 +19,10 @@ import {
 import { driverService } from '../../../api/drivers';
 import { CompanyDriverSetting } from '../../../api/types';
 import { EmptyState } from '../../../components/EmptyState';
+import { useHeaderAutoHide } from '../../../hooks/useHeaderAutoHide';
 
 export default function Page() {
+    useHeaderAutoHide();
     const [drivers, setDrivers] = useState<CompanyDriverSetting[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState('');
@@ -107,7 +109,7 @@ export default function Page() {
         return (
             <div className="flex flex-col items-center justify-center p-24 space-y-4">
                 <div className="w-12 h-12 border-4 border-indigo-600/20 border-t-indigo-600 rounded-full animate-spin"></div>
-                <p className="text-slate-500 font-medium italic">Chargement de l'élite logistique...</p>
+                <p className="text-slate-500 dark:text-slate-400 font-medium italic">Chargement de l'élite logistique...</p>
             </div>
         );
     }
@@ -117,8 +119,8 @@ export default function Page() {
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Mes Chauffeurs</h1>
-                    <p className="text-slate-500 mt-1 font-medium">Pilotez et suivez les performances de votre flotte humaine.</p>
+                    <h1 className="text-3xl font-extrabold text-slate-900 dark:text-slate-100 tracking-tight">Mes Chauffeurs</h1>
+                    <p className="text-slate-500 dark:text-slate-400 mt-1 font-medium">Pilotez et suivez les performances de votre flotte humaine.</p>
                 </div>
                 <div className="flex items-center gap-3">
                     <a
@@ -132,15 +134,15 @@ export default function Page() {
             </div>
 
             {/* List Container */}
-            <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100 relative">
+            <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-xl shadow-slate-200/50 dark:shadow-none border border-slate-100 dark:border-slate-800 relative">
                 {/* Control Bar */}
-                <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex flex-col xl:flex-row gap-4 justify-between items-center relative z-20 rounded-t-3xl">
+                <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50 flex flex-col xl:flex-row gap-4 justify-between items-center relative z-20 rounded-t-3xl">
                     <div className="relative w-full md:max-w-xs group">
                         <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" size={16} />
                         <input
                             type="text"
                             placeholder="Saisir un nom ou téléphone..."
-                            className="w-full pl-10 pr-10 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all shadow-sm text-sm"
+                            className="w-full pl-10 pr-10 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all shadow-sm text-sm dark:text-slate-200"
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                         />
@@ -152,19 +154,19 @@ export default function Page() {
                         </button>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-1.5 p-1 bg-slate-200/50 rounded-2xl border border-slate-200/50 transition-all">
+                    <div className="flex flex-wrap items-center gap-1.5 p-1 bg-slate-200/50 dark:bg-slate-800 rounded-2xl border border-slate-200/50 dark:border-slate-700 transition-all">
                         {statusFilters.map((filter) => (
                             <button
                                 key={filter.id}
                                 onClick={() => setActiveStatus(filter.id)}
                                 className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${activeStatus === filter.id
-                                    ? 'bg-white text-indigo-600 shadow-sm'
-                                    : 'text-slate-500 hover:text-slate-700'
+                                    ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm'
+                                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
                                     }`}
                             >
                                 {filter.icon}
                                 <span>{filter.label}</span>
-                                <span className={`px-2 py-0.5 rounded-lg text-[10px] ${activeStatus === filter.id ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-200 text-slate-600'
+                                <span className={`px-2 py-0.5 rounded-lg text-[10px] ${activeStatus === filter.id ? 'bg-indigo-50 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400'
                                     }`}>
                                     {filter.count}
                                 </span>
@@ -175,13 +177,13 @@ export default function Page() {
 
                 {/* Advanced Filter Panel */}
                 {showFilters && (
-                    <div className="absolute top-20 left-4 bg-white rounded-3xl shadow-2xl border border-slate-200 p-8 z-50 animate-in slide-in-from-top-4 duration-300 w-full max-w-xl">
+                    <div className="absolute top-20 left-4 bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 p-8 z-50 animate-in slide-in-from-top-4 duration-300 w-full max-w-xl">
                         <div className="flex items-center justify-between mb-8">
-                            <h3 className="font-bold text-slate-900 flex items-center gap-3 italic">
-                                <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl"><Filter size={18} /></div>
+                            <h3 className="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-3 italic">
+                                <div className="p-2 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 rounded-xl"><Filter size={18} /></div>
                                 Filtrage Chauffeurs
                             </h3>
-                            <button onClick={() => setShowFilters(false)} className="p-2 hover:bg-slate-100 rounded-xl text-slate-400 transition-colors">
+                            <button onClick={() => setShowFilters(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-slate-400 transition-colors">
                                 <X size={20} />
                             </button>
                         </div>
@@ -189,11 +191,11 @@ export default function Page() {
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Email</label>
-                                    <input type="text" className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl text-sm" placeholder="ex: jean@mail.com" />
+                                    <input type="text" className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-800 rounded-xl text-sm dark:text-slate-200" placeholder="ex: jean@mail.com" />
                                 </div>
                                 <div className="space-y-2">
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Role</label>
-                                    <select className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl text-sm">
+                                    <select className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-800 rounded-xl text-sm dark:text-slate-200">
                                         <option>Tous les rôles</option>
                                         <option>Freelance</option>
                                         <option>Titulaire</option>
@@ -203,14 +205,14 @@ export default function Page() {
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Volume de missions</label>
                                 <div className="grid grid-cols-2 gap-4">
-                                    <input type="number" placeholder="Min" className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl text-sm" />
-                                    <input type="number" placeholder="Max" className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl text-sm" />
+                                    <input type="number" placeholder="Min" className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-800 rounded-xl text-sm dark:text-slate-200" />
+                                    <input type="number" placeholder="Max" className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-800 rounded-xl text-sm dark:text-slate-200" />
                                 </div>
                             </div>
                         </div>
                         <div className="mt-10 flex gap-3">
-                            <button className="flex-1 py-3 text-slate-500 font-bold text-sm bg-slate-50 rounded-xl">Réinitialiser</button>
-                            <button onClick={() => setShowFilters(false)} className="flex-[2] py-3 bg-indigo-600 text-white font-bold text-sm rounded-xl shadow-lg shadow-indigo-100">Appliquer les filtres</button>
+                            <button className="flex-1 py-3 text-slate-500 dark:text-slate-400 font-bold text-sm bg-slate-50 dark:bg-slate-800 rounded-xl">Réinitialiser</button>
+                            <button onClick={() => setShowFilters(false)} className="flex-[2] py-3 bg-indigo-600 text-white font-bold text-sm rounded-xl shadow-lg shadow-indigo-100 dark:shadow-none">Appliquer les filtres</button>
                         </div>
                     </div>
                 )}
@@ -240,7 +242,7 @@ export default function Page() {
                         <div className="overflow-x-auto">
                             <table className="w-full text-left border-collapse">
                                 <thead>
-                                    <tr className="text-slate-400 text-[11px] uppercase tracking-wider font-bold border-b border-slate-50">
+                                    <tr className="text-slate-400 dark:text-slate-500 text-[11px] uppercase tracking-wider font-bold border-b border-slate-50 dark:border-slate-800">
                                         <th className="px-6 py-4">Profil / Contact</th>
                                         <th className="px-6 py-4">Performance</th>
                                         <th className="px-6 py-4">Historique</th>
@@ -256,17 +258,17 @@ export default function Page() {
                                         return (
                                             <tr
                                                 key={d.id}
-                                                className="group hover:bg-slate-50/80 transition-all cursor-pointer"
+                                                className="group hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-all cursor-pointer"
                                                 onClick={() => window.location.href = `/drivers/${d.id}`}
                                             >
                                                 <td className="px-6 py-4">
                                                     <div className="flex items-center gap-4">
-                                                        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold shadow-lg shadow-indigo-100 flex-shrink-0">
+                                                        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold shadow-lg shadow-indigo-100 dark:shadow-none flex-shrink-0">
                                                             {(d.fullName || d.email || 'C').split(' ').map(n => n[0] || '').join('').toUpperCase().substring(0, 2)}
                                                         </div>
                                                         <div className="flex flex-col">
-                                                            <span className="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors uppercase tracking-tight">{d.fullName}</span>
-                                                            <span className="text-xs text-slate-400 flex items-center gap-1.5 mt-1">
+                                                            <span className="font-bold text-slate-900 dark:text-slate-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors uppercase tracking-tight">{d.fullName}</span>
+                                                            <span className="text-xs text-slate-400 dark:text-slate-500 flex items-center gap-1.5 mt-1">
                                                                 <Smartphone size={10} /> {d.phone}
                                                             </span>
                                                         </div>
@@ -282,32 +284,32 @@ export default function Page() {
                                                 </td>
                                                 <td className="px-6 py-6 font-mono">
                                                     <div className="flex flex-col">
-                                                        <span className="text-sm font-bold text-slate-700">{m.totalMissions} missions</span>
+                                                        <span className="text-sm font-bold text-slate-700 dark:text-slate-300">{m.totalMissions} missions</span>
                                                         <span className="text-[10px] text-emerald-500 font-bold flex items-center gap-1 mt-1">
                                                             <TrendingUp size={10} /> +12% ce mois
                                                         </span>
                                                     </div>
                                                 </td>
                                                 <td className="px-6 py-4">
-                                                    <span className="text-sm font-black text-slate-900 tracking-tighter">{m.income.toLocaleString()}</span>
+                                                    <span className="text-sm font-black text-slate-900 dark:text-slate-100 tracking-tighter">{m.income.toLocaleString()}</span>
                                                 </td>
                                                 <td className="px-6 py-4">
                                                     {setting.status === 'ACCEPTED' ? (
-                                                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black bg-emerald-50 text-emerald-600 border border-emerald-100 uppercase italic">
+                                                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-500/20 uppercase italic">
                                                             <Shield size={12} /> OPÉRATIONNEL
                                                         </span>
                                                     ) : setting.status === 'PENDING' ? (
-                                                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black bg-amber-50 text-amber-600 border border-amber-100 uppercase italic">
+                                                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-100 dark:border-amber-500/20 uppercase italic">
                                                             <Clock size={12} /> EN ATTENTE
                                                         </span>
                                                     ) : (
-                                                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black bg-rose-50 text-rose-600 border border-rose-100 uppercase italic">
+                                                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-100 dark:border-rose-500/20 uppercase italic">
                                                             <AlertTriangle size={12} /> REFUSÉ
                                                         </span>
                                                     )}
                                                 </td>
                                                 <td className="px-6 py-4 text-right">
-                                                    <button className="p-2.5 text-slate-300 group-hover:text-indigo-600 group-hover:bg-indigo-50 rounded-xl transition-all">
+                                                    <button className="p-2.5 text-slate-300 dark:text-slate-600 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 group-hover:bg-indigo-50 dark:group-hover:bg-indigo-500/10 rounded-xl transition-all">
                                                         <ChevronRight size={20} />
                                                     </button>
                                                 </td>
@@ -320,11 +322,11 @@ export default function Page() {
                     )}
 
                     {/* Pagination */}
-                    <div className="p-4 bg-slate-50/30 border-t border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4 text-sm text-slate-500">
+                    <div className="p-4 bg-slate-50/30 dark:bg-slate-800/30 border-t border-slate-100 dark:border-slate-800 flex flex-col md:flex-row justify-between items-center gap-4 text-sm text-slate-500 dark:text-slate-400">
                         <p className="font-medium">Affichage de <b>{filteredDrivers.length}</b> conducteurs certifiés</p>
                         <div className="flex gap-2">
-                            <button className="px-5 py-2.5 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors font-bold text-xs disabled:opacity-40">Précédent</button>
-                            <button className="px-5 py-2.5 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors font-bold text-xs">Suivant</button>
+                            <button className="px-5 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors font-bold text-xs disabled:opacity-40">Précédent</button>
+                            <button className="px-5 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors font-bold text-xs">Suivant</button>
                         </div>
                     </div>
                 </div>

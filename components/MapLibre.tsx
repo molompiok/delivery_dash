@@ -5,12 +5,16 @@ import {
     Map as MapCN,
     MapMarker,
     MarkerContent,
+    MarkerPopup,
     MapRoute,
     useMap
 } from './ui/map';
+
+export { useMap };
 import MapLibreGL from 'maplibre-gl';
 import MapboxDraw from '@mapbox/mapbox-gl-draw';
 import '@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css';
+import Supercluster from 'supercluster';
 
 // Types to match Google Maps API as used in the project
 export interface LatLng {
@@ -28,7 +32,56 @@ interface MapLibreProps {
     onCenterChanged?: (center: LatLng) => void;
     onZoomChanged?: (zoom: number) => void;
     onClick?: (e: { latLng: LatLng }) => void;
+    cursor?: string;
+    projection?: 'mercator' | 'globe';
+    rotateOnLowZoom?: boolean;
 }
+
+/**
+ * Automatically rotates the map when zoom is low (Globe view)
+ */
+const GlobeRotationEffect: React.FC<{ enabled: boolean }> = ({ enabled }) => {
+    const { map, isLoaded } = useMap();
+    const rotationRef = useRef<number | null>(null);
+
+    useEffect(() => {
+        if (!isLoaded || !map || !enabled) {
+            if (rotationRef.current) {
+                cancelAnimationFrame(rotationRef.current);
+                rotationRef.current = null;
+            }
+            return;
+        }
+
+        const rotate = () => {
+            if (!map || map.isMoving()) {
+                rotationRef.current = requestAnimationFrame(rotate);
+                return;
+            }
+
+            const zoom = map.getZoom();
+            if (zoom < 4) {
+                const center = map.getCenter();
+                // Rotate longitude slowly (0.5 degree per frame/request roughly)
+                // MapLibre handleWorldCopies must be true for seamless transition
+                map.setCenter([center.lng + 0.05, center.lat], { animate: false });
+            }
+
+            rotationRef.current = requestAnimationFrame(rotate);
+        };
+
+        rotationRef.current = requestAnimationFrame(rotate);
+
+        return () => {
+            if (rotationRef.current) {
+                cancelAnimationFrame(rotationRef.current);
+                rotationRef.current = null;
+            }
+        };
+    }, [map, isLoaded, enabled]);
+
+    return null;
+};
 
 /**
  * Compatibility wrapper for MapLibre that mimics the GoogleMap component API.
@@ -40,7 +93,8 @@ export const MapLibre: React.FC<MapLibreProps> = ({
     className,
     onCenterChanged,
     onZoomChanged,
-    onClick
+    onClick,
+    ...props
 }) => {
     const viewport = useMemo(() => {
         if (!center) return undefined;
@@ -64,27 +118,58 @@ export const MapLibre: React.FC<MapLibreProps> = ({
             className={className}
             viewport={viewport}
             onViewportChange={handleViewportChange}
-            onClick={(e: MapLibreGL.MapMouseEvent & any) => {
-                if (onClick && e.lngLat) {
-                    onClick({ latLng: { lat: e.lngLat.lat, lng: e.lngLat.lng } });
-                }
-            }}
+            projection={props.projection ? { type: props.projection } : { type: 'globe' }}
+            // @ts-ignore
+            cursor={props.cursor}
         >
+            <MapClickInterceptor onClick={onClick} />
+            <GlobeRotationEffect enabled={props.rotateOnLowZoom !== false} />
             {children}
         </MapCN>
     );
 };
+
+const MapClickInterceptor: React.FC<{ onClick?: (e: { latLng: LatLng }) => void }> = ({ onClick }) => {
+    const { map, isLoaded } = useMap();
+
+    useEffect(() => {
+        if (!isLoaded || !map || !onClick) return;
+
+        const handleClick = (e: MapLibreGL.MapMouseEvent) => {
+            // Check if any OF OUR features were hit (points, lines, polygons)
+            const features = map.queryRenderedFeatures(e.point);
+            const hasOurFeature = features.some(f =>
+                f.layer.id.startsWith('route-layer') ||
+                f.layer.id.startsWith('poly-layer') ||
+                f.layer.id.startsWith('circle-layer')
+            );
+            if (hasOurFeature) return;
+
+            onClick({ latLng: { lat: e.lngLat.lat, lng: e.lngLat.lng } });
+        };
+
+        map.on('click', handleClick);
+        return () => {
+            map.off('click', handleClick);
+        };
+    }, [map, isLoaded, onClick]);
+
+    return null;
+};
+
+export { MarkerPopup };
 
 // --- Marker ---
 
 interface MarkerProps {
     position: LatLng;
     icon?: any;
-    label?: string;
+    label?: React.ReactNode;
     onClick?: () => void;
+    children?: React.ReactNode;
 }
 
-export const Marker: React.FC<MarkerProps> = ({ position, icon, label, onClick }) => {
+export const Marker: React.FC<MarkerProps> = ({ position, icon, label, onClick, children }) => {
     if (!position) return null;
     const color = icon?.fillColor || (icon?.path === 0 ? '#ef4444' : '#3b82f6');
     const rotation = icon?.rotation || 0;
@@ -101,35 +186,39 @@ export const Marker: React.FC<MarkerProps> = ({ position, icon, label, onClick }
         >
             <MarkerContent>
                 {label && (
-                    <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-white px-2 py-0.5 rounded shadow text-[10px] font-bold whitespace-nowrap text-gray-700 border border-gray-100">
+                    <div className={`absolute ${icon === null ? 'top-1/2 -translate-y-1/2' : 'bottom-8'} left-1/2 -translate-x-1/2 z-10`}>
                         {label}
                     </div>
                 )}
-                {icon?.path && typeof icon.path === 'string' ? (
-                    <div
-                        style={{
-                            width: '24px',
-                            height: '24px',
-                            backgroundColor: color,
-                            clipPath: 'polygon(50% 0%, 0% 100%, 100% 100%)',
-                            transform: `rotate(${rotation}deg)`,
-                            border: '2px solid white',
-                            boxShadow: '0 2px 4px rgba(0,0,0,0.3)'
-                        }}
-                    />
-                ) : (
-                    <div
-                        style={{
-                            width: '12px',
-                            height: '12px',
-                            backgroundColor: color,
-                            borderRadius: '50%',
-                            border: '2px solid white',
-                            boxShadow: '0 2px 4px rgba(0,0,0,0.3)'
-                        }}
-                    />
+                {icon !== null && (
+                    icon?.path && typeof icon.path === 'string' ? (
+                        <div
+                            style={{
+                                width: '24px',
+                                height: '24px',
+                                backgroundColor: color,
+                                clipPath: 'polygon(50% 0%, 0% 100%, 100% 100%)',
+                                transform: `rotate(${rotation}deg)`,
+                                border: '2px solid white',
+                                boxShadow: '0 2px 4px rgba(0,0,0,0.3)'
+                            }}
+                        />
+                    ) : (
+                        <div className="group relative flex items-center justify-center">
+                            <div
+                                className="w-8 h-8 flex items-center justify-center transition-transform group-hover:scale-110 active:scale-95"
+                                style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))' }}
+                            >
+                                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" fill={color} stroke="white" strokeWidth="2" />
+                                    <circle cx="12" cy="10" r="3" fill="white" />
+                                </svg>
+                            </div>
+                        </div>
+                    )
                 )}
             </MarkerContent>
+            {children}
         </MapMarker>
     );
 };
@@ -222,10 +311,19 @@ export const Circle: React.FC<CircleProps> = ({
         map.on('click', layerId, handleClick);
 
         return () => {
-            map.off('click', layerId, handleClick);
-            if (map.getLayer(layerId)) map.removeLayer(layerId);
-            if (map.getLayer(strokeLayerId)) map.removeLayer(strokeLayerId);
-            if (map.getSource(sourceId)) map.removeSource(sourceId);
+            try {
+                if (map) {
+                    map.off('click', layerId, handleClick);
+                    // Defensive check: only remove if style is loaded and map is still valid
+                    if (map.getStyle()) {
+                        if (map.getLayer(layerId)) map.removeLayer(layerId);
+                        if (map.getLayer(strokeLayerId)) map.removeLayer(strokeLayerId);
+                        if (map.getSource(sourceId)) map.removeSource(sourceId);
+                    }
+                }
+            } catch (err) {
+                console.warn('Error during Circle cleanup:', err);
+            }
         };
     }, [map, isLoaded, center, radius, fillColor, fillOpacity, strokeColor, strokeWeight]);
 
@@ -307,10 +405,19 @@ export const Polygon: React.FC<PolygonProps> = ({
         map.on('click', layerId, handleClick);
 
         return () => {
-            map.off('click', layerId, handleClick);
-            if (map.getLayer(layerId)) map.removeLayer(layerId);
-            if (map.getLayer(strokeLayerId)) map.removeLayer(strokeLayerId);
-            if (map.getSource(sourceId)) map.removeSource(sourceId);
+            try {
+                if (map) {
+                    map.off('click', layerId, handleClick);
+                    // Defensive check: only remove if style is loaded and map is still valid
+                    if (map.getStyle()) {
+                        if (map.getLayer(layerId)) map.removeLayer(layerId);
+                        if (map.getLayer(strokeLayerId)) map.removeLayer(strokeLayerId);
+                        if (map.getSource(sourceId)) map.getSource(sourceId) && map.removeSource(sourceId);
+                    }
+                }
+            } catch (err) {
+                console.warn('Error during Polygon cleanup:', err);
+            }
         };
     }, [map, isLoaded, paths, fillColor, fillOpacity, strokeColor, strokeWeight]);
 
@@ -417,8 +524,17 @@ export const DrawingManager: React.FC<{
         map.on('draw.create', handleCreate);
 
         return () => {
-            map.off('draw.create', handleCreate);
-            map.removeControl(draw as any);
+            try {
+                if (map) {
+                    map.off('draw.create', handleCreate);
+                    // Only remove control if map is still valid and has style
+                    if (map.getStyle()) {
+                        map.removeControl(draw as any);
+                    }
+                }
+            } catch (err) {
+                console.warn('Error during DrawingManager cleanup:', err);
+            }
         };
     }, [map, isLoaded]);
 
@@ -437,4 +553,82 @@ export const DrawingManager: React.FC<{
 
 export const HexagonDrawer: React.FC<any> = () => {
     return null;
+};
+
+// --- Marker Clusterer ---
+
+export interface ClusterPoint {
+    lat: number;
+    lng: number;
+    id: string | number;
+    properties?: any;
+}
+
+interface MarkerClustererProps {
+    points: ClusterPoint[];
+    children: (clusters: any[], supercluster: Supercluster, map: any) => React.ReactNode;
+    radius?: number;
+    maxZoom?: number;
+}
+
+export const MarkerClusterer: React.FC<MarkerClustererProps> = ({
+    points,
+    children,
+    radius = 50,
+    maxZoom = 16
+}) => {
+    const { map, isLoaded } = useMap();
+    const [bounds, setBounds] = React.useState<any>(null);
+    const [zoom, setZoom] = React.useState<number>(12);
+
+    const supercluster = useMemo(() => {
+        const index = new Supercluster({
+            radius,
+            maxZoom
+        });
+
+        index.load(points.map(p => ({
+            type: 'Feature' as const,
+            properties: { ...p.properties, pointId: p.id },
+            geometry: {
+                type: 'Point' as const,
+                coordinates: [p.lng, p.lat]
+            }
+        })));
+
+        return index;
+    }, [points, radius, maxZoom]);
+
+    useEffect(() => {
+        if (!map || !isLoaded) return;
+
+        const update = () => {
+            const b = map.getBounds();
+            setBounds([
+                b.getWest(),
+                b.getSouth(),
+                b.getEast(),
+                b.getNorth()
+            ]);
+            setZoom(map.getZoom());
+        };
+
+        map.on('moveend', update);
+        update();
+
+        return () => {
+            map.off('moveend', update);
+        };
+    }, [map, isLoaded]);
+
+    const clusters = useMemo(() => {
+        if (!bounds) return [];
+        return supercluster.getClusters(bounds, Math.floor(zoom));
+    }, [supercluster, bounds, zoom]);
+
+    return (
+        <>
+            {children(clusters, supercluster, map)}
+        </>
+    );
 };

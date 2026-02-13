@@ -5,6 +5,7 @@ import { driverService } from '../../api/drivers';
 import { companyService } from '../../api/company';
 import { mockService, Order, Zone, PricingRule } from '../../api/mock';
 import { User, Vehicle, Address } from '../../api/types';
+import { useHeaderAutoHide } from '../../hooks/useHeaderAutoHide';
 
 export default function Page() {
   const [stats, setStats] = useState({
@@ -18,6 +19,7 @@ export default function Page() {
   });
   const [loading, setLoading] = useState(true);
   const [recentOrders, setRecentOrders] = useState<Order[]>([]);
+  useHeaderAutoHide();
 
   useEffect(() => {
     loadDashboardData();
@@ -76,8 +78,8 @@ export default function Page() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-800">Vue d'ensemble</h1>
-        <p className="text-gray-500">Bienvenue sur votre tableau de bord de gestion.</p>
+        <h1 className="text-2xl font-bold text-gray-800 dark:text-slate-100">Vue d'ensemble</h1>
+        <p className="text-gray-500 dark:text-slate-400">Bienvenue sur votre tableau de bord de gestion.</p>
       </div>
 
       {/* Grid 4 columns for large screens */}
@@ -87,8 +89,8 @@ export default function Page() {
         <DashboardCard
           title="Véhicules"
           value={stats.vehicles}
-          icon={<Truck className="text-blue-600" />}
-          color="bg-blue-50"
+          icon={<Truck className="text-blue-600 dark:text-blue-400" />}
+          color="bg-blue-50 dark:bg-blue-500/10"
           link="/fleet"
           desc="Véhicules actifs"
         />
@@ -97,8 +99,8 @@ export default function Page() {
         <DashboardCard
           title="Chauffeurs"
           value={stats.drivers}
-          icon={<Users className="text-emerald-600" />}
-          color="bg-emerald-50"
+          icon={<Users className="text-emerald-600 dark:text-emerald-400" />}
+          color="bg-emerald-50 dark:bg-emerald-500/10"
           link="/drivers"
           desc="En service"
         />
@@ -107,21 +109,21 @@ export default function Page() {
         <DashboardCard
           title="Commandes"
           value={stats.orders}
-          icon={<ShoppingBag className="text-purple-600" />}
-          color="bg-purple-50"
+          icon={<ShoppingBag className="text-purple-600 dark:text-purple-400" />}
+          color="bg-purple-50 dark:bg-purple-500/10"
           link="/orders"
           desc="Commandes du jour"
         />
 
         {/* 4. Map (Mock) */}
         <a href="/map" className="block group">
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-all h-full flex flex-col items-center justify-center text-center relative overflow-hidden">
-            <div className="absolute inset-0 bg-slate-100 opacity-50 group-hover:scale-105 transition-transform bg-[url('https://raw.githubusercontent.com/Sublymus/sublymus/main/map-bg.png')] bg-cover bg-center"></div>
-            <div className="relative z-10 bg-white/90 p-4 rounded-full shadow-sm mb-2">
-              <MapIcon className="text-indigo-600" size={24} />
+          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-800 p-6 hover:shadow-md transition-all h-full flex flex-col items-center justify-center text-center relative overflow-hidden">
+            <div className="absolute inset-0 bg-slate-100 dark:bg-slate-800 opacity-50 group-hover:scale-105 transition-transform bg-[url('https://raw.githubusercontent.com/Sublymus/sublymus/main/map-bg.png')] bg-cover bg-center"></div>
+            <div className="relative z-10 bg-white/90 dark:bg-slate-900/90 p-4 rounded-full shadow-sm mb-2">
+              <MapIcon className="text-indigo-600 dark:text-indigo-400" size={24} />
             </div>
-            <h3 className="relative z-10 font-semibold text-gray-800">Carte Live</h3>
-            <p className="relative z-10 text-xs text-gray-500 mt-1">Suivi temps réel</p>
+            <h3 className="relative z-10 font-semibold text-gray-800 dark:text-slate-100">Carte Live</h3>
+            <p className="relative z-10 text-xs text-gray-500 dark:text-slate-400 mt-1">Suivi temps réel</p>
           </div>
         </a>
 
@@ -129,23 +131,23 @@ export default function Page() {
         <DashboardCard
           title="Horaires"
           value={stats.schedules} // Placeholder
-          icon={<Calendar className="text-orange-600" />}
-          color="bg-orange-50"
+          icon={<Calendar className="text-orange-600 dark:text-orange-400" />}
+          color="bg-orange-50 dark:bg-orange-500/10"
           link="/schedules"
           desc="Plages actives"
         />
 
         {/* 6. Pricing (Mock) */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex flex-col justify-between hover:shadow-md transition-shadow">
+        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-800 p-6 flex flex-col justify-between hover:shadow-md transition-shadow">
           <div className="flex justify-between items-start mb-4">
-            <div className="p-3 bg-rose-50 rounded-lg">
-              <DollarSign className="text-rose-600" size={24} />
+            <div className="p-3 bg-rose-50 dark:bg-rose-500/10 rounded-lg">
+              <DollarSign className="text-rose-600 dark:text-rose-400" size={24} />
             </div>
-            <a href="/pricing" className="text-gray-400 hover:text-emerald-600"><ArrowRight size={20} /></a>
+            <a href="/pricing" className="text-gray-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors"><ArrowRight size={20} /></a>
           </div>
           <div>
-            <p className="text-gray-500 text-sm font-medium">Pricing Actif</p>
-            <h3 className="text-xl font-bold text-gray-900 mt-1 truncate" title={stats.activePricing}>{stats.activePricing}</h3>
+            <p className="text-gray-500 dark:text-slate-400 text-sm font-medium">Pricing Actif</p>
+            <h3 className="text-xl font-bold text-gray-900 dark:text-slate-100 mt-1 truncate" title={stats.activePricing}>{stats.activePricing}</h3>
           </div>
         </div>
 
@@ -153,8 +155,8 @@ export default function Page() {
         <DashboardCard
           title="Zones"
           value={stats.zones}
-          icon={<Navigation className="text-cyan-600" />}
-          color="bg-cyan-50"
+          icon={<Navigation className="text-cyan-600 dark:text-cyan-400" />}
+          color="bg-cyan-50 dark:bg-cyan-500/10"
           link="/zones"
           desc="Zones couvertes"
         />
@@ -163,8 +165,8 @@ export default function Page() {
         <DashboardCard
           title="Documents"
           value={stats.documents} // Placeholder
-          icon={<FileText className="text-slate-600" />}
-          color="bg-slate-50"
+          icon={<FileText className="text-slate-600 dark:text-slate-400" />}
+          color="bg-slate-50 dark:bg-slate-500/10"
           link="/documents"
           desc="Fichiers entreprise"
         />
@@ -173,28 +175,28 @@ export default function Page() {
 
       {/* Quick Preview Section - Recent Orders */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <div className="lg:col-span-2 bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-800 p-6">
           <div className="flex justify-between items-center mb-6">
-            <h2 className="text-lg font-bold text-gray-800">Commandes Récentes</h2>
-            <a href="/orders" className="text-sm text-emerald-600 hover:underline">Voir tout</a>
+            <h2 className="text-lg font-bold text-gray-800 dark:text-slate-100">Commandes Récentes</h2>
+            <a href="/orders" className="text-sm text-emerald-600 dark:text-emerald-400 hover:underline">Voir tout</a>
           </div>
           <div className="space-y-4">
             {recentOrders.map(order => (
-              <div key={order.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-100">
+              <div key={order.id} className="flex items-center justify-between p-4 bg-gray-50 dark:bg-slate-800/50 rounded-lg border border-gray-100 dark:border-slate-800">
                 <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold">
+                  <div className="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-500/10 flex items-center justify-center text-indigo-600 dark:text-indigo-400 font-bold">
                     {order.customerName.charAt(0)}
                   </div>
                   <div>
-                    <div className="font-semibold text-gray-900">{order.customerName}</div>
-                    <div className="text-xs text-gray-500">{order.pickupAddress?.formattedAddress}</div>
+                    <div className="font-semibold text-gray-900 dark:text-slate-100">{order.customerName}</div>
+                    <div className="text-xs text-gray-500 dark:text-slate-400">{order.pickupAddress?.formattedAddress}</div>
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="font-mono text-sm font-medium">{(order.pricingData?.finalPrice || 0).toLocaleString()} FCFA</div>
-                  <span className={`text-xs px-2 py-1 rounded-full ${order.status === 'DELIVERED' ? 'bg-green-100 text-green-700' :
-                    order.status === 'PENDING' ? 'bg-amber-100 text-amber-700' :
-                      'bg-blue-100 text-blue-700'
+                  <div className="font-mono text-sm font-medium dark:text-slate-200">{(order.pricingData?.finalPrice || 0).toLocaleString()} FCFA</div>
+                  <span className={`text-xs px-2 py-1 rounded-full ${order.status === 'DELIVERED' ? 'bg-green-100 dark:bg-green-500/10 text-green-700 dark:text-green-400' :
+                    order.status === 'PENDING' ? 'bg-amber-100 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400' :
+                      'bg-blue-100 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400'
                     }`}>
                     {order.status}
                   </span>
@@ -205,17 +207,17 @@ export default function Page() {
         </div>
 
         {/* Quick Actions or Notifications */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <h2 className="text-lg font-bold text-gray-800 mb-6">Alertes</h2>
+        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-800 p-6">
+          <h2 className="text-lg font-bold text-gray-800 dark:text-slate-100 mb-6">Alertes</h2>
           <div className="space-y-4">
-            <div className="flex gap-3 items-start p-3 bg-red-50 text-red-700 rounded-lg text-sm">
+            <div className="flex gap-3 items-start p-3 bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400 rounded-lg text-sm">
               <AlertCircle size={18} className="shrink-0 mt-0.5" />
               <div>
                 <span className="font-semibold block">Document Expiré</span>
                 Assurance Moto-01 expirée hier.
               </div>
             </div>
-            <div className="flex gap-3 items-start p-3 bg-amber-50 text-amber-700 rounded-lg text-sm">
+            <div className="flex gap-3 items-start p-3 bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 rounded-lg text-sm">
               <AlertCircle size={18} className="shrink-0 mt-0.5" />
               <div>
                 <span className="font-semibold block">Maintenance</span>
@@ -232,19 +234,19 @@ export default function Page() {
 function DashboardCard({ title, value, icon, color, link, desc }: any) {
   return (
     <a href={link} className="block group">
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow h-full flex flex-col justify-between">
+      <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-800 p-6 hover:shadow-md transition-shadow h-full flex flex-col justify-between">
         <div className="flex justify-between items-start mb-4">
           <div className={`p-3 rounded-lg ${color} group-hover:scale-110 transition-transform`}>
             {icon}
           </div>
-          <div className="text-gray-400 group-hover:text-emerald-600 transition-colors">
+          <div className="text-gray-400 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
             <ArrowRight size={20} />
           </div>
         </div>
         <div>
-          <p className="text-gray-500 text-sm font-medium">{title}</p>
-          <h3 className="text-3xl font-bold text-gray-900 mt-1">{value}</h3>
-          <p className="text-xs text-gray-400 mt-1">{desc}</p>
+          <p className="text-gray-500 dark:text-slate-400 text-sm font-medium">{title}</p>
+          <h3 className="text-3xl font-bold text-gray-900 dark:text-slate-100 mt-1">{value}</h3>
+          <p className="text-xs text-gray-400 dark:text-slate-500 mt-1">{desc}</p>
         </div>
       </div>
     </a>

@@ -31,19 +31,19 @@ const ListOptions = ({
             {/* Left Section: Search or Search Input */}
             <div className="flex-1 min-w-0">
                 {step.isSearchExpanded ? (
-                    <div className="flex items-center gap-2 bg-white border border-gray-100 rounded-2xl px-3 py-1.5 shadow-sm focus-within:ring-2 focus-within:ring-blue-100 transition-all">
-                        <Search size={16} className="text-gray-400 shrink-0" />
+                    <div className="flex items-center gap-2 bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-2xl px-3 py-1.5 shadow-sm focus-within:ring-2 focus-within:ring-blue-100 dark:focus-within:ring-blue-900 transition-all">
+                        <Search size={16} className="text-gray-400 dark:text-slate-500 shrink-0" />
                         <input
                             type="text"
                             autoFocus
                             placeholder="Search stops..."
-                            className="bg-transparent border-none outline-none text-[11px] w-full text-gray-700 font-medium min-w-0"
+                            className="bg-transparent border-none outline-none text-[11px] w-full text-gray-700 dark:text-slate-300 font-medium min-w-0"
                             value={step.searchQuery}
                             onChange={(e) => onSearch(e.target.value)}
                         />
                         <button
                             onClick={onToggleSearch}
-                            className="p-1 hover:bg-gray-100 rounded-lg text-gray-400 transition-colors shrink-0"
+                            className="p-1 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg text-gray-400 dark:text-slate-500 transition-colors shrink-0"
                         >
                             <ChevronLeftIcon size={16} />
                         </button>
@@ -51,7 +51,7 @@ const ListOptions = ({
                 ) : (
                     <button
                         onClick={onToggleSearch}
-                        className="p-2.5 bg-white text-gray-400 rounded-xl border border-gray-100 hover:bg-gray-50 hover:text-blue-500 transition-all shadow-sm"
+                        className="p-2.5 bg-white dark:bg-slate-900 text-gray-400 dark:text-slate-500 rounded-xl border border-gray-100 dark:border-slate-800 hover:bg-gray-50 dark:hover:bg-slate-800 hover:text-blue-500 dark:hover:text-blue-400 transition-all shadow-sm"
                         title="Search"
                     >
                         <Search size={18} />
@@ -64,7 +64,7 @@ const ListOptions = ({
                 {stopCount === 0 && totalSteps > 1 && (
                     <button
                         onClick={onDelete}
-                        className="p-2.5 bg-white text-rose-500 rounded-xl border border-gray-100 hover:bg-rose-50 hover:border-rose-100 transition-all shadow-sm"
+                        className="p-2.5 bg-white dark:bg-slate-900 text-rose-500 rounded-xl border border-gray-100 dark:border-slate-800 hover:bg-rose-50 dark:hover:bg-rose-900/20 hover:border-rose-100 dark:hover:border-rose-900/40 transition-all shadow-sm"
                         title="Delete Empty Step"
                     >
                         <Trash2 size={18} />
@@ -74,8 +74,8 @@ const ListOptions = ({
                     <button
                         onClick={onToggleLink}
                         className={`p-2.5 rounded-xl border transition-all shadow-sm ${step.isLinked
-                            ? 'bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-100'
-                            : 'bg-white text-gray-400 border-gray-100 hover:bg-gray-50 hover:text-blue-500'
+                            ? 'bg-blue-600 dark:bg-blue-600 text-white border-blue-600 dark:border-blue-500 shadow-lg shadow-blue-100 dark:shadow-blue-900/20'
+                            : 'bg-white dark:bg-slate-900 text-gray-400 dark:text-slate-500 border-gray-100 dark:border-slate-800 hover:bg-gray-50 dark:hover:bg-slate-800 hover:text-blue-500 dark:hover:text-blue-400'
                             }`}
                         title={step.isLinked ? "Locked (Linked)" : "Unlocked (Not Linked)"}
                     >
@@ -84,7 +84,7 @@ const ListOptions = ({
                 )}
                 <button
                     onClick={onAdd}
-                    className="flex items-center justify-center p-2.5 bg-[#dbeafe] text-[#2563eb] rounded-2xl font-bold hover:bg-[#bfdbfe] transition-colors shadow-sm"
+                    className="flex items-center justify-center p-2.5 bg-[#dbeafe] dark:bg-blue-500/20 text-[#2563eb] dark:text-blue-400 rounded-2xl font-bold hover:bg-[#bfdbfe] dark:hover:bg-blue-500/30 transition-colors shadow-sm"
                     title="Add Stop"
                 >
                     <Plus size={18} />

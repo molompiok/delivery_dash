@@ -203,10 +203,10 @@ export const ZoneList: React.FC<ZoneListProps> = ({
             transition={{ type: "spring", stiffness: 400, damping: 25 }}
             className="space-y-4 h-full overflow-y-auto pr-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
         >
-            <div className="flex items-center justify-between sticky top-0 bg-white/80 backdrop-blur pb-2 pt-1 z-10 border-b border-gray-100">
+            <div className="flex items-center justify-between sticky top-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur pb-2 pt-1 z-10 border-b border-gray-100 dark:border-slate-800">
                 <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Liste des Zones</p>
                 <div className="flex gap-2">
-                    <button onClick={() => setShowZones(!showZones)} className={`p-1.5 rounded-lg transition-all ${showZones ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'}`} title={showZones ? "Masquer les zones" : "Afficher les zones"}>
+                    <button onClick={() => setShowZones(!showZones)} className={`p-1.5 rounded-lg transition-all ${showZones ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400' : 'bg-gray-100 dark:bg-slate-800 text-gray-400 dark:text-slate-500 hover:bg-gray-200 dark:hover:bg-slate-700'}`} title={showZones ? "Masquer les zones" : "Afficher les zones"}>
                         <MapIcon size={14} />
                     </button>
                     {!isEditing ? (
@@ -222,13 +222,13 @@ export const ZoneList: React.FC<ZoneListProps> = ({
             </div>
 
             {isEditing && (
-                <div className="bg-blue-50 p-3 rounded-xl border border-blue-100 animate-in fade-in zoom-in duration-200">
-                    <p className="text-xs text-blue-800 font-medium mb-2">Mode édition actif : <br /><span className="text-[10px] opacity-70">Choisissez un outil et dessinez sur la carte.</span></p>
+                <div className="bg-blue-50 dark:bg-blue-500/10 p-3 rounded-xl border border-blue-100 dark:border-blue-500/20 animate-in fade-in zoom-in duration-200">
+                    <p className="text-xs text-blue-800 dark:text-blue-300 font-medium mb-2">Mode édition actif : <br /><span className="text-[10px] opacity-70">Choisissez un outil et dessinez sur la carte.</span></p>
                     <div className="flex gap-2 mb-3">
-                        <button onClick={() => setDrawingMode(google.maps.drawing.OverlayType.CIRCLE)} className={`flex-1 flex flex-col items-center justify-center gap-1 p-2 rounded-lg border transition-all ${drawingMode === google.maps.drawing.OverlayType.CIRCLE ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}><CircleIcon size={14} /> <span className="text-[9px] font-bold uppercase">Cercle</span></button>
-                        <button onClick={() => setDrawingMode(google.maps.drawing.OverlayType.RECTANGLE)} className={`flex-1 flex flex-col items-center justify-center gap-1 p-2 rounded-lg border transition-all ${drawingMode === google.maps.drawing.OverlayType.RECTANGLE ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}><Square size={14} /> <span className="text-[9px] font-bold uppercase">Carré</span></button>
-                        <button onClick={() => setDrawingMode(google.maps.drawing.OverlayType.POLYGON)} className={`flex-1 flex flex-col items-center justify-center gap-1 p-2 rounded-lg border transition-all ${drawingMode === google.maps.drawing.OverlayType.POLYGON ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}><Activity size={14} /> <span className="text-[9px] font-bold uppercase">Points</span></button>
-                        <button onClick={addHexagonPreset} className={`flex-1 flex flex-col items-center justify-center gap-1 p-2 rounded-lg border transition-all ${drawingMode === 'hexagon' ? 'bg-amber-600 text-white border-amber-600' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}><Layers size={14} /> <span className="text-[9px] font-bold uppercase">Hexa</span></button>
+                        <button onClick={() => setDrawingMode(google.maps.drawing.OverlayType.CIRCLE)} className={`flex-1 flex flex-col items-center justify-center gap-1 p-2 rounded-lg border transition-all ${drawingMode === google.maps.drawing.OverlayType.CIRCLE ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white dark:bg-slate-800 text-gray-600 dark:text-slate-300 border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700'}`}><CircleIcon size={14} /> <span className="text-[9px] font-bold uppercase">Cercle</span></button>
+                        <button onClick={() => setDrawingMode(google.maps.drawing.OverlayType.RECTANGLE)} className={`flex-1 flex flex-col items-center justify-center gap-1 p-2 rounded-lg border transition-all ${drawingMode === google.maps.drawing.OverlayType.RECTANGLE ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white dark:bg-slate-800 text-gray-600 dark:text-slate-300 border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700'}`}><Square size={14} /> <span className="text-[9px] font-bold uppercase">Carré</span></button>
+                        <button onClick={() => setDrawingMode(google.maps.drawing.OverlayType.POLYGON)} className={`flex-1 flex flex-col items-center justify-center gap-1 p-2 rounded-lg border transition-all ${drawingMode === google.maps.drawing.OverlayType.POLYGON ? 'bg-blue-600 text-white border-blue-600' : 'bg-white dark:bg-slate-800 text-gray-600 dark:text-slate-300 border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700'}`}><Activity size={14} /> <span className="text-[9px] font-bold uppercase">Points</span></button>
+                        <button onClick={addHexagonPreset} className={`flex-1 flex flex-col items-center justify-center gap-1 p-2 rounded-lg border transition-all ${drawingMode === 'hexagon' ? 'bg-amber-600 text-white border-amber-600' : 'bg-white dark:bg-slate-800 text-gray-600 dark:text-slate-300 border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700'}`}><Layers size={14} /> <span className="text-[9px] font-bold uppercase">Hexa</span></button>
                     </div>
 
                     {/* Import button */}
@@ -265,15 +265,15 @@ export const ZoneList: React.FC<ZoneListProps> = ({
                                 <div
                                     key={z.id}
                                     onClick={() => onSelectZone(activeZoneId === z.id ? null : z.id)}
-                                    className={`p-3 rounded-xl border transition-all cursor-pointer group relative bg-white ${activeZoneId === z.id ? 'border-emerald-500 shadow-md ring-1 ring-emerald-500' : 'border-gray-100 hover:border-emerald-200'} ${!z.isActive ? 'opacity-60' : ''}`}
+                                    className={`p-3 rounded-xl border transition-all cursor-pointer group relative bg-white dark:bg-slate-800/50 ${activeZoneId === z.id ? 'border-emerald-500 dark:border-emerald-500 shadow-md ring-1 ring-emerald-500 dark:ring-emerald-500/50' : 'border-gray-100 dark:border-slate-800 hover:border-emerald-200 dark:hover:border-emerald-500/30'} ${!z.isActive ? 'opacity-60' : ''}`}
                                 >
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-3">
                                             <div className="w-3 h-3 rounded-full shadow-sm" style={{ backgroundColor: z.color }}></div>
                                             <div>
                                                 <div className="flex items-center gap-2">
-                                                    <h3 className="text-sm font-bold text-gray-900 leading-tight">{z.name}</h3>
-                                                    <span className={`px-1 py-0.5 rounded-[4px] text-[8px] font-black uppercase tracking-tighter ${z.ownerType === 'Company' ? 'bg-emerald-50 text-emerald-600' : z.ownerType === 'Sublymus' ? 'bg-indigo-50 text-indigo-600' : 'bg-purple-50 text-purple-600'}`}>
+                                                    <h3 className="text-sm font-bold text-gray-900 dark:text-slate-100 leading-tight">{z.name}</h3>
+                                                    <span className={`px-1 py-0.5 rounded-[4px] text-[8px] font-black uppercase tracking-tighter ${z.ownerType === 'Company' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : z.ownerType === 'Sublymus' ? 'bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400' : 'bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400'}`}>
                                                         {z.ownerType === 'Company' ? 'Entr.' : z.ownerType === 'Sublymus' ? 'Global' : 'Perso'}
                                                     </span>
                                                     {isFromSublymus && (

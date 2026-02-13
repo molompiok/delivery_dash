@@ -28,20 +28,29 @@ import {
     RotateCcw,
     Send,
     Check,
-    Layers
+    Layers,
+    MapPinPlus,
+    ArrowUpRight,
+    ArrowDownLeft,
+    Wrench,
+    Package,
+    Flag
 } from 'lucide-react';
 import { arrayMove } from '@dnd-kit/sortable';
 import ListOptions from './components/ListOptions';
 import StopListWrapper from './components/StopListWrapper';
-import { MapLibre as GoogleMap, Marker, Polyline } from '../../../components/MapLibre';
+import { MapLibre as GoogleMap, Marker, Polyline, MarkerPopup, MarkerClusterer, useMap } from '../../../components/MapLibre';
 import { useHeader } from '../../../context/HeaderContext';
+import { useTheme } from '../../../context/ThemeContext';
 import { ConfirmModal } from '../../../components/ConfirmModal';
+import LocationSearchBar from '../../../components/LocationSearchBar';
 import StopDetailPanel from './components/StopDetailPanel';
 import { ordersApi, Order, Step as ApiStep, ValidationIssue } from '../../../api/orders';
 import { driverService } from '../../../api/drivers';
 import { fleetService } from '../../../api/fleet';
 import { trackingApi } from '../../../api/tracking';
 import { User as UserType, CompanyDriverSetting, Vehicle } from '../../../api/types';
+import { socketClient } from '../../../api/socket';
 
 interface Stop {
     id: string;
@@ -86,6 +95,24 @@ interface PageStep {
     isNew?: boolean;
 }
 
+// --- HELPER COMPONENTS ---
+const ViewportSync: React.FC<{ onSync: (viewport: { center: { lat: number; lng: number }; zoom: number }) => void }> = ({ onSync }) => {
+    const { map, isLoaded } = useMap();
+    useEffect(() => {
+        if (!isLoaded || !map) return;
+        const handleIdle = () => {
+            const center = map.getCenter();
+            onSync({
+                center: { lat: center.lat, lng: center.lng },
+                zoom: map.getZoom()
+            });
+        };
+        map.on('idle', handleIdle);
+        return () => { map.off('idle', handleIdle); };
+    }, [map, isLoaded, onSync]);
+    return null;
+};
+
 export default function Page() {
     const pageContext = usePageContext();
     const { id } = pageContext.routeParams;
@@ -97,21 +124,54 @@ export default function Page() {
     const [driverLocation, setDriverLocation] = useState<any>(null); // Real-time position
     const [validationIssues, setValidationIssues] = useState<ValidationIssue[]>([]);
     const [showRevertModal, setShowRevertModal] = useState(false);
+    const { resolvedTheme } = useTheme();
 
     const [activeStep, setActiveStep] = useState(0);
     const [isRouteLoading, setIsRouteLoading] = useState(false);
     const [direction, setDirection] = useState(0);
     const [isSidebarFullscreen, setIsSidebarFullscreen] = useState(false);
     const [activeRouteTab, setActiveRouteTab] = useState<'details' | 'history'>('details');
+    const [activeRightPanel, setActiveRightPanel] = useState<'route' | 'history' | 'operation' | 'weight' | 'items' | null>(null);
+    const handleRightPanelToggle = (panel: 'route' | 'history' | 'operation' | 'weight' | 'items') => {
+        setActiveRightPanel(prev => prev === panel ? null : panel);
+    };
     const [visibleLayers, setVisibleLayers] = useState({
         live: true,
         pending: true,
-        actual: true
+        actual: true,
+        auto: true
     });
+    const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+
+    // Auto-layer logic based on order state
+    useEffect(() => {
+        if (visibleLayers.auto && order) {
+            const hasChanges = order.hasPendingChanges;
+            setVisibleLayers(prev => ({
+                ...prev,
+                live: !hasChanges,
+                pending: !!hasChanges,
+                actual: false
+            }));
+        }
+    }, [visibleLayers.auto, order?.hasPendingChanges]);
+
     const [isLayerMenuOpen, setIsLayerMenuOpen] = useState(false);
-    const { setHeaderContent, clearHeaderContent } = useHeader();
+    const { setHeaderContent, clearHeaderContent, headerHeight, setHeaderHidden } = useHeader();
     const listRefs = useRef<{ [key: number]: HTMLDivElement | null }>({});
+    const lastScrollYList = useRef(0);
     const kanbanRef = useRef<HTMLDivElement | null>(null);
+
+    const handleListScroll = (e: React.UIEvent<HTMLDivElement>) => {
+        if (!isSidebarFullscreen) return;
+        const currentScrollY = e.currentTarget.scrollTop;
+        if (currentScrollY > lastScrollYList.current && currentScrollY > 50) {
+            setHeaderHidden(true);
+        } else if (currentScrollY < lastScrollYList.current) {
+            setHeaderHidden(false);
+        }
+        lastScrollYList.current = currentScrollY;
+    };
 
     // Stop Detail Panel State
     const [selectedStop, setSelectedStop] = useState<any>(null);
@@ -139,6 +199,111 @@ export default function Page() {
     const [isLoadingFleet, setIsLoadingFleet] = useState(false);
     const [assignedDriver, setAssignedDriver] = useState<CompanyDriverSetting | null>(null);
     const [assignedVehicle, setAssignedVehicle] = useState<Vehicle | null>(null);
+
+    // --- MAP PERSISTENCE & CREATIVE MODE ---
+    const [isCreativeMode, setIsCreativeMode] = useState(false);
+    const [mapViewport, setMapViewport] = useState<{ center: { lat: number; lng: number }; zoom: number }>({
+        center: { lat: 5.3486, lng: -4.0305 }, // Abidjan default
+        zoom: 12
+    });
+
+    const activeStepRef = useRef(activeStep);
+    useEffect(() => { activeStepRef.current = activeStep; }, [activeStep]);
+
+    // --- SOCKET.IO REAL-TIME UPDATES ---
+    useEffect(() => {
+        if (!id || !socketClient) return;
+
+        // Ensure connected
+        const socket = socketClient.connect();
+
+        const handleUpdate = (data: any) => {
+            console.log("[SOCKET] Received update event:", data);
+            if (data.orderId === id) {
+                fetchOrder(false); // Silent refresh
+            }
+        };
+
+        const handleRouteUpdate = (data: any) => {
+            console.log("[SOCKET] Received route update event:", data);
+            if (data.orderId === id) {
+                fetchRoute({ silent: true });
+            }
+        };
+
+        // Join the room for this order
+        socket.emit('join', `order:${id}`);
+
+        // Listen for events
+        socket.on('order_updated', handleUpdate);
+        socket.on('route_updated', handleRouteUpdate);
+
+        return () => {
+            socket.off('order_updated', handleUpdate);
+            socket.off('route_updated', handleRouteUpdate);
+        };
+    }, [id, socketClient]);
+
+    // Save map viewport to localStorage when it changes (Debounced)
+    useEffect(() => {
+        if (!id) return;
+
+        const timer = setTimeout(() => {
+            localStorage.setItem(`map_view_${id}`, JSON.stringify(mapViewport));
+        }, 500);
+
+        return () => clearTimeout(timer);
+    }, [id, mapViewport]);
+
+    // Save map layers to localStorage when it changes
+    useEffect(() => {
+        if (!id) return;
+        localStorage.setItem('map_layers_auto', JSON.stringify(visibleLayers.auto));
+    }, [id, visibleLayers.auto]);
+
+    // Load saved settings
+    useEffect(() => {
+        if (!id) return;
+
+        const savedAuto = localStorage.getItem('map_layers_auto');
+        if (savedAuto !== null) {
+            try {
+                const autoValue = JSON.parse(savedAuto);
+                setVisibleLayers(prev => ({ ...prev, auto: autoValue }));
+            } catch (e) {
+                console.error("Failed to parse saved map auto mode", e);
+            }
+        }
+
+        const saved = localStorage.getItem(`map_view_${id}`);
+        if (saved) {
+            try {
+                const parsed = JSON.parse(saved);
+                if (parsed.center && typeof parsed.zoom === 'number') {
+                    setMapViewport(parsed);
+                    return;
+                }
+            } catch (e) {
+                console.error("Failed to parse saved map view", e);
+            }
+        }
+
+        // No saved view or error -> Try GPS
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                    setMapViewport({
+                        center: { lat: pos.coords.latitude, lng: pos.coords.longitude },
+                        zoom: 14
+                    });
+                },
+                (err) => {
+                    console.warn("Geolocation failed or denied", err);
+                },
+                { timeout: 5000 }
+            );
+        }
+    }, [id]);
 
     // --- SERVER DATA LOADING ---
     useEffect(() => {
@@ -251,7 +416,7 @@ export default function Page() {
             setOrder(serverOrder);
 
             // Deferred route loading
-            fetchRoute();
+            fetchRoute({ silent: !showLoading });
         } catch (error) {
             console.error("Failed to fetch order", error);
             showAlert("Erreur", "Impossible de charger les détails de la commande.");
@@ -260,11 +425,11 @@ export default function Page() {
         }
     };
 
-    const fetchRoute = async (options: { force?: boolean } = {}) => {
+    const fetchRoute = async (options: { force?: boolean, silent?: boolean } = {}) => {
         if (!id) return;
-        setIsRouteLoading(true);
+        if (!options.silent) setIsRouteLoading(true);
         try {
-            const routeData = await ordersApi.getRoute(id, ['live', 'pending', 'trace'], options);
+            const routeData = await ordersApi.getRoute(id, ['live', 'pending', 'trace'], { force: options.force });
             setOrder(prev => prev ? {
                 ...prev,
                 live_route: routeData.live_route,
@@ -275,7 +440,7 @@ export default function Page() {
         } catch (error) {
             console.error("Failed to fetch route", error);
         } finally {
-            setIsRouteLoading(false);
+            if (!options.silent) setIsRouteLoading(false);
         }
     };
 
@@ -377,7 +542,7 @@ export default function Page() {
                 stops: step.stops.map((stop, stIdx) => ({
                     address_text: typeof stop.address === 'string' ? stop.address : (stop.address.street || stop.address.name || ''),
                     coordinates: stop.address.lat && stop.address.lng ? [stop.address.lat, stop.address.lng] : undefined,
-                    sequence: stIdx,
+                    display_order: stIdx,
                     actions: stop.actions.map((action: any) => ({
                         type: action.type as 'pickup' | 'delivery' | 'service',
                         transit_item_id: action.type === 'delivery' ? action.transitItemId : action._transitItemId,
@@ -678,7 +843,7 @@ export default function Page() {
         }, 100);
     };
 
-    const handleAddStop = async (stepIdx: number) => {
+    const handleAddStop = async (stepIdx: number, coordinates?: { lat: number, lng: number }) => {
         const step = steps[stepIdx];
         if (!step?.id) {
             showAlert("Erreur", "L'étape n'est pas encore enregistrée sur le serveur.");
@@ -704,10 +869,13 @@ export default function Page() {
             idx === stepIdx ? { ...s, stops: [...s.stops, pendingStop] } : s
         ));
 
-        const stopPayload = {
-            sequence: nextStopIdx,
+        const stopPayload: any = {
+            display_order: nextStopIdx,
             address: { street: '', city: '', country: '' },
-            actions: []
+            coordinates: coordinates ? [coordinates.lat, coordinates.lng] as [number, number] : undefined,
+            actions: [],
+            reverse_geocode: !!coordinates,
+            add_default_service: !!coordinates
         };
 
         try {
@@ -747,8 +915,10 @@ export default function Page() {
             setOrder(prev => prev ? { ...prev, hasPendingChanges: true } : null);
 
             // Open detail and scroll
-            const newStopIdx = steps[stepIdx].stops.length; // Approximate, but will be corrected by refresh
-            handleOpenStopDetail(stepIdx, newStopIdx, newLocalStop);
+            if (!coordinates) {
+                const newStopIdx = steps[stepIdx].stops.length; // Approximate, but will be corrected by refresh
+                handleOpenStopDetail(stepIdx, newStopIdx, newLocalStop);
+            }
             scrollToBottom(stepIdx);
 
             // Refresh full order in background to get all calculated fields (ID, etc)
@@ -872,13 +1042,13 @@ export default function Page() {
         }));
         setOrder(prev => prev ? { ...prev, hasPendingChanges: true } : null);
 
-        // Server sync: iterate through affected stops and update sequences
+        // Server sync: iterate through affected stops and update display_order
         try {
             await Promise.all(newStops.map((stop, index) => {
-                // Only update if sequence actually changed (though index is our source of truth now)
+                // Only update if display_order actually changed (index is our source of truth)
                 // For simplicity and to ensure server consistency, we update all in the changed step
                 if (stop.id && !stop.id.startsWith('temp_') && !stop.id.startsWith('pending_')) {
-                    return ordersApi.updateStop(stop.id, { sequence: index });
+                    return ordersApi.updateStop(stop.id, { display_order: index });
                 }
                 return Promise.resolve();
             }));
@@ -910,7 +1080,7 @@ export default function Page() {
         try {
             await Promise.all(newStops.map((stop, index) => {
                 if (stop.id && !stop.id.startsWith('temp_') && !stop.id.startsWith('pending_')) {
-                    return ordersApi.updateStop(stop.id, { sequence: index });
+                    return ordersApi.updateStop(stop.id, { display_order: index });
                 }
                 return Promise.resolve();
             }));
@@ -925,41 +1095,50 @@ export default function Page() {
         const isPending = order && !['DRAFT', 'DELIVERED', 'CANCELLED', 'FAILED'].includes(order.status);
 
         setHeaderContent(
-            <div className="flex items-center justify-between w-full h-full">
-                <div className="flex items-center gap-4">
-                    <button onClick={() => window.history.back()} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
-                        <ChevronLeft size={24} className="text-gray-600" />
+            <div className="flex items-center justify-between w-full h-full gap-4">
+                <div className="flex items-center gap-3 overflow-hidden">
+                    <button
+                        onClick={() => window.history.back()}
+                        className="p-2 bg-white dark:bg-slate-800 border border-gray-100 dark:border-slate-700 hover:text-emerald-600 rounded-xl shadow-sm transition-all shrink-0"
+                    >
+                        <ChevronLeft size={20} />
                     </button>
-                    <div>
-                        <h1 className="text-xl font-black text-gray-900 tracking-tight">
-                            {isDraft ? 'Nouvelle commande' : `Commande #${id?.slice(-6)}`}
+                    <div className="overflow-hidden">
+                        <h1 className="text-lg font-black text-slate-900 dark:text-slate-100 tracking-tight leading-tight truncate">
+                            {isDraft ? 'Nouvelle mission' : `Commande #${id?.slice(-6)}`}
                         </h1>
-                        {order && (
-                            <span className={`text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full ${isDraft ? 'bg-yellow-100 text-yellow-700' :
-                                order.status === 'PENDING' ? 'bg-blue-100 text-blue-700' :
-                                    order.status === 'DELIVERED' ? 'bg-green-100 text-green-700' :
-                                        'bg-gray-100 text-gray-600'
-                                }`}>
-                                {order.status}
-                            </span>
-                        )}
+                        <div className="flex items-center gap-2">
+                            {order && (
+                                <span className={`text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded ${isDraft ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400' :
+                                    order.status === 'PENDING' ? 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400' :
+                                        order.status === 'DELIVERED' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400' :
+                                            'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
+                                    }`}>
+                                    {order.status}
+                                </span>
+                            )}
+                            <p className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest truncate hidden sm:block">
+                                {order?.refId || 'Mission Standard'}
+                            </p>
+                        </div>
                     </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 shrink-0">
                     {isDraft && (
                         <>
                             <button
                                 onClick={() => window.history.back()}
-                                className="px-5 py-2 text-[11px] font-black text-gray-500 bg-gray-100 hover:bg-gray-200 rounded-xl uppercase tracking-widest transition-colors"
+                                className="px-4 py-2 text-[10px] font-black text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl uppercase tracking-widest transition-colors hidden sm:block"
                             >
                                 Annuler
                             </button>
                             <button
                                 onClick={handleSubmit}
-                                className="px-6 py-2 text-[11px] font-black text-white bg-[#2563eb] hover:bg-[#1d4ed8] rounded-xl uppercase tracking-widest shadow-lg shadow-blue-100 transition-colors flex items-center gap-2"
+                                className="px-5 py-2.5 text-[10px] font-black text-white bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600 rounded-xl uppercase tracking-widest shadow-lg shadow-emerald-200/50 dark:shadow-none transition-all flex items-center gap-2"
                             >
                                 <Send size={14} />
-                                Soumettre
+                                <span className="hidden sm:inline">Soumettre</span>
+                                <span className="sm:hidden">OK</span>
                             </button>
                         </>
                     )}
@@ -967,17 +1146,18 @@ export default function Page() {
                         <>
                             <button
                                 onClick={handleRevert}
-                                className="p-2 text-rose-500 hover:bg-rose-50 rounded-xl transition-colors border border-transparent hover:border-rose-100"
+                                className="p-2.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-xl transition-colors border border-transparent hover:border-rose-100 dark:hover:border-rose-500/20"
                                 title="Annuler les modifications"
                             >
                                 <RotateCcw size={18} />
                             </button>
                             <button
                                 onClick={handlePushUpdates}
-                                className="px-6 py-2 text-[11px] font-black text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl uppercase tracking-widest shadow-lg shadow-emerald-100 transition-colors flex items-center gap-2"
+                                className="px-5 py-2.5 text-[10px] font-black text-white bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600 rounded-xl uppercase tracking-widest shadow-lg shadow-emerald-200/50 dark:shadow-none transition-all flex items-center gap-2"
                             >
                                 <Check size={14} />
-                                Confirmer
+                                <span className="hidden sm:inline">Confirmer</span>
+                                <span className="sm:hidden">OK</span>
                             </button>
                         </>
                     )}
@@ -1010,8 +1190,8 @@ export default function Page() {
         return activeRoute.stops.map((s: any) => {
             const stopEntity = steps.flatMap(st => st.stops).find(st => st.id === s.stopId);
             return {
-                id: s.sequence + 1,
-                location: stopEntity?.address?.name || `Point ${s.sequence + 1}`,
+                id: (s.execution_order ?? s.display_order) + 1,
+                location: stopEntity?.address?.name || `Point ${(s.execution_order ?? s.display_order) + 1}`,
                 address: stopEntity?.address?.street || 'Adresse inconnue',
                 timing: s.arrival ? `Arrivée +${Math.round(s.arrival / 60)}min` : ''
             };
@@ -1021,22 +1201,56 @@ export default function Page() {
     const historyStatus: any[] = [];
 
     const mapMarkers = React.useMemo(() => {
-        return steps.flatMap(s => s.stops)
-            .filter(s => s.address?.lat && s.address?.lng)
-            .map(s => ({
-                lat: s.address.lat!,
-                lng: s.address.lng!,
-                label: s.id.slice(-3)
-            }));
+        const allStops = steps.flatMap((s, stepIdx) =>
+            s.stops.map((stop, stopIdx) => ({ stop, stepIdx, stopIdx }))
+        );
+
+        let globalStopCounter = 0;
+
+        return allStops
+            .filter(({ stop }) => stop.address?.lat && stop.address?.lng)
+            .map(({ stop, stepIdx, stopIdx }) => {
+                const pickupQty = stop.actions?.filter((a: any) => a.type?.toLowerCase() === 'pickup').reduce((acc: number, a: any) => acc + (Number(a.quantity) || 0), 0) || 0;
+                const deliveryQty = stop.actions?.filter((a: any) => a.type?.toLowerCase() === 'delivery').reduce((acc: number, a: any) => acc + (Number(a.quantity) || 0), 0) || 0;
+                const serviceQty = stop.actions?.filter((a: any) => a.type?.toLowerCase() === 'service').reduce((acc: number, a: any) => acc + (Number(a.quantity) || 0), 0) || 0;
+
+                globalStopCounter++;
+                const isStart = globalStopCounter === 1;
+                const isEnd = globalStopCounter === allStops.length;
+
+                return {
+                    lat: stop.address.lat!,
+                    lng: stop.address.lng!,
+                    label: globalStopCounter.toString(),
+                    stop,
+                    stepIdx,
+                    stopIdx,
+                    pickupQty,
+                    deliveryQty,
+                    serviceQty,
+                    isStart,
+                    isEnd,
+                    addressSnippet: (stop.address.city || stop.address.street || stop.address.name || '...').slice(0, 15)
+                };
+            });
     }, [steps]);
+
+    const clusterPoints = React.useMemo(() => {
+        return mapMarkers.map(m => ({
+            lat: m.lat,
+            lng: m.lng,
+            id: m.stop.id,
+            properties: { marker: m }
+        }));
+    }, [mapMarkers]);
 
     // Loading state
     if (isLoading) {
         return (
-            <div className="flex flex-col h-full bg-[#f4f7fa] items-center justify-center font-sans">
+            <div className="flex flex-col h-full bg-[#f4f7fa] dark:bg-slate-950 items-center justify-center font-sans transition-colors duration-500">
                 <div className="flex flex-col items-center gap-4">
                     <Loader2 size={40} className="text-blue-600 animate-spin" />
-                    <p className="text-[11px] font-black text-gray-400 uppercase tracking-widest">
+                    <p className="text-[11px] font-black text-gray-400 dark:text-slate-500 uppercase tracking-widest">
                         Chargement de la commande...
                     </p>
                 </div>
@@ -1045,20 +1259,34 @@ export default function Page() {
     }
 
     return (
-        <div className="flex flex-col h-full bg-[#f4f7fa] overflow-hidden font-sans">
+        <div className="relative w-full h-full bg-[#f4f7fa] dark:bg-slate-950 overflow-hidden font-sans transition-colors duration-500 text-slate-900 dark:text-slate-100">
 
-            <main className="flex flex-1 overflow-hidden">
-                {/* Left Sidebar: Stop List */}
+            <main className="relative w-full h-full overflow-hidden">
+                {/* Left Sidebar: Stop List (Floating Island) */}
                 <aside
-                    className={`flex flex-col bg-[#f4f7fa] border-r border-gray-100 px-4 pt-4 pb-2 h-full overflow-hidden transition-all duration-500 ease-in-out relative ${isSidebarFullscreen ? 'w-full' : 'w-[380px]'
+                    className={`absolute left-4 z-40 flex flex-col bg-white/40 dark:bg-slate-900/40 backdrop-blur-2xl px-4 pt-4 pb-2 rounded-[24px] border border-white/20 dark:border-slate-800 shadow-2xl transition-all duration-500 ease-in-out pointer-events-auto ${isSidebarFullscreen ? 'right-4 !top-4 !left-6' : isSidebarCollapsed ? 'w-20' : 'w-[380px]'
                         }`}
+                    style={{
+                        top: isSidebarFullscreen ? '16px' : `${headerHeight}px`,
+                        bottom: '16px'
+                    }}
                 >
+                    {/* Toggle Button for Sidebar Collapse */}
+                    {!isSidebarFullscreen && (
+                        <button
+                            onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+                            className="absolute -right-3 top-10 w-6 h-12 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border border-white/20 dark:border-slate-700 rounded-full shadow-lg flex items-center justify-center z-50 hover:bg-white dark:hover:bg-slate-700 transition-colors"
+                        >
+                            <ChevronLeft size={16} className={`transition-transform duration-500 ${isSidebarCollapsed ? 'rotate-180' : ''}`} />
+                        </button>
+                    )}
+
                     {/* Absolute Actions in Fullscreen Mode */}
                     {isSidebarFullscreen && (
-                        <div className="absolute top-4 right-6 z-50 flex items-center gap-2 bg-white/60 backdrop-blur-xl p-1.5 rounded-[20px] border border-white/40 shadow-xl shadow-blue-900/5">
+                        <div className="absolute top-4 right-6 z-50 flex items-center gap-2 bg-white/45 dark:bg-slate-900/45 backdrop-blur-2xl p-1.5 rounded-[20px] border border-white/40 shadow-xl shadow-blue-900/5">
                             <button
                                 onClick={handleAddStep}
-                                className="p-2.5 bg-white text-blue-600 rounded-xl border border-gray-100 hover:bg-blue-50 hover:border-blue-100 transition-all shadow-sm flex items-center gap-2 group"
+                                className="p-2.5 bg-white dark:bg-slate-900 text-blue-600 rounded-xl border border-gray-100 dark:border-slate-800 hover:bg-blue-50 hover:border-blue-100 transition-all shadow-sm flex items-center gap-2 group"
                                 title="Add Step"
                             >
                                 <Plus size={18} className="group-hover:rotate-90 transition-transform" />
@@ -1077,7 +1305,7 @@ export default function Page() {
                     {/* Step Navigation & Actions */}
                     {/* Step Navigation & Actions (Normal Mode only) */}
                     {!isSidebarFullscreen && (
-                        <div className="flex items-center justify-between gap-3 mb-4 bg-white/50 p-1.5 rounded-2xl border border-gray-100/50 flex-shrink-0">
+                        <div className={`flex items-center justify-between gap-3 mb-4 bg-white/30 dark:bg-slate-900/40 p-1.5 rounded-2xl border border-white/10 dark:border-slate-800 shadow-sm flex-shrink-0 transition-opacity duration-300 ${isSidebarCollapsed ? 'opacity-0' : 'opacity-100'}`}>
                             <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide flex-1">
                                 {steps.map((step, idx) => (
                                     <button
@@ -1088,7 +1316,7 @@ export default function Page() {
                                         }}
                                         className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 group/tab ${activeStep === idx
                                             ? 'bg-blue-600 text-white shadow-lg shadow-blue-200'
-                                            : 'bg-white/80 text-gray-400 border border-gray-100 hover:border-blue-200 hover:text-blue-500'
+                                            : 'bg-white dark:bg-slate-900/80 text-gray-400 border border-gray-100 dark:border-slate-800 hover:border-blue-200 hover:text-blue-500'
                                             }`}
                                     >
                                         <span>{step.name}</span>
@@ -1103,17 +1331,17 @@ export default function Page() {
                                 ))}
                             </div>
 
-                            <div className="flex items-center gap-1.5 pl-2 border-l border-gray-200/50">
+                            <div className="flex items-center gap-1.5 pl-2 border-l border-gray-200/50 dark:border-slate-800">
                                 <button
                                     onClick={handleAddStep}
-                                    className="p-2 bg-white text-blue-600 rounded-xl border border-gray-200 hover:bg-blue-50 hover:border-blue-200 transition-all shadow-sm"
+                                    className="p-2 bg-white dark:bg-slate-900 text-blue-600 rounded-xl border border-gray-200 dark:border-slate-800 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:border-blue-200 transition-all shadow-sm"
                                     title="Add Step"
                                 >
                                     <Plus size={16} />
                                 </button>
                                 <button
                                     onClick={() => setIsSidebarFullscreen(!isSidebarFullscreen)}
-                                    className="p-2 bg-white text-gray-400 rounded-xl border border-gray-200 hover:bg-gray-50 transition-all shadow-sm"
+                                    className="p-2 bg-white dark:bg-slate-900 text-gray-400 rounded-xl border border-gray-200 dark:border-slate-800 hover:bg-gray-50 dark:hover:bg-slate-800 transition-all shadow-sm"
                                     title="Fullscreen"
                                 >
                                     <Maximize2 size={16} />
@@ -1123,14 +1351,14 @@ export default function Page() {
                     )}
                     <div
                         ref={kanbanRef}
-                        className={`flex-1 overflow-hidden ${isSidebarFullscreen ? 'flex flex-row gap-2 overflow-x-auto pb-4 scrollbar-hide px-4 lg:pr-60' : 'flex flex-col'}`}
+                        className={`flex-1 overflow-hidden transition-opacity duration-300 ${isSidebarCollapsed ? 'opacity-0' : 'opacity-100'} ${isSidebarFullscreen ? 'flex flex-row gap-2 overflow-x-auto pb-4 scrollbar-hide px-4 lg:pr-60' : 'flex flex-col'}`}
                     >
                         {isSidebarFullscreen ? (
                             steps.map((step, stepIdx) => (
-                                <div key={stepIdx} className="w-[340px] shrink-0 flex flex-col h-full rounded-[32px] bg-white/40 p-1 border border-white/10 hover:bg-white/30 transition-colors">
+                                <div key={stepIdx} className="w-[340px] shrink-0 flex flex-col h-full rounded-[32px] bg-white dark:bg-slate-900/60 p-1 border border-white/10 dark:border-slate-800/50 hover:bg-white dark:hover:bg-slate-900/80 transition-colors">
                                     <div className="flex items-center justify-between p-4 flex-shrink-0">
-                                        <h3 className="text-[11px] font-black text-gray-900 uppercase tracking-widest">{step.name}</h3>
-                                        <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">{step.stops.length} stops</span>
+                                        <h3 className="text-[11px] font-black text-gray-900 dark:text-slate-100 uppercase tracking-widest">{step.name}</h3>
+                                        <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 px-2 py-0.5 rounded-full">{step.stops.length} stops</span>
                                     </div>
 
                                     <ListOptions
@@ -1217,6 +1445,7 @@ export default function Page() {
                                         <div
                                             ref={el => { listRefs.current[activeStep] = el; }}
                                             className="flex-1 overflow-y-auto scrollbar-hide pb-24 px-1"
+                                            onScroll={handleListScroll}
                                         >
                                             <StopListWrapper
                                                 stops={steps[activeStep]?.stops || []}
@@ -1247,383 +1476,668 @@ export default function Page() {
                     </div>
                 </aside>
 
-                {/* Main Content Area */}
+                {/* Main Content Area - Full Map (Background) */}
                 <section
-                    className={`flex-1 rounded-[16px] overflow-y-auto scrollbar-hide pr-4 py-4 transition-all duration-500 ease-in-out ${isSidebarFullscreen ? 'translate-x-full opacity-0 pointer-events-none w-0 h-0 p-0 overflow-hidden' : 'translate-x-0'
-                        }`}
+                    className="absolute inset-0 z-0 overflow-hidden"
                 >
-                    {/* Top Row: Map and Route Details */}
-                    <div className="flex gap-4 mb-4 items-start">
-                        {/* Map Overview */}
-                        <div className="flex-1 min-w-0">
-                            <h2 className="text-[11px] font-black text-gray-400 uppercase tracking-widest mb-4">Map Overview</h2>
-                            <div className="w-full h-[400px] rounded-[16px] overflow-hidden border border-gray-100 shadow-sm relative">
-                                <GoogleMap
-                                    center={mapMarkers[0] || { lat: 48.8566, lng: 2.3522 }}
-                                    zoom={12}
-                                    className="w-full h-full"
-                                >
-                                    {mapMarkers.map((m, i) => (
-                                        <Marker key={i} position={{ lat: m.lat, lng: m.lng }} label={m.label} />
-                                    ))}
-                                    {/* Live Route in Blue */}
-                                    {visibleLayers.live && (
-                                        <Polyline path={livePath} strokeColor="#2563eb" strokeWeight={6} strokeOpacity={0.8} />
-                                    )}
+                    {/* Full-size Map Background */}
+                    <div className="absolute inset-0 overflow-hidden">
+                        <GoogleMap
+                            center={mapViewport.center}
+                            zoom={mapViewport.zoom}
+                            onClick={(e) => {
+                                if (isCreativeMode && e.latLng) {
+                                    handleAddStop(activeStepRef.current, e.latLng);
+                                }
+                            }}
+                            className="w-full h-full"
+                            // @ts-ignore
+                            cursor={isCreativeMode ? 'crosshair' : 'default'}
+                            // @ts-ignore
+                            theme={resolvedTheme}
+                            projection="globe"
+                        >
+                            <ViewportSync onSync={setMapViewport} />
 
-                                    {/* Pending Route in Emerald */}
-                                    {visibleLayers.pending && order?.hasPendingChanges && (
-                                        <Polyline path={pendingPath} strokeColor="#10b981" strokeWeight={4} strokeOpacity={0.9} />
-                                    )}
+                            {/* Primary Location Search Bar */}
+                            <div className="absolute top-6 left-1/2 -translate-x-1/2 z-20 w-full max-w-md px-4 pointer-events-auto">
+                                <LocationSearchBar
+                                    placeholder="Rechercher un lieu..."
+                                    onLocationSelect={(loc) => {
+                                        setMapViewport({ center: { lat: loc.lat, lng: loc.lng }, zoom: 15 });
+                                    }}
+                                />
+                            </div>
 
-                                    {/* Actual Trace in Green Dashed */}
-                                    {visibleLayers.actual && tracePath.length > 0 && (
-                                        <Polyline
-                                            path={tracePath}
-                                            strokeColor="#10b981"
-                                            strokeWeight={3}
-                                            strokeOpacity={0.6}
-                                            // @ts-ignore
-                                            icons={[{
-                                                icon: { path: 'M 0,-1 0,1', strokeOpacity: 1, scale: 2 },
-                                                offset: '0',
-                                                repeat: '10px'
-                                            }]}
-                                        />
-                                    )}
+                            <MarkerClusterer points={clusterPoints}>
+                                {(clusters, supercluster, map) => clusters.map((cluster) => {
+                                    const [longitude, latitude] = cluster.geometry.coordinates;
+                                    const { cluster: isCluster, point_count: pointCount } = cluster.properties;
 
-                                    {/* Real-time Driver Marker */}
-                                    {driverLocation && (
+                                    if (isCluster) {
+                                        return (
+                                            <Marker
+                                                key={`cluster-${cluster.id}`}
+                                                position={{ lat: latitude, lng: longitude }}
+                                                icon={null}
+                                                label={
+                                                    <div className="relative flex items-center justify-center cursor-pointer group">
+                                                        {/* Halo Effect - Pulsing Rings */}
+                                                        <div className="absolute inset-0 rounded-full bg-blue-500/20 animate-ping duration-[3000ms]" />
+                                                        <div className="absolute -inset-2 rounded-full bg-blue-500/10 animate-pulse duration-[2000ms] blur-sm" />
+
+                                                        {/* Static Glow */}
+                                                        <div className="absolute -inset-1 rounded-full bg-blue-400/20 blur-md opacity-0 group-hover:opacity-100 transition-opacity" />
+
+                                                        {/* Main Circle Cluster */}
+                                                        <div className="relative flex items-center justify-center bg-blue-600 dark:bg-blue-500 text-white rounded-full w-10 h-10 border-2 border-white dark:border-slate-800 shadow-[0_0_20px_rgba(37,99,235,0.5)] font-black text-sm transition-all group-hover:scale-110 group-active:scale-95 group-hover:bg-blue-700">
+                                                            {pointCount}
+                                                        </div>
+                                                    </div>
+                                                }
+                                                // @ts-ignore
+                                                onClick={() => {
+                                                    const expansionZoom = Math.min(
+                                                        supercluster.getClusterExpansionZoom(cluster.id as number),
+                                                        18
+                                                    );
+                                                    map.flyTo({
+                                                        center: [longitude, latitude],
+                                                        zoom: expansionZoom,
+                                                        speed: 1.2,
+                                                        curve: 1.42
+                                                    });
+                                                }}
+                                            />
+                                        );
+                                    }
+
+                                    const m = cluster.properties.marker;
+                                    return (
                                         <Marker
-                                            position={{ lat: driverLocation.lat, lng: driverLocation.lng }}
-                                            icon={{
-                                                path: typeof window !== 'undefined' ? (window as any).google?.maps?.SymbolPath?.FORWARD_CLOSED_ARROW : undefined,
-                                                scale: 6,
-                                                fillColor: '#2563eb',
-                                                fillOpacity: 1,
-                                                strokeWeight: 2,
-                                                strokeColor: '#ffffff',
-                                                rotation: driverLocation.heading || 0
-                                            }}
-                                            // @ts-ignore
-                                            title={`Chauffeur en direct - Mis à jour à ${new Date(driverLocation.updated_at).toLocaleTimeString()}`}
-                                        />
-                                    )}
-                                </GoogleMap>
+                                            key={m.stop.id}
+                                            position={{ lat: m.lat, lng: m.lng }}
+                                            label={
+                                                <div className={`flex flex-col items-center shadow-lg animate-in fade-in zoom-in duration-300`}>
+                                                    {/* Badge for quantities */}
+                                                    {(m.pickupQty > 0 || m.deliveryQty > 0 || m.serviceQty > 0) && (
+                                                        <div className="flex items-center gap-1.5 bg-white dark:bg-slate-900 px-2 py-0.5 rounded-t-xl border-x border-t border-gray-100 dark:border-slate-800">
+                                                            {m.pickupQty > 0 && (
+                                                                <div className="flex items-center gap-0.5 text-[10px] font-black text-orange-600 dark:text-orange-400">
+                                                                    <ArrowUpRight size={10} />
+                                                                    <span>{m.pickupQty}</span>
+                                                                </div>
+                                                            )}
+                                                            {m.deliveryQty > 0 && (
+                                                                <div className="flex items-center gap-0.5 text-[10px] font-black text-emerald-600 dark:text-emerald-400">
+                                                                    <ArrowDownLeft size={10} />
+                                                                    <span>{m.deliveryQty}</span>
+                                                                </div>
+                                                            )}
+                                                            {m.serviceQty > 0 && (
+                                                                <div className="flex items-center gap-0.5 text-[10px] font-black text-blue-600 dark:text-blue-400">
+                                                                    <Wrench size={10} />
+                                                                    <span>{m.serviceQty}</span>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                    {/* Stop Marker Body */}
+                                                    <div className={`relative px-2 py-1 flex items-center gap-2 rounded-b-xl border-b border-x border-gray-100 dark:border-slate-800 
+                                                        ${m.isStart ? 'bg-emerald-600 text-white min-w-[40px] justify-center rounded-xl border-0 !text-xs ring-4 ring-emerald-500/20' :
+                                                            m.isEnd ? 'bg-rose-600 text-white min-w-[40px] justify-center rounded-xl border-0 !text-xs ring-4 ring-rose-500/20' :
+                                                                'bg-white dark:bg-slate-900 border-gray-100 dark:border-slate-800'}`}>
 
-                                {/* Route Loading Overlay */}
-                                <AnimatePresence>
-                                    {isRouteLoading && (
-                                        <motion.div
-                                            initial={{ opacity: 0 }}
-                                            animate={{ opacity: 1 }}
-                                            exit={{ opacity: 0 }}
-                                            className="absolute inset-0 bg-white/40 backdrop-blur-[2px] z-[10] flex items-center justify-center"
+                                                        {/* Sequence Number */}
+                                                        <span className={`text-[11px] font-black ${m.isStart || m.isEnd ? 'text-white' : 'text-blue-600'}`}>
+                                                            {m.label}
+                                                        </span>
+
+                                                        {/* Address Snippet (hidden for start/end if too large maybe?) */}
+                                                        <span className={`text-[9px] font-bold uppercase tracking-tighter whitespace-nowrap border-l border-gray-100 dark:border-slate-800 pl-2
+                                                            ${m.isStart || m.isEnd ? 'text-white border-white/20' : 'text-gray-500 dark:text-slate-400'}`}>
+                                                            {m.addressSnippet}
+                                                        </span>
+
+                                                        {/* Visual indicator for Start/End */}
+                                                        {m.isStart && <Navigation size={10} className="fill-white" />}
+                                                        {m.isEnd && <Flag size={10} className="fill-white" />}
+                                                    </div>
+                                                </div>
+                                            }
+                                            onClick={() => handleOpenStopDetail(m.stepIdx, m.stopIdx, m.stop)}
                                         >
-                                            <div className="bg-white px-4 py-2 rounded-full shadow-lg border border-gray-100 flex items-center gap-3">
-                                                <Loader2 className="animate-spin text-blue-600" size={18} />
-                                                <span className="text-[11px] font-bold text-gray-700 uppercase tracking-wider">Calcul de l'itinéraire...</span>
-                                            </div>
-                                        </motion.div>
-                                    )}
-                                </AnimatePresence>
-                                {/* Map controls overlay */}
-                                <div className="absolute right-4 top-4 flex flex-col gap-2">
-                                    <div className="relative">
-                                        <button
-                                            onClick={() => setIsLayerMenuOpen(!isLayerMenuOpen)}
-                                            className={`p-2 rounded-lg shadow-md transition-all ${isLayerMenuOpen ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
-                                        >
-                                            <Layers size={18} />
-                                        </button>
-
-                                        <AnimatePresence>
-                                            {isLayerMenuOpen && (
-                                                <motion.div
-                                                    initial={{ opacity: 0, scale: 0.95, y: 10 }}
-                                                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                                                    exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                                                    className="absolute right-0 top-12 w-48 bg-white rounded-2xl shadow-2xl border border-gray-100 p-2 z-50"
-                                                >
-                                                    <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-3 py-2 border-b border-gray-50 mb-1">Affichage Carte</div>
-
-                                                    <button
-                                                        onClick={() => setVisibleLayers(prev => ({ ...prev, live: !prev.live }))}
-                                                        className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition-colors ${visibleLayers.live ? 'bg-blue-50 text-blue-700' : 'text-gray-500 hover:bg-gray-50'}`}
-                                                    >
-                                                        <span className="text-[11px] font-bold">Route Planifiée</span>
-                                                        <div className={`w-2 h-2 rounded-full ${visibleLayers.live ? 'bg-blue-600' : 'bg-gray-200'}`} />
-                                                    </button>
-
-                                                    <button
-                                                        onClick={() => setVisibleLayers(prev => ({ ...prev, pending: !prev.pending }))}
-                                                        className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition-colors ${visibleLayers.pending ? 'bg-emerald-50 text-emerald-700' : 'text-gray-500 hover:bg-gray-50'}`}
-                                                    >
-                                                        <span className="text-[11px] font-bold">Modifications</span>
-                                                        <div className={`w-2 h-2 rounded-full ${visibleLayers.pending ? 'bg-emerald-500' : 'bg-gray-200'}`} />
-                                                    </button>
-
-                                                    <button
-                                                        onClick={() => setVisibleLayers(prev => ({ ...prev, actual: !prev.actual }))}
-                                                        className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition-colors ${visibleLayers.actual ? 'bg-green-50 text-green-700' : 'text-gray-500 hover:bg-gray-50'}`}
-                                                    >
-                                                        <span className="text-[11px] font-bold">Tracé Réel</span>
-                                                        <div className={`w-2 h-2 rounded-full ${visibleLayers.actual ? 'bg-green-500' : 'bg-gray-200'}`} />
-                                                    </button>
-
-                                                    {/* Sources Tooltip */}
-                                                    <div className="mt-2 p-2 bg-gray-50 rounded-lg border border-gray-100">
-                                                        <div className="text-[9px] text-gray-400 font-bold mb-1 uppercase tracking-wider">Sources du tracé</div>
-                                                        <div className="flex flex-col gap-1">
-                                                            <div className="flex justify-between items-center text-[10px]">
-                                                                <span className="text-gray-500">Prévu:</span>
-                                                                <span className="font-mono bg-white px-1 rounded border border-gray-100">{order?.route_metadata?.live_source || '...'}</span>
+                                            <MarkerPopup className="w-64 overflow-hidden !p-0 rounded-2xl border-0 shadow-2xl animate-in fade-in zoom-in duration-200">
+                                                <div className="flex flex-col bg-white dark:bg-slate-900">
+                                                    <div className="bg-blue-600 p-3 text-white">
+                                                        <div className="flex justify-between items-start mb-1">
+                                                            <div className="text-[10px] font-black uppercase tracking-widest opacity-70">
+                                                                Arrêt {m.label}
                                                             </div>
-                                                            <div className="flex justify-between items-center text-[10px]">
-                                                                <span className="text-gray-500">Modif.:</span>
-                                                                <span className="font-mono bg-white px-1 rounded border border-gray-100">{order?.route_metadata?.pending_source || '...'}</span>
-                                                            </div>
+                                                            {m.stop.status && (
+                                                                <div className="text-[9px] font-bold bg-white/20 px-1.5 py-0.5 rounded uppercase tracking-wider">
+                                                                    {m.stop.status}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        <div className="font-bold truncate text-sm">
+                                                            {m.stop.client?.name || 'Client Sans Nom'}
                                                         </div>
                                                     </div>
-                                                </motion.div>
-                                            )}
-                                        </AnimatePresence>
+
+                                                    <div className="p-3 space-y-3">
+                                                        <div className="flex items-start gap-2 text-gray-500 dark:text-slate-400">
+                                                            <MapPin size={14} className="mt-0.5 shrink-0" />
+                                                            <p className="text-[11px] leading-relaxed line-clamp-2">
+                                                                {m.stop.address.street}, {m.stop.address.city}
+                                                            </p>
+                                                        </div>
+
+                                                        <div className="flex flex-wrap gap-1.5 border-t border-gray-50 dark:border-slate-800 pt-3">
+                                                            {m.stop.actions?.map((action: any, idx: number) => (
+                                                                <div key={idx} className="flex items-center gap-1 bg-gray-50 dark:bg-slate-800 px-2 py-1 rounded-lg">
+                                                                    <div className={`p-0.5 rounded ${action.type === 'pickup' ? 'text-orange-600' : action.type === 'delivery' ? 'text-emerald-600' : 'text-blue-600'}`}>
+                                                                        {action.type === 'pickup' ? <ArrowUpRight size={10} /> : action.type === 'delivery' ? <ArrowDownLeft size={10} /> : <Wrench size={10} />}
+                                                                    </div>
+                                                                    <span className="text-[10px] font-bold text-gray-700 dark:text-slate-300">
+                                                                        {action.type === 'service' ? `${action.service_time || 10}'` : `x${action.quantity}`}
+                                                                    </span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleOpenStopDetail(m.stepIdx, m.stopIdx, m.stop);
+                                                            }}
+                                                            className="w-full py-2 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-[10px] font-black rounded-xl transition-all border border-blue-100/50 dark:border-blue-900/10 uppercase tracking-widest hover:bg-blue-100 dark:hover:bg-blue-900/50"
+                                                        >
+                                                            Éditer l'arrêt
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </MarkerPopup>
+                                        </Marker>
+                                    );
+                                })}
+                            </MarkerClusterer>
+                            {/* Live Route in Blue */}
+                            {visibleLayers.live && (
+                                <Polyline path={livePath} strokeColor="#2563eb" strokeWeight={6} strokeOpacity={0.8} />
+                            )}
+
+                            {/* Pending Route in Emerald */}
+                            {visibleLayers.pending && order?.hasPendingChanges && (
+                                <Polyline path={pendingPath} strokeColor="#10b981" strokeWeight={4} strokeOpacity={0.9} />
+                            )}
+
+                            {/* Actual Trace in Green Dashed */}
+                            {visibleLayers.actual && tracePath.length > 0 && (
+                                <Polyline
+                                    path={tracePath}
+                                    strokeColor="#10b981"
+                                    strokeWeight={3}
+                                    strokeOpacity={0.6}
+                                    // @ts-ignore
+                                    icons={[{
+                                        icon: { path: 'M 0,-1 0,1', strokeOpacity: 1, scale: 2 },
+                                        offset: '0',
+                                        repeat: '10px'
+                                    }]}
+                                />
+                            )}
+
+                            {/* Real-time Driver Marker */}
+                            {driverLocation && (
+                                <Marker
+                                    position={{ lat: driverLocation.lat, lng: driverLocation.lng }}
+                                    icon={{
+                                        path: typeof window !== 'undefined' ? (window as any).google?.maps?.SymbolPath?.FORWARD_CLOSED_ARROW : undefined,
+                                        scale: 6,
+                                        fillColor: '#2563eb',
+                                        fillOpacity: 1,
+                                        strokeWeight: 2,
+                                        strokeColor: '#ffffff',
+                                        rotation: driverLocation.heading || 0
+                                    }}
+                                    // @ts-ignore
+                                    title={`Chauffeur en direct - Mis à jour à ${new Date(driverLocation.updated_at).toLocaleTimeString()}`}
+                                />
+                            )}
+                        </GoogleMap>
+
+                        {/* Route Loading Overlay */}
+                        <AnimatePresence>
+                            {isRouteLoading && (
+                                <motion.div
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    exit={{ opacity: 0 }}
+                                    className="absolute inset-0 bg-white/10 dark:bg-slate-900/40 backdrop-blur-md z-[10] flex items-center justify-center"
+                                >
+                                    <div className="bg-white dark:bg-slate-900 px-4 py-2 rounded-full shadow-lg border border-gray-100 dark:border-slate-800 flex items-center gap-3">
+                                        <Loader2 className="animate-spin text-blue-600" size={18} />
+                                        <span className="text-[11px] font-bold text-gray-700 uppercase tracking-wider">Calcul de l'itinéraire...</span>
                                     </div>
-
-                                    <button
-                                        onClick={() => fetchRoute({ force: true })}
-                                        disabled={isRouteLoading}
-                                        className={`p-2 bg-white rounded-lg shadow-md text-gray-600 hover:bg-gray-50 transition-all ${isRouteLoading ? 'opacity-50' : ''}`}
-                                        title="Recalculer la route (VROOM)"
-                                    >
-                                        <RotateCcw size={18} className={isRouteLoading ? 'animate-spin' : ''} />
-                                    </button>
-
-                                </div>
-                                <div className="absolute right-4 bottom-4">
-                                    <button className="p-2 bg-white rounded-lg shadow-md hover:bg-gray-50 text-gray-600">
-                                        <Navigation size={18} />
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Route & History Tabs */}
-                        <div className="w-[340px] shrink-0">
-                            <div className="flex items-center gap-4 mb-4 border-b border-gray-100 pb-2">
-                                <button
-                                    onClick={() => setActiveRouteTab('details')}
-                                    className={`text-[11px] font-black uppercase tracking-widest pb-1 transition-all ${activeRouteTab === 'details' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
-                                >
-                                    Route Details
-                                </button>
-                                <button
-                                    onClick={() => setActiveRouteTab('history')}
-                                    className={`text-[11px] font-black uppercase tracking-widest pb-1 transition-all ${activeRouteTab === 'history' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
-                                >
-                                    History Status
-                                </button>
-                            </div>
-
-                            <div className="bg-[#f4f7fa]/50 rounded-[32px] p-5 border border-gray-50 h-[380px] overflow-y-auto scrollbar-hide">
-                                {activeRouteTab === 'details' ? (
-                                    routeDetails.length > 0 ? (
-                                        <div className="space-y-6 relative">
-                                            {/* Route line */}
-                                            <div className="absolute left-[11px] top-[10px] bottom-[10px] w-0 border-l-2 border-dashed border-gray-300"></div>
-
-                                            {routeDetails.map((stop: any) => (
-                                                <div key={stop.id} className="flex gap-4 relative">
-                                                    <div className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center text-[10px] font-black text-white z-10 shadow-sm">
-                                                        {stop.id}
-                                                    </div>
-                                                    <div className="pt-0.5 flex-1">
-                                                        <div className="flex items-center justify-between mb-0.5">
-                                                            <div className="text-xs font-bold text-gray-900">{stop.location}</div>
-                                                            <div className="text-[9px] font-black text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-md uppercase tracking-tighter">{stop.timing}</div>
-                                                        </div>
-                                                        <div className="text-[10px] font-medium text-gray-400 uppercase line-clamp-1">{stop.address}</div>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    ) : (
-                                        <div className="flex flex-col items-center justify-center h-full text-center py-12">
-                                            <div className="w-12 h-12 bg-gray-50 rounded-full flex items-center justify-center mb-3 text-gray-300">
-                                                <MapPin size={24} />
-                                            </div>
-                                            <p className="text-[11px] font-black text-gray-400 uppercase tracking-widest mb-1">No route generated</p>
-                                            <p className="text-[10px] text-gray-400 font-medium">Add stops to your shipment <br /> to see the journey details.</p>
-                                        </div>
-                                    )
-                                ) : (
-                                    historyStatus.length > 0 ? (
-                                        <div className="space-y-6 relative">
-                                            {/* History Timeline line */}
-                                            <div className="absolute left-[11px] top-[10px] bottom-[10px] w-0 border-l-2 border-gray-200"></div>
-
-                                            {historyStatus.map((item, idx) => (
-                                                <div key={idx} className="flex gap-4 relative">
-                                                    <div className={`flex-shrink-0 w-6 h-6 rounded-lg ${item.bgColor} flex items-center justify-center z-10 shadow-sm`}>
-                                                        <item.icon size={12} className={item.iconColor} />
-                                                    </div>
-                                                    <div className="pt-0.5 min-w-0">
-                                                        <div className="flex items-center gap-2 mb-0.5">
-                                                            <span className="text-xs font-black text-gray-900">{item.status}</span>
-                                                            <span className="text-[9px] font-bold text-gray-400 uppercase">{item.time}</span>
-                                                        </div>
-                                                        <div className="text-[10px] font-medium text-gray-500 leading-tight">
-                                                            {item.description}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    ) : (
-                                        <div className="flex flex-col items-center justify-center h-full text-center py-12">
-                                            <div className="w-12 h-12 bg-gray-50 rounded-full flex items-center justify-center mb-3 text-gray-300">
-                                                <Clock size={24} />
-                                            </div>
-                                            <p className="text-[11px] font-black text-gray-400 uppercase tracking-widest mb-1">History pending</p>
-                                            <p className="text-[10px] text-gray-400 font-medium">Submit the order to <br /> start tracking the status.</p>
-                                        </div>
-                                    )
-                                )}
-                            </div>
-                        </div>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
                     </div>
 
-                    {/* Bottom Area: Operation Details & Load Analytics */}
-                    <div className="flex gap-6 mb-8 items-stretch">
-                        {/* Operation Details (Left) */}
-                        <div className="flex-1 relative overflow-hidden">
-                            <div className="flex items-center justify-between mb-6">
-                                <h3 className="text-[11px] font-black text-gray-400 uppercase tracking-widest">Operation Details</h3>
-                                <button className="p-2 hover:bg-gray-50 rounded-full text-gray-400"><MoreVertical size={16} /></button>
-                            </div>
+                    {/* Map controls overlay (top-left, shifted right of sidebar) */}
+                    <div
+                        className="absolute z-[20] flex flex-col gap-2 transition-all duration-500 ease-in-out"
+                        style={{
+                            top: `${headerHeight}px`,
+                            left: isSidebarFullscreen ? 'calc(100% - 60px)' : (isSidebarCollapsed ? '112px' : '412px')
+                        }}
+                    >
+                        <div className="relative">
+                            <AnimatePresence>
+                                {isLayerMenuOpen && (
+                                    <motion.div
+                                        initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                                        exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                                        className="absolute left-0 top-12 w-48 bg-white/20 dark:bg-slate-900/40 backdrop-blur-2xl rounded-2xl shadow-2xl border border-white/20 dark:border-slate-800 p-2 z-50"
+                                    >
+                                        <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-3 py-2 border-b border-gray-50 mb-1">Affichage Carte</div>
 
-                            <div className="relative">
-                                {/* Side Icons */}
-                                <div className="absolute top-0 left-0 flex flex-col gap-3.5 z-20">
-                                    <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl shadow-sm shadow-blue-100"><Truck size={18} /></div>
-                                    <div className="p-2.5 text-gray-300 hover:text-blue-600 transition-colors cursor-pointer"><Navigation size={18} /></div>
-                                    <div className="p-2.5 text-gray-300 hover:text-blue-600 transition-colors cursor-pointer"><Clock size={18} /></div>
-                                    <div className="p-2.5 text-gray-300 hover:text-blue-600 transition-colors cursor-pointer"><Settings2 size={18} /></div>
-                                </div>
-
-                                {/* Truck Info */}
-                                <div className="flex flex-col pt-2">
-                                    <div className="flex justify-center mb-6 relative">
-                                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-32 bg-blue-100 rounded-full blur-[80px] opacity-30"></div>
-                                        <img
-                                            src="https://images.unsplash.com/photo-1601584115197-04ecc0da31d7?auto=format&fit=crop&q=80&w=800"
-                                            alt="Delivery Truck"
-                                            className="w-72 h-44 object-contain relative z-10 drop-shadow-2xl brightness-105"
-                                        />
-                                    </div>
-
-                                    <div className="text-center mb-4">
-                                        <h4 className="text-xl font-black text-gray-900 mb-1">{assignedVehicle ? `${assignedVehicle.brand} ${assignedVehicle.model}` : 'Volvo FMX 460'} - <span className="text-blue-600">#{assignedVehicle?.plate || 'XL-43543'}</span></h4>
-                                        <div className="flex items-center justify-center gap-2">
-                                            <span className="px-2 py-0.5 bg-gray-100 rounded-md text-[9px] font-black text-gray-500 uppercase tracking-tighter">Container ID</span>
-                                            <span className="text-[10px] font-mono font-bold text-gray-400">#JAKQHH671</span>
-                                        </div>
-                                    </div>
-
-                                    <div className="grid grid-cols-2 gap-4 mb-4">
-                                        <div className="bg-[#fff] rounded-2xl p-4 border border-gray-50 flex items-center gap-4">
-                                            <div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center text-orange-500">
-                                                <LayoutGrid size={18} />
+                                        <button
+                                            onClick={() => setVisibleLayers(prev => ({ ...prev, auto: !prev.auto }))}
+                                            className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition-colors mb-1 ${visibleLayers.auto ? 'bg-orange-50 text-orange-700' : 'text-gray-500 hover:bg-gray-50'}`}
+                                        >
+                                            <div className="flex flex-col items-start">
+                                                <span className="text-[11px] font-bold">Mode Auto</span>
+                                                <span className="text-[9px] opacity-60">Gestion intelligente</span>
                                             </div>
-                                            <div>
-                                                <div className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-0.5">Container Type</div>
-                                                <div className="text-sm font-bold text-gray-900">FLC 20 Standart</div>
-                                            </div>
-                                        </div>
-                                        <div className="bg-[#fff] rounded-2xl p-4 border border-gray-50 flex items-center gap-4">
-                                            <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-500">
-                                                <CheckCircle2 size={18} />
-                                            </div>
-                                            <div>
-                                                <div className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-0.5">Available Load</div>
-                                                <div className="text-sm font-bold text-gray-900">{assignedVehicle ? `0kg / ${(assignedVehicle.specs?.maxWeight || 0).toLocaleString()}kg` : '0kg / 0kg'}</div>
-                                            </div>
-                                        </div>
-                                    </div>
+                                            <div className={`w-2 h-2 rounded-full ${visibleLayers.auto ? 'bg-orange-500 animate-pulse' : 'bg-gray-200'}`} />
+                                        </button>
 
-                                    {/* Driver Card */}
-                                    <div className="bg-[#fff] border border-gray-50 rounded-[28px] p-4 flex items-center justify-between shadow-sm">
-                                        <div className="flex items-center gap-4">
-                                            <div className="relative">
-                                                <img src={`https://i.pravatar.cc/150?u=${assignedDriver?.driverId || 'none'}`} alt="Driver" className="w-11 h-11 rounded-full border-2 border-white shadow-sm" />
-                                                <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-white rounded-full flex items-center justify-center border border-gray-50 shadow-sm">
-                                                    <div className={`w-2 h-2 ${assignedDriver ? 'bg-emerald-500' : 'bg-gray-300'} rounded-full`}></div>
+                                        <div className="h-px bg-gray-100 dark:bg-slate-800 my-1 mx-2"></div>
+
+                                        <button
+                                            onClick={() => setVisibleLayers(prev => ({ ...prev, live: !prev.live, auto: false }))}
+                                            className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition-colors ${visibleLayers.live ? 'bg-blue-50 text-blue-700' : 'text-gray-500 hover:bg-gray-50'}`}
+                                        >
+                                            <span className="text-[11px] font-bold">Route Planifiée</span>
+                                            <div className={`w-2 h-2 rounded-full ${visibleLayers.live ? 'bg-blue-600' : 'bg-gray-200'}`} />
+                                        </button>
+
+                                        <button
+                                            onClick={() => setVisibleLayers(prev => ({ ...prev, pending: !prev.pending, auto: false }))}
+                                            className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition-colors ${visibleLayers.pending ? 'bg-emerald-50 text-emerald-700' : 'text-gray-500 hover:bg-gray-50'}`}
+                                        >
+                                            <span className="text-[11px] font-bold">Modifications</span>
+                                            <div className={`w-2 h-2 rounded-full ${visibleLayers.pending ? 'bg-emerald-500' : 'bg-gray-200'}`} />
+                                        </button>
+
+                                        <button
+                                            onClick={() => setVisibleLayers(prev => ({ ...prev, actual: !prev.actual, auto: false }))}
+                                            className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition-colors ${visibleLayers.actual ? 'bg-green-50 text-green-700' : 'text-gray-500 hover:bg-gray-50'}`}
+                                        >
+                                            <span className="text-[11px] font-bold">Tracé Réel</span>
+                                            <div className={`w-2 h-2 rounded-full ${visibleLayers.actual ? 'bg-green-500' : 'bg-gray-200'}`} />
+                                        </button>
+
+                                        {/* Sources Tooltip */}
+                                        <div className="mt-2 p-2 bg-white/10 dark:bg-slate-800/40 rounded-lg border border-white/10 dark:border-slate-800">
+                                            <div className="text-[9px] text-gray-400 font-bold mb-1 uppercase tracking-wider">Sources du tracé</div>
+                                            <div className="flex flex-col gap-1">
+                                                <div className="flex justify-between items-center text-[10px]">
+                                                    <span className="text-gray-500">Prévu:</span>
+                                                    <span className="font-mono bg-white dark:bg-slate-900 px-1 rounded border border-gray-100 dark:border-slate-800">{order?.route_metadata?.live_source || '...'}</span>
+                                                </div>
+                                                <div className="flex justify-between items-center text-[10px]">
+                                                    <span className="text-gray-500">Modif.:</span>
+                                                    <span className="font-mono bg-white dark:bg-slate-900 px-1 rounded border border-gray-100 dark:border-slate-800">{order?.route_metadata?.pending_source || '...'}</span>
                                                 </div>
                                             </div>
-                                            <div>
-                                                <div className="text-sm font-black text-gray-900">{assignedDriver?.driver.fullName || 'No driver auto-selected'}</div>
-                                                <div className="text-[10px] font-bold text-gray-400">{assignedDriver ? 'Senior Driver' : 'Status unknown'} • <span className={`${assignedDriver ? 'text-emerald-500' : 'text-gray-400'} uppercase tracking-tighter`}>{assignedDriver ? 'Available' : 'Unavailable'}</span></div>
-                                            </div>
                                         </div>
-                                        <div className="flex gap-2">
-                                            <button className="p-2.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 bg-white border border-gray-100 rounded-full transition-all shadow-sm"><Phone size={15} /></button>
-                                            <button className="p-2.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 bg-white border border-gray-100 rounded-full transition-all shadow-sm"><MessageSquare size={15} /></button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
                         </div>
+                        <button
+                            onClick={() => setIsLayerMenuOpen(!isLayerMenuOpen)}
+                            className={`p-2 rounded-lg shadow-md transition-all ${isLayerMenuOpen ? 'bg-blue-600 text-white' : 'bg-white dark:bg-slate-900 text-gray-600 hover:bg-gray-50'}`}
+                            title="Couches de la carte"
+                        >
+                            <Layers size={18} />
+                        </button>
 
-                        {/* Weight Distribution (Right) */}
-                        <div className="w-[420px] flex flex-col">
-                            <div className="flex items-center justify-between mb-6">
-                                <h3 className="text-[11px] font-black text-gray-400 uppercase tracking-widest">Weight Distribution</h3>
-                                <button className="p-2 hover:bg-gray-50 rounded-full text-gray-400"><MoreVertical size={16} /></button>
-                            </div>
+                        <button
+                            onClick={() => setIsCreativeMode(!isCreativeMode)}
+                            className={`p-2 rounded-lg shadow-md transition-all ${isCreativeMode ? 'bg-orange-500 text-white animate-pulse' : 'bg-white dark:bg-slate-900 text-gray-600 hover:bg-gray-50'}`}
+                            title={isCreativeMode ? "Désactiver le Mode Créatif" : "Activer le Mode Créatif (cliquer sur la carte pour ajouter un stop)"}
+                        >
+                            <MapPinPlus size={18} />
+                        </button>
+                        <button
+                            onClick={() => fetchRoute({ force: true })}
+                            disabled={isRouteLoading}
+                            className={`p-2 bg-white dark:bg-slate-900 rounded-lg shadow-md text-gray-600 hover:bg-gray-50 transition-all ${isRouteLoading ? 'opacity-50' : ''}`}
+                            title="Recalculer la route (VROOM)"
+                        >
+                            <RotateCcw size={18} className={isRouteLoading ? 'animate-spin' : ''} />
+                        </button>
+                        <button className="p-2 bg-white dark:bg-slate-900 rounded-lg shadow-md hover:bg-gray-50 text-gray-600">
+                            <Navigation size={18} />
+                        </button>
+                    </div>
 
-                            <div className="mb-8 px-2 relative">
-                                <div className="flex items-baseline gap-2 mb-10">
-                                    <span className="text-4xl font-black text-gray-900 tracking-tighter">0%</span>
-                                    <span className="text-[10px] font-bold text-gray-400 uppercase">of Total Capacity</span>
-                                </div>
+                    {/* RIGHT SIDE: Icon Bar + Expandable Panel */}
+                    <div
+                        className="absolute right-4 bottom-4 z-[15] flex items-stretch gap-3 pointer-events-auto transition-all duration-500"
+                        style={{ top: `${headerHeight}px` }}
+                    >
 
-                                {/* Capacity Gauge */}
-                                <div className="relative mb-8 h-8 flex items-center">
-                                    <div className="h-[2px] w-full bg-gray-100 rounded-full relative">
-                                        <div className="absolute left-[0%] -translate-x-1/2 -top-6 flex flex-col items-center group/tooltip">
-                                            <div className="px-2 py-1 bg-gray-900 rounded-lg text-[10px] font-black text-white mb-1 shadow-xl tracking-tighter">0kg</div>
-                                            <div className="w-5 h-5 rounded-full border-4 border-white bg-blue-600 shadow-xl relative z-10 transition-transform hover:scale-110"></div>
-                                            <div className="w-[2px] h-4 bg-gray-200 mt-[-2px]"></div>
+                        {/* Expandable Panel (conditionally shown) */}
+                        <AnimatePresence>
+                            {activeRightPanel && (
+                                <motion.div
+                                    key="right-panel"
+                                    initial={{ width: 0, opacity: 0 }}
+                                    animate={{ width: 372, opacity: 1 }}
+                                    exit={{ width: 0, opacity: 0 }}
+                                    transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                                    className="overflow-hidden flex flex-col p-4"
+                                >
+                                    <div className="bg-white/20 dark:bg-slate-900/40 backdrop-blur-2xl rounded-[24px] border border-white/20 dark:border-slate-800 shadow-2xl shadow-black/15 p-5 flex flex-col h-full w-[340px] overflow-hidden">
+                                        {/* Panel Header */}
+                                        <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-200/40 dark:border-slate-700/40 flex-shrink-0">
+                                            <h3 className="text-[11px] font-black text-gray-700 dark:text-slate-200 uppercase tracking-widest">
+                                                {activeRightPanel === 'route' && 'Route Details'}
+                                                {activeRightPanel === 'history' && 'History Status'}
+                                                {activeRightPanel === 'operation' && 'Operation Details'}
+                                                {activeRightPanel === 'weight' && 'Weight Distribution'}
+                                            </h3>
+                                            <button
+                                                onClick={() => setActiveRightPanel(null)}
+                                                className="p-1.5 hover:bg-gray-100/50 dark:hover:bg-slate-800/50 rounded-lg text-gray-400 transition-colors"
+                                            >
+                                                <X size={14} />
+                                            </button>
                                         </div>
-                                        <div className="absolute inset-y-0 left-0 bg-blue-600 rounded-full" style={{ width: '0%' }}></div>
+
+                                        {/* Panel Content */}
+                                        <div className="flex-1 overflow-y-auto scrollbar-hide">
+                                            {/* === ROUTE DETAILS === */}
+                                            {activeRightPanel === 'route' && (
+                                                routeDetails.length > 0 ? (
+                                                    <div className="space-y-6 relative">
+                                                        <div className="absolute left-[11px] top-[10px] bottom-[10px] w-0 border-l-2 border-dashed border-gray-300/70"></div>
+                                                        {routeDetails.map((stop: any) => (
+                                                            <div key={stop.id} className="flex gap-4 relative">
+                                                                <div className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center text-[10px] font-black text-white z-10 shadow-sm">
+                                                                    {stop.id}
+                                                                </div>
+                                                                <div className="pt-0.5 flex-1">
+                                                                    <div className="flex items-center justify-between mb-0.5">
+                                                                        <div className="text-xs font-bold text-gray-900 dark:text-slate-100">{stop.location}</div>
+                                                                        <div className="text-[9px] font-black text-blue-600 bg-blue-50/80 px-1.5 py-0.5 rounded-md uppercase tracking-tighter">{stop.timing}</div>
+                                                                    </div>
+                                                                    <div className="text-[10px] font-medium text-gray-500 dark:text-slate-400 uppercase line-clamp-1">{stop.address}</div>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex flex-col items-center justify-center h-full text-center py-12">
+                                                        <div className="w-12 h-12 bg-white/50 dark:bg-slate-800/50 rounded-full flex items-center justify-center mb-3 text-gray-400 dark:text-slate-600">
+                                                            <MapPin size={24} />
+                                                        </div>
+                                                        <p className="text-[11px] font-black text-gray-500 dark:text-slate-400 uppercase tracking-widest mb-1">No route generated</p>
+                                                        <p className="text-[10px] text-gray-400 dark:text-slate-500 font-medium">Add stops to your shipment <br /> to see the journey details.</p>
+                                                    </div>
+                                                )
+                                            )}
+
+                                            {/* === HISTORY STATUS === */}
+                                            {activeRightPanel === 'history' && (
+                                                historyStatus.length > 0 ? (
+                                                    <div className="space-y-6 relative">
+                                                        <div className="absolute left-[11px] top-[10px] bottom-[10px] w-0 border-l-2 border-gray-300/50"></div>
+                                                        {historyStatus.map((item, idx) => (
+                                                            <div key={idx} className="flex gap-4 relative">
+                                                                <div className={`flex-shrink-0 w-6 h-6 rounded-lg ${item.bgColor} flex items-center justify-center z-10 shadow-sm`}>
+                                                                    <item.icon size={12} className={item.iconColor} />
+                                                                </div>
+                                                                <div className="pt-0.5 min-w-0">
+                                                                    <div className="flex items-center gap-2 mb-0.5">
+                                                                        <span className="text-xs font-black text-gray-900 dark:text-slate-100">{item.status}</span>
+                                                                        <span className="text-[9px] font-bold text-gray-400 uppercase">{item.time}</span>
+                                                                    </div>
+                                                                    <div className="text-[10px] font-medium text-gray-500 leading-tight">
+                                                                        {item.description}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex flex-col items-center justify-center h-full text-center py-12">
+                                                        <div className="w-12 h-12 bg-white/50 dark:bg-slate-800/50 rounded-full flex items-center justify-center mb-3 text-gray-400 dark:text-slate-600">
+                                                            <Clock size={24} />
+                                                        </div>
+                                                        <p className="text-[11px] font-black text-gray-500 dark:text-slate-400 uppercase tracking-widest mb-1">History pending</p>
+                                                        <p className="text-[10px] text-gray-400 dark:text-slate-500 font-medium">Submit the order to <br /> start tracking the status.</p>
+                                                    </div>
+                                                )
+                                            )}
+
+                                            {/* === OPERATION DETAILS === */}
+                                            {activeRightPanel === 'operation' && (
+                                                <div className="flex flex-col">
+                                                    {/* Truck Image */}
+                                                    <div className="flex justify-center mb-4 relative">
+                                                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-40 h-28 bg-blue-100 rounded-full blur-[60px] opacity-20"></div>
+                                                        <img
+                                                            src="https://images.unsplash.com/photo-1601584115197-04ecc0da31d7?auto=format&fit=crop&q=80&w=800"
+                                                            alt="Delivery Truck"
+                                                            className="w-48 h-32 object-contain relative z-10 drop-shadow-2xl brightness-105"
+                                                        />
+                                                    </div>
+
+                                                    <div className="text-center mb-4">
+                                                        <h4 className="text-base font-black text-gray-900 dark:text-slate-100 mb-1">{assignedVehicle ? `${assignedVehicle.brand} ${assignedVehicle.model}` : 'Volvo FMX 460'} - <span className="text-blue-600">#{assignedVehicle?.plate || 'XL-43543'}</span></h4>
+                                                        <div className="flex items-center justify-center gap-2">
+                                                            <span className="px-2 py-0.5 bg-gray-100/80 rounded-md text-[9px] font-black text-gray-500 uppercase tracking-tighter">Container ID</span>
+                                                            <span className="text-[10px] font-mono font-bold text-gray-400">#JAKQHH671</span>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="space-y-3 mb-4">
+                                                        <div className="bg-white/20 dark:bg-slate-800/40 rounded-2xl p-3 border border-white/10 dark:border-slate-700/40 flex items-center gap-3">
+                                                            <div className="w-9 h-9 rounded-xl bg-orange-50/80 dark:bg-orange-500/10 flex items-center justify-center text-orange-500">
+                                                                <LayoutGrid size={16} />
+                                                            </div>
+                                                            <div>
+                                                                <div className="text-[9px] font-black text-gray-400 dark:text-slate-500 uppercase tracking-widest mb-0.5">Container Type</div>
+                                                                <div className="text-sm font-bold text-gray-900 dark:text-slate-100">FLC 20 Standart</div>
+                                                            </div>
+                                                        </div>
+                                                        <div className="bg-white/60 dark:bg-slate-800/60 rounded-2xl p-3 border border-white/40 dark:border-slate-700/40 flex items-center gap-3">
+                                                            <div className="w-9 h-9 rounded-xl bg-emerald-50/80 dark:bg-emerald-500/10 flex items-center justify-center text-emerald-500">
+                                                                <CheckCircle2 size={16} />
+                                                            </div>
+                                                            <div>
+                                                                <div className="text-[9px] font-black text-gray-400 dark:text-slate-500 uppercase tracking-widest mb-0.5">Available Load</div>
+                                                                <div className="text-sm font-bold text-gray-900 dark:text-slate-100">{assignedVehicle ? `0kg / ${(assignedVehicle.specs?.maxWeight || 0).toLocaleString()}kg` : '0kg / 0kg'}</div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Driver Card */}
+                                                    <div className="bg-white/20 dark:bg-slate-800/40 border border-white/10 dark:border-slate-700/40 rounded-[20px] p-3 flex items-center justify-between shadow-sm">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="relative">
+                                                                <img src={`https://i.pravatar.cc/150?u=${assignedDriver?.driverId || 'none'}`} alt="Driver" className="w-10 h-10 rounded-full border-2 border-white dark:border-slate-800 shadow-sm" />
+                                                                <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-white dark:bg-slate-900 rounded-full flex items-center justify-center border border-gray-50 dark:border-slate-800 shadow-sm">
+                                                                    <div className={`w-2 h-2 ${assignedDriver ? 'bg-emerald-500' : 'bg-gray-300'} rounded-full`}></div>
+                                                                </div>
+                                                            </div>
+                                                            <div>
+                                                                <div className="text-sm font-black text-gray-900 dark:text-slate-100">{assignedDriver?.driver.fullName || 'No driver auto-selected'}</div>
+                                                                <div className="text-[10px] font-bold text-gray-400 dark:text-slate-500">{assignedDriver ? 'Senior Driver' : 'Status unknown'} • <span className={`${assignedDriver ? 'text-emerald-500' : 'text-gray-400'} uppercase tracking-tighter`}>{assignedDriver ? 'Available' : 'Unavailable'}</span></div>
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex gap-2">
+                                                            <button className="p-2 text-gray-400 dark:text-slate-500 hover:text-blue-600 hover:bg-blue-50/80 dark:hover:bg-blue-900/20 bg-white/20 dark:bg-slate-900/40 border border-white/10 dark:border-slate-700/40 rounded-full transition-all shadow-sm"><Phone size={14} /></button>
+                                                            <button className="p-2 text-gray-400 dark:text-slate-500 hover:text-blue-600 hover:bg-blue-50/80 dark:hover:bg-blue-900/20 bg-white/20 dark:bg-slate-900/40 border border-white/10 dark:border-slate-700/40 rounded-full transition-all shadow-sm"><MessageSquare size={14} /></button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* === WEIGHT DISTRIBUTION === */}
+                                            {activeRightPanel === 'weight' && (
+                                                <div className="flex flex-col">
+                                                    <div className="mb-6 px-2 relative">
+                                                        <div className="flex items-baseline gap-2 mb-8">
+                                                            <span className="text-3xl font-black text-gray-900 dark:text-slate-100 tracking-tighter">0%</span>
+                                                            <span className="text-[10px] font-bold text-gray-400 uppercase">of Total Capacity</span>
+                                                        </div>
+
+                                                        {/* Capacity Gauge */}
+                                                        <div className="relative mb-6 h-8 flex items-center">
+                                                            <div className="h-[2px] w-full bg-gray-200/50 rounded-full relative">
+                                                                <div className="absolute left-[0%] -translate-x-1/2 -top-6 flex flex-col items-center group/tooltip">
+                                                                    <div className="px-2 py-1 bg-gray-900 rounded-lg text-[10px] font-black text-white mb-1 shadow-xl tracking-tighter">0kg</div>
+                                                                    <div className="w-5 h-5 rounded-full border-4 border-white bg-blue-600 shadow-xl relative z-10 transition-transform hover:scale-110"></div>
+                                                                    <div className="w-[2px] h-4 bg-gray-200 mt-[-2px]"></div>
+                                                                </div>
+                                                                <div className="absolute inset-y-0 left-0 bg-blue-600 rounded-full" style={{ width: '0%' }}></div>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Frequency bars */}
+                                                        <div className="flex justify-between h-8 items-end gap-[1px] opacity-10">
+                                                            {[...Array(60)].map((_, i) => {
+                                                                const h = 20 + Math.random() * 10;
+                                                                return (
+                                                                    <div
+                                                                        key={i}
+                                                                        className="w-[2px] rounded-full bg-gray-300"
+                                                                        style={{ height: `${h}%` }}
+                                                                    ></div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="flex-1 space-y-0.5">
+                                                        <div className="flex items-center justify-between text-[10px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-200/30 pb-2 px-2 mb-2">
+                                                            <span>Load Type</span>
+                                                            <span>Weight (g)</span>
+                                                        </div>
+
+                                                        <div className="text-center py-6 border-2 border-dashed border-gray-200/40 rounded-3xl text-gray-400 text-[10px] font-black uppercase tracking-widest">
+                                                            No items in load
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {/* === TRANSIT ITEMS === */}
+                                            {activeRightPanel === 'items' && (
+                                                <div className="flex flex-col h-full">
+                                                    <div className="flex items-center justify-between mb-4">
+                                                        <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-2">
+                                                            {order?.transitItems?.length || 0} ITEMS EN TRANSIT
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="flex-1 overflow-y-auto pr-1 space-y-3 scrollbar-hide pb-10">
+                                                        {order?.transitItems && order.transitItems.length > 0 ? (
+                                                            order.transitItems.map((item: any) => (
+                                                                <div
+                                                                    key={item.id}
+                                                                    className="group bg-white/20 dark:bg-slate-800/40 rounded-[20px] p-3 border border-white/10 dark:border-slate-700/40 hover:border-blue-300 dark:hover:border-blue-500/50 transition-all cursor-pointer shadow-sm hover:shadow-md"
+                                                                    onClick={() => {
+                                                                        // Find which stop has this item
+                                                                        const stopWithItem = steps.flatMap(s => s.stops).find(st =>
+                                                                            st.actions?.some((a: any) => a.transitItemId === item.id)
+                                                                        );
+                                                                        if (stopWithItem) {
+                                                                            const stepIdx = steps.findIndex(s => s.stops.some(st => st.id === stopWithItem.id));
+                                                                            const stopIdx = steps[stepIdx].stops.findIndex(st => st.id === stopWithItem.id);
+                                                                            handleOpenStopDetail(stepIdx, stopIdx);
+                                                                        }
+                                                                    }}
+                                                                >
+                                                                    <div className="flex items-center gap-3">
+                                                                        <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-500/10 flex items-center justify-center text-blue-500 group-hover:scale-110 transition-transform">
+                                                                            <Package size={18} />
+                                                                        </div>
+                                                                        <div className="flex-1 min-w-0">
+                                                                            <div className="flex justify-between items-start mb-0.5">
+                                                                                <h4 className="text-[11px] font-black text-gray-900 dark:text-slate-100 uppercase tracking-tight truncate">
+                                                                                    {item.name}
+                                                                                </h4>
+                                                                                <span className="text-[10px] font-mono font-bold text-gray-400">
+                                                                                    {item.weight > 0 ? `${(item.weight / 1000).toFixed(1)}kg` : ''}
+                                                                                </span>
+                                                                            </div>
+                                                                            <div className="flex items-center gap-2">
+                                                                                <span className={`px-1.5 py-0.5 rounded-md text-[8px] font-black uppercase tracking-tighter
+                                                                                    ${item.status === 'DELIVERED' ? 'bg-emerald-50 text-emerald-600' :
+                                                                                        item.status === 'IN_TRANSIT' ? 'bg-blue-50 text-blue-600' :
+                                                                                            'bg-gray-100 text-gray-500'}`}>
+                                                                                    {item.status || 'DRAFT'}
+                                                                                </span>
+                                                                                <span className="text-[9px] text-gray-400 font-medium truncate">
+                                                                                    {item.packaging_type} • ID: {item.id.slice(-6)}
+                                                                                </span>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            ))
+                                                        ) : (
+                                                            <div className="flex flex-col items-center justify-center py-12 text-center opacity-50">
+                                                                <Package size={40} className="text-gray-300 mb-3" />
+                                                                <div className="text-[10px] font-black uppercase tracking-widest text-gray-400">Aucun item</div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
-                                </div>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
 
-                                {/* Frequency bars */}
-                                <div className="flex justify-between h-8 items-end gap-[1px] opacity-10">
-                                    {[...Array(60)].map((_, i) => {
-                                        const h = 20 + Math.random() * 10;
-                                        return (
-                                            <div
-                                                key={i}
-                                                className="w-[2px] rounded-full bg-gray-200"
-                                                style={{ height: `${h}%` }}
-                                            ></div>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-
-                            <div className="flex-1 space-y-0.5">
-                                <div className="flex items-center justify-between text-[10px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-50 pb-2 px-2 mb-2">
-                                    <span>Load Type</span>
-                                    <span>Weight (g)</span>
-                                </div>
-
-                                <div className="text-center py-8 border-2 border-dashed border-gray-100 rounded-3xl text-gray-400 text-[10px] font-black uppercase tracking-widest">
-                                    No items in load
-                                </div>
-                            </div>
+                        {/* Icon Bar (always visible) */}
+                        <div className="flex flex-col items-center gap-2 py-3 px-1.5 bg-white/20 dark:bg-slate-900/40 backdrop-blur-2xl rounded-[20px] border border-white/20 dark:border-slate-600/50 shadow-2xl shadow-black/15 self-start">
+                            {([
+                                { id: 'route' as const, icon: MapPin, label: 'Route', activeClass: 'bg-blue-100 dark:bg-blue-500/20 text-blue-600 shadow-lg shadow-blue-200/50 dark:shadow-blue-500/10 scale-105', dotClass: 'bg-blue-500' },
+                                { id: 'history' as const, icon: Clock, label: 'Historique', activeClass: 'bg-amber-100 dark:bg-amber-500/20 text-amber-600 shadow-lg shadow-amber-200/50 dark:shadow-amber-500/10 scale-105', dotClass: 'bg-amber-500' },
+                                { id: 'operation' as const, icon: Truck, label: 'Opération', activeClass: 'bg-indigo-100 dark:bg-indigo-500/20 text-indigo-600 shadow-lg shadow-indigo-200/50 dark:shadow-indigo-500/10 scale-105', dotClass: 'bg-indigo-500' },
+                                { id: 'weight' as const, icon: LayoutGrid, label: 'Charge', activeClass: 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 shadow-lg shadow-emerald-200/50 dark:shadow-emerald-500/10 scale-105', dotClass: 'bg-emerald-500' },
+                                { id: 'items' as const, icon: Package, label: 'Items', activeClass: 'bg-rose-100 dark:bg-rose-500/20 text-rose-600 shadow-lg shadow-rose-200/50 dark:shadow-rose-500/10 scale-105', dotClass: 'bg-rose-500' },
+                            ]).map(({ id, icon: Icon, label, activeClass, dotClass }) => (
+                                <button
+                                    key={id}
+                                    onClick={() => handleRightPanelToggle(id)}
+                                    className={`relative p-3 rounded-2xl transition-all duration-200 group ${activeRightPanel === id
+                                        ? activeClass
+                                        : 'text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300 hover:bg-gray-100/60 dark:hover:bg-slate-800/60'
+                                        }`}
+                                    title={label}
+                                >
+                                    <Icon size={20} />
+                                    {/* Active indicator dot */}
+                                    {activeRightPanel === id && (
+                                        <motion.div
+                                            layoutId="activeIndicator"
+                                            className={`absolute -left-1 top-1/2 -translate-y-1/2 w-1 h-4 ${dotClass} rounded-full`}
+                                            transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+                                        />
+                                    )}
+                                </button>
+                            ))}
                         </div>
                     </div>
                 </section>
@@ -1737,6 +2251,6 @@ export default function Page() {
                     scrollbar-width: none;
                 }
             `}</style>
-        </div>
+        </div >
     );
 }

@@ -63,25 +63,25 @@ const TransitItemDetailView: React.FC<TransitItemDetailViewProps> = ({
             animate="center"
             exit="exit"
             transition={transition}
-            className="absolute inset-0 flex flex-col bg-[#f8fafc]"
+            className="absolute inset-0 flex flex-col bg-[#f8fafc] dark:bg-slate-950"
         >
             {/* Header */}
-            <div className="flex items-center justify-between p-6 bg-white border-b border-gray-100">
+            <div className="flex items-center justify-between p-6 bg-white dark:bg-slate-900 border-b border-gray-100 dark:border-slate-800">
                 <div className="flex items-center gap-4">
                     <button
                         onClick={() => {
                             setDirection(-1);
                             setView('product');
                         }}
-                        className="p-2 bg-gray-50 text-gray-500 hover:text-gray-900 rounded-xl transition-all"
+                        className="p-2 bg-gray-50 dark:bg-slate-800 text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-200 rounded-xl transition-all"
                     >
                         <ChevronLeft size={20} />
                     </button>
                     <div className="flex flex-col">
-                        <span className="text-[10px] text-blue-600 uppercase tracking-[0.2em] mb-0.5">
+                        <span className="text-[10px] text-blue-600 dark:text-blue-400 uppercase tracking-[0.2em] mb-0.5">
                             {isEditing ? 'Edit Transit Item' : 'New Transit Item'}
                         </span>
-                        <h2 className="text-xl tracking-tight font-bold text-gray-900">
+                        <h2 className="text-xl tracking-tight font-bold text-gray-900 dark:text-slate-100">
                             {newItemForm.name || (isEditing ? 'Chargement...' : 'Nouveau Produit')}
                         </h2>
                     </div>
@@ -93,10 +93,10 @@ const TransitItemDetailView: React.FC<TransitItemDetailViewProps> = ({
                 {/* Product Name */}
                 <section>
                     <div className="flex items-center gap-2 mb-4">
-                        <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
+                        <div className="p-2 bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-lg">
                             <Package size={16} />
                         </div>
-                        <h3 className="text-[12px] uppercase tracking-widest text-gray-400 font-bold">Product Name</h3>
+                        <h3 className="text-[12px] uppercase tracking-widest text-gray-400 dark:text-slate-500 font-bold">Product Name</h3>
                     </div>
                     <EditableField
                         label=""
@@ -109,10 +109,10 @@ const TransitItemDetailView: React.FC<TransitItemDetailViewProps> = ({
                 {/* Logistics & Physical */}
                 <section>
                     <div className="flex items-center gap-2 mb-4">
-                        <div className="p-2 bg-emerald-50 text-emerald-600 rounded-lg">
+                        <div className="p-2 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-lg">
                             <Boxes size={16} />
                         </div>
-                        <h3 className="text-[12px] uppercase tracking-widest text-gray-400 font-bold">Logistics & Physical</h3>
+                        <h3 className="text-[12px] uppercase tracking-widest text-gray-400 dark:text-slate-500 font-bold">Logistics & Physical</h3>
                     </div>
 
                     <div className="space-y-4">
@@ -134,13 +134,13 @@ const TransitItemDetailView: React.FC<TransitItemDetailViewProps> = ({
                         </div>
 
                         <div className="flex flex-col gap-1.5">
-                            <label className="text-[10px] uppercase tracking-widest px-1 text-gray-400 font-bold">Packaging Type</label>
+                            <label className="text-[10px] uppercase tracking-widest px-1 text-gray-400 dark:text-slate-500 font-bold">Packaging Type</label>
                             <div className="flex gap-2">
                                 <button
                                     onClick={() => onFieldChange('packaging_type', 'box')}
                                     className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-xl border transition-all ${newItemForm.packaging_type === 'box'
-                                        ? 'bg-blue-50 border-blue-200 text-blue-600'
-                                        : 'bg-white border-gray-100 text-gray-400 hover:border-gray-200'
+                                        ? 'bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/30 text-blue-600 dark:text-blue-400'
+                                        : 'bg-white dark:bg-slate-900 border-gray-100 dark:border-slate-800 text-gray-400 dark:text-slate-500 hover:border-gray-200 dark:hover:border-slate-700'
                                         }`}
                                 >
                                     <Package size={16} />
@@ -149,8 +149,8 @@ const TransitItemDetailView: React.FC<TransitItemDetailViewProps> = ({
                                 <button
                                     onClick={() => onFieldChange('packaging_type', 'fluid')}
                                     className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-xl border transition-all ${newItemForm.packaging_type === 'fluid'
-                                        ? 'bg-blue-50 border-blue-200 text-blue-600'
-                                        : 'bg-white border-gray-100 text-gray-400 hover:border-gray-200'
+                                        ? 'bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/30 text-blue-600 dark:text-blue-400'
+                                        : 'bg-white dark:bg-slate-900 border-gray-100 dark:border-slate-800 text-gray-400 dark:text-slate-500 hover:border-gray-200 dark:hover:border-slate-700'
                                         }`}
                                 >
                                     <Droplets size={16} />
@@ -165,12 +165,12 @@ const TransitItemDetailView: React.FC<TransitItemDetailViewProps> = ({
                 <section>
                     <div className="flex items-center justify-between mb-4">
                         <div className="flex items-center gap-2">
-                            <div className="p-2 bg-purple-50 text-purple-600 rounded-lg">
+                            <div className="p-2 bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400 rounded-lg">
                                 <Boxes size={16} />
                             </div>
-                            <h3 className="text-[12px] uppercase tracking-widest text-gray-400 font-bold">Dimensions (cm)</h3>
+                            <h3 className="text-[12px] uppercase tracking-widest text-gray-400 dark:text-slate-500 font-bold">Dimensions (cm)</h3>
                         </div>
-                        <span className="text-[10px] bg-gray-50 border border-gray-100 px-2 py-0.5 rounded text-gray-500 font-bold">
+                        <span className="text-[10px] bg-gray-50 dark:bg-slate-800 border border-gray-100 dark:border-slate-700 px-2 py-0.5 rounded text-gray-500 dark:text-slate-400 font-bold">
                             {((newItemForm.dimensions.width_cm || 0) * (newItemForm.dimensions.height_cm || 0) * (newItemForm.dimensions.depth_cm || 0) / 1000).toFixed(2)}L
                         </span>
                     </div>
@@ -202,17 +202,17 @@ const TransitItemDetailView: React.FC<TransitItemDetailViewProps> = ({
                 {/* Special Handling */}
                 <section>
                     <div className="flex items-center gap-2 mb-4">
-                        <div className="p-2 bg-rose-50 text-rose-600 rounded-lg">
+                        <div className="p-2 bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 rounded-lg">
                             <AlertCircle size={16} />
                         </div>
-                        <h3 className="text-[12px] uppercase tracking-widest text-gray-400 font-bold">Special Handling</h3>
+                        <h3 className="text-[12px] uppercase tracking-widest text-gray-400 dark:text-slate-500 font-bold">Special Handling</h3>
                     </div>
                     <div className="grid grid-cols-2 gap-3 pb-8">
                         {[
-                            { id: 'froid', label: 'Cold Chain', icon: ThermometerSnowflake, activeClass: 'border-blue-500 bg-blue-50/50 text-blue-700', iconColor: 'text-blue-600' },
-                            { id: 'fragile', label: 'Fragile', icon: AlertCircle, activeClass: 'border-rose-500 bg-rose-50/50 text-rose-700', iconColor: 'text-rose-600' },
-                            { id: 'dangerous', label: 'Dangerous', icon: AlertTriangle, activeClass: 'border-orange-500 bg-orange-50/50 text-orange-700', iconColor: 'text-orange-600' },
-                            { id: 'sec', label: 'Dry / Ambient', icon: Package, activeClass: 'border-emerald-500 bg-emerald-50/50 text-emerald-700', iconColor: 'text-emerald-600' },
+                            { id: 'froid', label: 'Cold Chain', icon: ThermometerSnowflake, activeClass: 'border-blue-500 bg-blue-50/50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400', iconColor: 'text-blue-600 dark:text-blue-400' },
+                            { id: 'fragile', label: 'Fragile', icon: AlertCircle, activeClass: 'border-rose-500 bg-rose-50/50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-400', iconColor: 'text-rose-600 dark:text-rose-400' },
+                            { id: 'dangerous', label: 'Dangerous', icon: AlertTriangle, activeClass: 'border-orange-500 bg-orange-50/50 dark:bg-orange-500/10 text-orange-700 dark:text-orange-400', iconColor: 'text-orange-600 dark:text-orange-400' },
+                            { id: 'sec', label: 'Dry / Ambient', icon: Package, activeClass: 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400', iconColor: 'text-emerald-600 dark:text-emerald-400' },
                         ].map((req) => {
                             const isSelected = newItemForm.requirements.includes(req.id);
                             return (
@@ -221,10 +221,10 @@ const TransitItemDetailView: React.FC<TransitItemDetailViewProps> = ({
                                     onClick={() => toggleRequirement(req.id)}
                                     className={`flex items-center gap-3 p-3 rounded-2xl border transition-all ${isSelected
                                         ? req.activeClass
-                                        : 'border-gray-50 bg-white hover:border-gray-200 text-gray-400'
+                                        : 'border-gray-50 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-gray-200 dark:hover:border-slate-700 text-gray-400 dark:text-slate-500'
                                         }`}
                                 >
-                                    <req.icon size={14} className={isSelected ? req.iconColor : 'text-gray-300'} />
+                                    <req.icon size={14} className={isSelected ? req.iconColor : 'text-gray-300 dark:text-slate-600'} />
                                     <span className="text-[11px] font-bold uppercase tracking-wider">{req.label}</span>
                                 </button>
                             );
@@ -234,14 +234,14 @@ const TransitItemDetailView: React.FC<TransitItemDetailViewProps> = ({
             </div>
 
             {/* Footer */}
-            <div className="p-6 bg-white border-t border-gray-100 shrink-0">
+            <div className="p-6 bg-white dark:bg-slate-900 border-t border-gray-100 dark:border-slate-800 shrink-0">
                 {isEditing ? (
                     <button
                         onClick={() => {
                             setDirection(-1);
                             setView('product');
                         }}
-                        className="w-full py-4 rounded-2xl text-[11px] font-black uppercase tracking-widest bg-blue-600 text-white hover:bg-blue-700 transition-all shadow-lg shadow-blue-200"
+                        className="w-full py-4 rounded-2xl text-[11px] font-black uppercase tracking-widest bg-blue-600 text-white hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 dark:shadow-blue-500/20"
                     >
                         Save & Back
                     </button>
@@ -250,8 +250,8 @@ const TransitItemDetailView: React.FC<TransitItemDetailViewProps> = ({
                         onClick={handleConfirmCreateTransitItem}
                         disabled={isCreatingTransitItem || !newItemForm.name.trim()}
                         className={`w-full py-4 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${isCreatingTransitItem || !newItemForm.name.trim()
-                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                            : 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-200'
+                            ? 'bg-gray-100 dark:bg-slate-800 text-gray-400 dark:text-slate-500 cursor-not-allowed'
+                            : 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-200 dark:shadow-blue-500/20'
                             }`}
                     >
                         {isCreatingTransitItem ? (

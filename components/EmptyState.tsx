@@ -16,9 +16,9 @@ interface EmptyStateProps {
 
 export function EmptyState({ icon: Icon, title, description, action, variant = 'default' }: EmptyStateProps) {
     const iconColors = {
-        default: 'bg-emerald-50 text-emerald-600',
-        error: 'bg-red-50 text-red-600',
-        warning: 'bg-amber-50 text-amber-600'
+        default: 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+        error: 'bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400',
+        warning: 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400'
     };
 
     const actionColors = {
@@ -33,8 +33,8 @@ export function EmptyState({ icon: Icon, title, description, action, variant = '
                 <Icon size={40} />
             </div>
 
-            <h3 className="text-xl font-bold text-gray-900 mb-2">{title}</h3>
-            <p className="text-gray-500 max-w-sm mb-8 leading-relaxed">
+            <h3 className="text-xl font-bold text-gray-900 dark:text-slate-100 mb-2">{title}</h3>
+            <p className="text-gray-500 dark:text-slate-400 max-w-sm mb-8 leading-relaxed">
                 {description}
             </p>
 

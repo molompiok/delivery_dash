@@ -63,7 +63,8 @@ export interface ActionPayload {
 // --- Stop Types ---
 export interface Stop {
     id: string;
-    sequence: number;
+    display_order: number;
+    execution_order?: number | null;
     status?: 'PENDING' | 'ARRIVED' | 'COMPLETED' | 'FAILED';
     addressId?: string;
     address: {
@@ -101,13 +102,22 @@ export interface Stop {
 }
 
 export interface StopPayload {
-    sequence:number,
+    display_order?: number;
     address_text?: string;
+    address?: {
+        street?: string;
+        city?: string;
+        country?: string;
+        lat?: number;
+        lng?: number;
+    };
     coordinates?: [number, number];
     arrival_window_start?: string;
     arrival_window_end?: string;
     actions?: ActionPayload[];
     metadata?: any;
+    reverse_geocode?: boolean;
+    add_default_service?: boolean;
 }
 
 // --- Step Types ---
@@ -134,7 +144,7 @@ export interface HierarchicalOrderPayload {
         stops: Array<{
             address_text: string;
             coordinates?: [number, number];
-            sequence: number;
+            display_order: number;
             actions: ActionPayload[];
         }>;
     }>;

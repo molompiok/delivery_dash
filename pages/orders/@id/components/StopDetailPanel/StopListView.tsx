@@ -50,29 +50,29 @@ const StopListView: React.FC<StopListViewProps> = ({
         animate="center"
         exit="exit"
         transition={transition}
-        className="absolute inset-0 flex flex-col bg-[#f8fafc]"
+        className="absolute inset-0 flex flex-col bg-[#f8fafc] dark:bg-slate-950"
     >
         {/* Header */}
-        <div className={`flex items-center justify-between p-4 border-b shrink-0 transition-colors ${stop.isPendingChange ? 'bg-blue-50 border-blue-100' : 'bg-white border-gray-100'}`}>
+        <div className={`flex items-center justify-between p-4 border-b shrink-0 transition-colors ${stop.isPendingChange ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-100 dark:border-blue-800' : 'bg-white dark:bg-slate-900 border-gray-100 dark:border-slate-800'}`}>
             <div className="flex items-center gap-3">
                 <button
                     onClick={onClose}
-                    className="p-2 bg-gray-50/50 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-xl transition-all"
+                    className="p-2 bg-gray-50/50 dark:bg-slate-800/50 text-gray-400 dark:text-slate-500 hover:text-gray-900 dark:hover:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-xl transition-all"
                 >
                     <ChevronRight size={22} />
                 </button>
                 <div className="flex flex-col">
-                    <span className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em] mb-0.5">
+                    <span className="text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-[0.2em] mb-0.5">
                         Stop Details
                     </span>
-                    <h2 className="text-xl tracking-tight line-clamp-1 break-all font-bold text-gray-900">
+                    <h2 className="text-xl tracking-tight line-clamp-1 break-all font-bold text-gray-900 dark:text-slate-100">
                         {formatId(stop.id)}
                     </h2>
                 </div>
             </div>
             <button
                 onClick={() => setIsConfirmingStopDelete(true)}
-                className="p-2 hover:bg-red-50 text-gray-400 hover:text-red-600 rounded-xl transition-colors"
+                className="p-2 hover:bg-red-50 dark:hover:bg-red-900/20 text-gray-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400 rounded-xl transition-colors"
                 title="Delete Stop"
             >
                 <Trash2 size={20} />
@@ -86,11 +86,11 @@ const StopListView: React.FC<StopListViewProps> = ({
             <section>
                 <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
-                        <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
+                        <div className="p-2 bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-lg">
                             <MapPin size={16} />
                         </div>
                         <div className="flex flex-col">
-                            <h3 className="text-[12px] uppercase tracking-widest text-gray-400 font-bold">Location & Address</h3>
+                            <h3 className="text-[12px] uppercase tracking-widest text-gray-400 dark:text-slate-500 font-bold">Location & Address</h3>
                         </div>
                     </div>
 
@@ -103,8 +103,8 @@ const StopListView: React.FC<StopListViewProps> = ({
                         }}
                         disabled={!!stop.address?.addressId}
                         className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl transition-all text-[9px] font-black uppercase tracking-widest ${stop.address?.addressId
-                            ? 'bg-emerald-50 text-emerald-600 border border-emerald-100'
-                            : 'bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-100'
+                            ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-500/20'
+                            : 'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-500/20 border border-blue-100 dark:border-blue-500/20'
                             }`}
                     >
                         {stop.address?.addressId ? (
@@ -151,15 +151,15 @@ const StopListView: React.FC<StopListViewProps> = ({
                                             }
                                         }
                                     }}
-                                    wrapperClassName={`bg-white border rounded-xl px-1 py-0.5 transition-all ${isEditingAddress
-                                        ? 'border-blue-500 shadow-lg shadow-blue-500/10'
-                                        : 'border-gray-100'}`}
-                                    inputClassName="text-sm font-bold text-gray-900"
+                                    wrapperClassName={`bg-white dark:bg-slate-900 border rounded-xl px-1 py-0.5 transition-all ${isEditingAddress
+                                        ? 'border-blue-500 dark:border-blue-400 shadow-lg shadow-blue-500/10'
+                                        : 'border-gray-100 dark:border-slate-800'}`}
+                                    inputClassName="text-sm font-bold text-gray-900 dark:text-slate-100"
                                 />
                             ) : (
                                 <div
                                     onClick={() => setIsEditingAddress(true)}
-                                    className="group relative min-h-[42px] flex items-center bg-white border border-gray-100 rounded-xl px-4 py-2 text-sm font-bold text-gray-900 cursor-text hover:border-gray-200 transition-all overflow-hidden w-full max-w-[340px]"
+                                    className="group relative min-h-[42px] flex items-center bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-xl px-4 py-2 text-sm font-bold text-gray-900 dark:text-slate-100 cursor-text hover:border-gray-200 dark:hover:border-slate-700 transition-all overflow-hidden w-full max-w-[340px]"
                                     title={stop.address?.street}
                                 >
                                     <span className="truncate w-full block">
@@ -178,7 +178,7 @@ const StopListView: React.FC<StopListViewProps> = ({
                                 setDirection(1);
                                 setView('map');
                             }}
-                            className="mt-6 w-[50px] flex items-center justify-center bg-gray-50 hover:bg-blue-50 hover:text-blue-600 text-gray-400 rounded-2xl border border-gray-100 hover:border-blue-100 transition-all group"
+                            className="mt-6 w-[50px] flex items-center justify-center bg-gray-50 dark:bg-slate-800/50 hover:bg-blue-50 dark:hover:bg-blue-500/10 hover:text-blue-600 dark:hover:text-blue-400 text-gray-400 dark:text-slate-500 rounded-2xl border border-gray-100 dark:border-slate-800 hover:border-blue-100 dark:hover:border-blue-500/30 transition-all group"
                             title="Select on Map"
                         >
                             <MapIcon size={20} className="group-hover:scale-110 transition-transform" />
@@ -198,7 +198,7 @@ const StopListView: React.FC<StopListViewProps> = ({
                             onChange={(val) => handleFieldChange('address.country', val)}
                         />
                     </div>
-                    <div className="grid grid-cols-3 gap-2 pt-2 border-t border-gray-50">
+                    <div className="grid grid-cols-3 gap-2 pt-2 border-t border-gray-50 dark:border-slate-800">
                         <EditableField
                             label="Call"
                             value={stop.address?.call || ''}
@@ -225,11 +225,11 @@ const StopListView: React.FC<StopListViewProps> = ({
             <section>
                 <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
-                        <div className="p-2 bg-orange-50 text-orange-600 rounded-lg">
+                        <div className="p-2 bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400 rounded-lg">
                             <User size={16} />
                         </div>
                         <div className="flex flex-col">
-                            <h3 className="text-[12px] uppercase tracking-widest text-gray-400 font-bold">Client & Contact</h3>
+                            <h3 className="text-[12px] uppercase tracking-widest text-gray-400 dark:text-slate-500 font-bold">Client & Contact</h3>
                         </div>
                     </div>
 
@@ -242,8 +242,8 @@ const StopListView: React.FC<StopListViewProps> = ({
                         }}
                         disabled={!!stop.client?.clientId}
                         className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl transition-all text-[9px] font-black uppercase tracking-widest ${stop.client?.clientId
-                            ? 'bg-emerald-50 text-emerald-600 border border-emerald-100'
-                            : 'bg-orange-50 text-orange-600 hover:bg-orange-100 border border-orange-100'
+                            ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-500/20'
+                            : 'bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400 hover:bg-orange-100 dark:hover:bg-orange-500/20 border border-orange-100 dark:border-orange-500/20'
                             }`}
                     >
                         {stop.client?.clientId ? (
@@ -274,20 +274,20 @@ const StopListView: React.FC<StopListViewProps> = ({
                             onChange={(val) => handleFieldChange('client.email', val)}
                         />
                     </div>
-                    <div className="pt-4 border-t border-gray-50">
-                        <label className="text-[10px] uppercase tracking-widest px-1 text-gray-400 font-bold mb-1.5 block">Estimated Time on Site</label>
+                    <div className="pt-4 border-t border-gray-50 dark:border-slate-800">
+                        <label className="text-[10px] uppercase tracking-widest px-1 text-gray-400 dark:text-slate-500 font-bold mb-1.5 block">Estimated Time on Site</label>
                         <div className="grid grid-cols-2 gap-4">
-                            <div className="flex items-center gap-3 p-3 bg-white rounded-2xl border border-gray-100 shadow-sm focus-within:border-orange-200 transition-all">
-                                <div className="p-1.5 bg-orange-50 text-orange-600 rounded-lg">
+                            <div className="flex items-center gap-3 p-3 bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm focus-within:border-orange-200 dark:focus-within:border-orange-500/50 transition-all">
+                                <div className="p-1.5 bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400 rounded-lg">
                                     <Clock size={14} />
                                 </div>
                                 <div className="flex flex-col">
-                                    <span className="text-[10px] text-gray-400 font-bold leading-none">Hours</span>
+                                    <span className="text-[10px] text-gray-400 dark:text-slate-500 font-bold leading-none">Hours</span>
                                     <input
                                         type="number"
                                         min="0"
                                         placeholder="0"
-                                        className="bg-transparent text-sm font-bold text-gray-900 outline-none w-full"
+                                        className="bg-transparent text-sm font-bold text-gray-900 dark:text-slate-100 outline-none w-full"
                                         value={Math.floor(Number(stop.client?.opening_hours?.duration || 0)) || ''}
                                         onChange={(e) => {
                                             const h = parseInt(e.target.value) || 0;
@@ -297,18 +297,18 @@ const StopListView: React.FC<StopListViewProps> = ({
                                     />
                                 </div>
                             </div>
-                            <div className="flex items-center gap-3 p-3 bg-white rounded-2xl border border-gray-100 shadow-sm focus-within:border-orange-200 transition-all">
-                                <div className="p-1.5 bg-orange-50 text-orange-600 rounded-lg">
+                            <div className="flex items-center gap-3 p-3 bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm focus-within:border-orange-200 dark:focus-within:border-orange-500/50 transition-all">
+                                <div className="p-1.5 bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400 rounded-lg">
                                     <Clock size={14} />
                                 </div>
                                 <div className="flex flex-col">
-                                    <span className="text-[10px] text-gray-400 font-bold leading-none">Minutes</span>
+                                    <span className="text-[10px] text-gray-400 dark:text-slate-500 font-bold leading-none">Minutes</span>
                                     <input
                                         type="number"
                                         min="0"
                                         max="59"
                                         placeholder="0"
-                                        className="bg-transparent text-sm font-bold text-gray-900 outline-none w-full"
+                                        className="bg-transparent text-sm font-bold text-gray-900 dark:text-slate-100 outline-none w-full"
                                         value={Math.round((Number(stop.client?.opening_hours?.duration || 0) % 1) * 60) || ''}
                                         onChange={(e) => {
                                             const h = Math.floor(Number(stop.client?.opening_hours?.duration || 0));
@@ -344,10 +344,10 @@ const StopListView: React.FC<StopListViewProps> = ({
             <section className="pb-10">
                 <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
-                        <div className="p-2 bg-emerald-50 text-emerald-600 rounded-lg">
+                        <div className="p-2 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-lg">
                             <Package size={16} />
                         </div>
-                        <h3 className="text-[12px] uppercase tracking-widest">
+                        <h3 className="text-[12px] uppercase tracking-widest text-gray-900 dark:text-slate-100">
                             Produit & Service
                         </h3>
                     </div>
@@ -356,7 +356,7 @@ const StopListView: React.FC<StopListViewProps> = ({
                             const type = stop.type === 'Pick-Up' ? 'pickup' : 'service';
                             performAddAction(type);
                         }}
-                        className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors border border-transparent hover:border-blue-100"
+                        className="p-1.5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors border border-transparent hover:border-blue-100 dark:hover:border-blue-500/30"
                         title="Add Product"
                     >
                         <Plus size={18} />
@@ -374,13 +374,13 @@ const StopListView: React.FC<StopListViewProps> = ({
                             <div key={action.id || itemKey} className="flex items-center gap-3 overflow-hidden rounded-3xl group">
                                 {/* Deletion Confirmation */}
                                 {isConfirmingDelete && (
-                                    <div className="flex items-center gap-2 pr-2 border-r border-gray-100 flex-shrink-0">
+                                    <div className="flex items-center gap-2 pr-2 border-r border-gray-100 dark:border-slate-800 flex-shrink-0">
                                         <button
                                             onClick={(e) => {
                                                 e.stopPropagation();
                                                 setConfirmDeleteKey(null);
                                             }}
-                                            className="px-4 py-3 flex items-center gap-2 bg-gray-100 text-gray-500 rounded-2xl hover:bg-gray-200 transition-colors text-[10px] font-black uppercase tracking-widest"
+                                            className="px-4 py-3 flex items-center gap-2 bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400 rounded-2xl hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors text-[10px] font-black uppercase tracking-widest"
                                         >
                                             <ChevronLeft size={14} /> Cancel
                                         </button>
@@ -421,25 +421,25 @@ const StopListView: React.FC<StopListViewProps> = ({
                                         setDirection(1);
                                         setView('product');
                                     }}
-                                    className={`flex-1 flex items-center justify-between p-3 bg-white rounded-3xl border border-transparent ${isConfirmingDelete ? 'pointer-events-none' : 'hover:border-' + typeColor + '-200 shadow-sm hover:shadow-md cursor-pointer'} transition-all`}
+                                    className={`flex-1 flex items-center justify-between p-3 bg-white dark:bg-slate-900 rounded-3xl border border-transparent ${isConfirmingDelete ? 'pointer-events-none' : 'hover:border-' + typeColor + '-200 dark:hover:border-' + typeColor + '-500/30 shadow-sm hover:shadow-md cursor-pointer'} transition-all`}
                                 >
                                     <div className="flex items-center gap-3 min-w-0">
-                                        <div className={`p-2 rounded-xl bg-${typeColor}-50 text-${typeColor}-600 flex-shrink-0`}>
+                                        <div className={`p-2 rounded-xl bg-${typeColor}-50 dark:bg-${typeColor}-500/10 text-${typeColor}-600 dark:text-${typeColor}-400 flex-shrink-0`}>
                                             <ActionIcon size={18} />
                                         </div>
                                         <div className="flex flex-col min-w-0">
-                                            <span className="text-sm font-bold text-gray-900 truncate group-hover:text-blue-600 transition-colors">
+                                            <span className="text-sm font-bold text-gray-900 dark:text-slate-100 truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
                                                 {(['pickup', 'delivery'].includes(action.type?.toLowerCase()) && action.transitItem?.name)
                                                     ? action.transitItem.name
                                                     : (action.productName || action.product?.name || 'New Product')}
                                             </span>
                                             <div className="flex gap-2 mt-1">
-                                                <span className="text-[10px] text-gray-400">
+                                                <span className="text-[10px] text-gray-400 dark:text-slate-500">
                                                     {action.type === 'service'
                                                         ? `Time: ${action.service_time || 10} min`
                                                         : `Qty: ${action.quantity || 1}`}
                                                 </span>
-                                                <span className={`text-[8px] uppercase tracking-tighter bg-${typeColor}-50 text-${typeColor}-600 px-1.5 py-0.5 rounded font-black`}>
+                                                <span className={`text-[8px] uppercase tracking-tighter bg-${typeColor}-50 dark:bg-${typeColor}-500/10 text-${typeColor}-600 dark:text-${typeColor}-400 px-1.5 py-0.5 rounded font-black`}>
                                                     {action.type}
                                                 </span>
                                             </div>
@@ -453,11 +453,11 @@ const StopListView: React.FC<StopListViewProps> = ({
                                                         e.stopPropagation();
                                                         setConfirmDeleteKey(itemKey);
                                                     }}
-                                                    className="p-2 text-gray-300 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all opacity-0 group-hover:opacity-100"
+                                                    className="p-2 text-gray-300 dark:text-slate-600 hover:text-rose-500 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-xl transition-all opacity-0 group-hover:opacity-100"
                                                 >
                                                     <Trash2 size={16} />
                                                 </button>
-                                                <ChevronRight size={18} className="text-gray-300 group-hover:translate-x-0.5 transition-all" />
+                                                <ChevronRight size={18} className="text-gray-300 dark:text-slate-600 group-hover:translate-x-0.5 transition-all" />
                                             </>
                                         )}
                                     </div>
@@ -466,7 +466,7 @@ const StopListView: React.FC<StopListViewProps> = ({
                         );
                     })}
                     {(!stop.actions || stop.actions.length === 0) && (
-                        <div className="text-center py-8 border-2 border-dashed border-gray-100 rounded-3xl text-gray-400 text-[10px] font-black uppercase tracking-widest">
+                        <div className="text-center py-8 border-2 border-dashed border-gray-100 dark:border-slate-800 rounded-3xl text-gray-400 dark:text-slate-500 text-[10px] font-black uppercase tracking-widest">
                             No products added
                         </div>
                     )}

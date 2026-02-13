@@ -33,22 +33,22 @@ const SequentialDatePicker: React.FC<SequentialDatePickerProps> = ({ label, valu
 
     return (
         <div className="flex flex-col gap-1.5 relative">
-            <label className="text-[10px] uppercase tracking-widest px-1 text-gray-400 font-bold">{label}</label>
+            <label className="text-[10px] uppercase tracking-widest px-1 text-gray-400 dark:text-slate-500 font-bold">{label}</label>
             <div
                 onClick={() => setIsOpen(!isOpen)}
-                className={`flex items-center gap-3 p-3 bg-white rounded-2xl border cursor-pointer group/date shadow-sm hover:shadow-md ${isOpen ? 'border-' + color + '-200 ring-2 ring-' + color + '-50' : 'border-gray-100'}`}
+                className={`flex items-center gap-3 p-3 bg-white dark:bg-slate-900 rounded-2xl border cursor-pointer group/date shadow-sm hover:shadow-md ${isOpen ? 'border-' + color + '-200 dark:border-' + color + '-500/50 ring-2 ring-' + color + '-50 dark:ring-' + color + '-500/10' : 'border-gray-100 dark:border-slate-800'}`}
             >
-                <div className={`p-1.5 rounded-lg transition-colors ${isOpen ? 'bg-' + color + '-600 text-white' : 'bg-' + color + '-50 text-' + color + '-600'}`}>
+                <div className={`p-1.5 rounded-lg transition-colors ${isOpen ? 'bg-' + color + '-600 text-white' : 'bg-' + color + '-50 dark:bg-' + color + '-500/10 text-' + color + '-600 dark:text-' + color + '-400'}`}>
                     <Icon size={14} />
                 </div>
                 <div className="flex-1">
                     {value && isValid(parseISO(value)) ? (
                         <div className="flex flex-col leading-tight">
-                            <span className="text-[11px] font-bold text-gray-900">{format(parseISO(value), 'dd MMM yyyy')}</span>
-                            <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">{format(parseISO(value), 'HH:mm')}</span>
+                            <span className="text-[11px] font-bold text-gray-900 dark:text-slate-100">{format(parseISO(value), 'dd MMM yyyy')}</span>
+                            <span className="text-[9px] font-black text-gray-400 dark:text-slate-500 uppercase tracking-widest">{format(parseISO(value), 'HH:mm')}</span>
                         </div>
                     ) : (
-                        <span className="text-[11px] font-bold text-gray-300 italic">Select...</span>
+                        <span className="text-[11px] font-bold text-gray-300 dark:text-slate-600 italic">Select...</span>
                     )}
                 </div>
             </div>
@@ -62,7 +62,7 @@ const SequentialDatePicker: React.FC<SequentialDatePickerProps> = ({ label, valu
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
-                            className="fixed inset-0 z-[110] bg-gray-900/40 backdrop-blur-[2px]"
+                            className="fixed inset-0 z-[110] bg-gray-900/40 dark:bg-black/60 backdrop-blur-[2px]"
                             onClick={(e) => { e.stopPropagation(); setIsOpen(false); }}
                         />
 
@@ -72,37 +72,37 @@ const SequentialDatePicker: React.FC<SequentialDatePickerProps> = ({ label, valu
                                 initial={{ opacity: 0, scale: 0.9, y: 20 }}
                                 animate={{ opacity: 1, scale: 1, y: 0 }}
                                 exit={{ opacity: 0, scale: 0.9, y: 20 }}
-                                className="pointer-events-auto bg-white rounded-[32px] shadow-2xl border border-white/20 overflow-hidden w-[320px] mx-auto"
+                                className="pointer-events-auto bg-white dark:bg-slate-900 rounded-[32px] shadow-2xl border border-white/20 dark:border-slate-800 overflow-hidden w-[320px] mx-auto"
                             >
                                 {/* Header */}
-                                <div className="flex items-center justify-between p-5 border-b border-gray-50 bg-gray-50/30">
+                                <div className="flex items-center justify-between p-5 border-b border-gray-50 dark:border-slate-800 bg-gray-50/30 dark:bg-slate-800/30">
                                     <div className="flex items-center gap-2">
                                         {step === 'time' && (
                                             <button
                                                 onClick={(e) => { e.stopPropagation(); setStep('date'); }}
-                                                className="p-2 hover:bg-white rounded-xl text-gray-400 hover:text-gray-900 transition-all border border-transparent hover:border-gray-100"
+                                                className="p-2 hover:bg-white dark:hover:bg-slate-800 rounded-xl text-gray-400 dark:text-slate-500 hover:text-gray-900 dark:hover:text-slate-200 transition-all border border-transparent hover:border-gray-100 dark:hover:border-slate-700"
                                             >
                                                 <ChevronLeft size={18} />
                                             </button>
                                         )}
                                         <div className="flex flex-col">
-                                            <span className="text-[10px] font-black uppercase tracking-widest text-blue-600 mb-0.5">
+                                            <span className="text-[10px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-0.5">
                                                 {label}
                                             </span>
-                                            <h4 className="text-[13px] font-bold text-gray-900 leading-none">
+                                            <h4 className="text-[13px] font-bold text-gray-900 dark:text-slate-100 leading-none">
                                                 {step === 'date' ? 'Choose Date' : 'Choose Time'}
                                             </h4>
                                         </div>
                                     </div>
                                     <button
                                         onClick={(e) => { e.stopPropagation(); setIsOpen(false); }}
-                                        className="p-2 hover:bg-white rounded-xl text-gray-400 hover:text-gray-900 transition-all border border-transparent hover:border-gray-100"
+                                        className="p-2 hover:bg-white dark:hover:bg-slate-800 rounded-xl text-gray-400 dark:text-slate-500 hover:text-gray-900 dark:hover:text-slate-200 transition-all border border-transparent hover:border-gray-100 dark:hover:border-slate-700"
                                     >
                                         <X size={18} />
                                     </button>
                                 </div>
 
-                                <div className="p-3 overflow-hidden flex justify-center bg-white">
+                                <div className="p-3 overflow-hidden flex justify-center bg-white dark:bg-slate-900">
                                     <AnimatePresence mode="wait">
                                         {step === 'date' ? (
                                             <motion.div
@@ -117,7 +117,7 @@ const SequentialDatePicker: React.FC<SequentialDatePickerProps> = ({ label, valu
                                                     selected={tempDate}
                                                     onChange={handleDateSelect}
                                                     inline
-                                                    calendarClassName="sequential-picker-calendar"
+                                                    calendarClassName="sequential-picker-calendar dark:bg-slate-900 dark:text-slate-100 dark:border-slate-800"
                                                 />
                                             </motion.div>
                                         ) : (
@@ -139,7 +139,7 @@ const SequentialDatePicker: React.FC<SequentialDatePickerProps> = ({ label, valu
                                                     timeFormat="HH:mm"
                                                     dateFormat="HH:mm"
                                                     inline
-                                                    calendarClassName="sequential-picker-calendar"
+                                                    calendarClassName="sequential-picker-calendar dark:bg-slate-900 dark:text-slate-100 dark:border-slate-800"
                                                 />
                                             </motion.div>
                                         )}
@@ -147,9 +147,9 @@ const SequentialDatePicker: React.FC<SequentialDatePickerProps> = ({ label, valu
                                 </div>
 
                                 {/* Progress dots */}
-                                <div className="bg-gray-50/50 p-4 border-t border-gray-50 flex justify-center gap-1.5">
-                                    <div className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${step === 'date' ? 'bg-blue-600 w-4' : 'bg-gray-200'}`} />
-                                    <div className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${step === 'time' ? 'bg-blue-600 w-4' : 'bg-gray-200'}`} />
+                                <div className="bg-gray-50/50 dark:bg-slate-800/50 p-4 border-t border-gray-50 dark:border-slate-800 flex justify-center gap-1.5">
+                                    <div className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${step === 'date' ? 'bg-blue-600 w-4' : 'bg-gray-200 dark:bg-slate-700'}`} />
+                                    <div className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${step === 'time' ? 'bg-blue-600 w-4' : 'bg-gray-200 dark:bg-slate-700'}`} />
                                 </div>
                             </motion.div>
                         </div>

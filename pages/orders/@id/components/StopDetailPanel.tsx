@@ -367,12 +367,12 @@ const StopDetailPanel: React.FC<StopDetailPanelProps> = ({
                     {/* Backdrop */}
                     <div
                         onClick={onClose}
-                        className="fixed inset-0 bg-gray-900/20 backdrop-blur-sm z-[100]"
+                        className="fixed inset-0 bg-gray-900/20 dark:bg-black/40 backdrop-blur-sm z-[100]"
                     />
 
                     {/* Panel */}
                     <div
-                        className="fixed right-0 top-0 bottom-0 w-[420px] bg-[#f8fafc] shadow-2xl z-[101] flex flex-col border-l border-white/50 overflow-hidden"
+                        className="fixed right-0 top-0 bottom-0 w-[420px] bg-[#f8fafc] dark:bg-slate-950 shadow-2xl z-[101] flex flex-col border-l border-white/50 dark:border-slate-800 overflow-hidden"
                     >
                         <AnimatePresence mode="wait" custom={direction}>
                             {renderContent()}

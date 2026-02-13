@@ -138,29 +138,29 @@ const ProductDetailView: React.FC<ProductDetailViewProps> = ({
             animate="center"
             exit="exit"
             transition={transition}
-            className="absolute inset-0 flex flex-col bg-[#f8fafc]"
+            className="absolute inset-0 flex flex-col bg-[#f8fafc] dark:bg-slate-950"
         >
-            <div className={`flex items-center justify-between p-6 border-b transition-colors ${stop.isPendingChange ? 'bg-blue-50 border-blue-100' : 'bg-white border-gray-100'}`}>
+            <div className={`flex items-center justify-between p-6 border-b transition-colors ${stop.isPendingChange ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-100 dark:border-blue-800' : 'bg-white dark:bg-slate-900 border-gray-100 dark:border-slate-800'}`}>
                 <div className="flex items-center gap-4">
                     <button
                         onClick={() => {
                             setDirection(-1);
                             setView('stop');
                         }}
-                        className="p-2 bg-gray-50 text-gray-500 hover:text-gray-900 rounded-xl transition-all"
+                        className="p-2 bg-gray-50 dark:bg-slate-800 text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-200 rounded-xl transition-all"
                     >
                         <ChevronLeft size={20} />
                     </button>
                     <div className="flex flex-col">
-                        <span className="text-[10px] text-blue-600 uppercase tracking-[0.2em] mb-0.5">
+                        <span className="text-[10px] text-blue-600 dark:text-blue-400 uppercase tracking-[0.2em] mb-0.5">
                             Product Details
                         </span>
                         <div className="flex flex-col">
-                            <h2 className="text-xl tracking-tight line-clamp-1 break-all">
+                            <h2 className="text-xl tracking-tight line-clamp-1 break-all text-gray-900 dark:text-slate-100 font-bold">
                                 {(product.type === 'service' ? product.productName : product.transitItem?.name) || product.productName || 'New Product'}
                             </h2>
                             {product.productId && (
-                                <span className="text-[10px] font-black uppercase text-gray-400 tracking-widest mt-0.5 bg-gray-50 px-1.5 py-0.5 rounded w-fit">
+                                <span className="text-[10px] font-black uppercase text-gray-400 dark:text-slate-500 tracking-widest mt-0.5 bg-gray-50 dark:bg-slate-800 px-1.5 py-0.5 rounded w-fit">
                                     {formatId(product.productId)}
                                 </span>
                             )}
@@ -170,13 +170,13 @@ const ProductDetailView: React.FC<ProductDetailViewProps> = ({
 
                 <div className="flex items-center gap-2">
                     {/* Type Switcher Inline (up, down, service) */}
-                    <div className="flex p-1 bg-gray-50 border border-gray-100 rounded-xl overflow-hidden h-[40px]">
+                    <div className="flex p-1 bg-gray-50 dark:bg-slate-800 border border-gray-100 dark:border-slate-700 rounded-xl overflow-hidden h-[40px]">
                         <button
                             onClick={() => handleProductChange(editingProductIdx, 'type', 'pickup')}
                             title="Pickup"
                             className={`flex items-center justify-center w-[36px] rounded-lg transition-all text-sm font-black ${product.type === 'pickup'
-                                ? 'bg-white text-orange-600 shadow-sm shadow-orange-100'
-                                : 'text-gray-400 hover:text-gray-600'
+                                ? 'bg-white dark:bg-slate-900 text-orange-600 dark:text-orange-400 shadow-sm shadow-orange-100 dark:shadow-none'
+                                : 'text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300'
                                 }`}
                         >
                             <ArrowUp size={16} />
@@ -185,8 +185,8 @@ const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                             onClick={() => handleProductChange(editingProductIdx, 'type', 'delivery')}
                             title="Delivery"
                             className={`flex items-center justify-center w-[36px] rounded-lg transition-all text-sm font-black ${product.type === 'delivery'
-                                ? 'bg-white text-emerald-600 shadow-sm shadow-emerald-100'
-                                : 'text-gray-400 hover:text-gray-600'
+                                ? 'bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 shadow-sm shadow-emerald-100 dark:shadow-none'
+                                : 'text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300'
                                 }`}
                         >
                             <ArrowDown size={16} />
@@ -195,8 +195,8 @@ const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                             onClick={() => handleProductChange(editingProductIdx, 'type', 'service')}
                             title="Service"
                             className={`flex items-center justify-center w-[36px] rounded-lg transition-all text-sm font-black ${product.type === 'service'
-                                ? 'bg-white text-blue-600 shadow-sm shadow-blue-100'
-                                : 'text-gray-400 hover:text-gray-600'
+                                ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-sm shadow-blue-100 dark:shadow-none'
+                                : 'text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300'
                                 }`}
                         >
                             <Wrench size={16} />
@@ -210,10 +210,10 @@ const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                 <section>
                     <div className="flex items-center justify-between mb-4">
                         <div className="flex items-center gap-2">
-                            <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
+                            <div className="p-2 bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-lg">
                                 {product.type === 'service' ? <Wrench size={16} /> : <Package size={16} />}
                             </div>
-                            <h3 className="text-[12px] uppercase tracking-widest text-gray-400 font-bold">
+                            <h3 className="text-[12px] uppercase tracking-widest text-gray-400 dark:text-slate-500 font-bold">
                                 {product.type === 'service' ? 'Service Information' : 'General Information'}
                             </h3>
                         </div>
@@ -225,30 +225,30 @@ const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                                 {product.type === 'service' ? (
                                     <div className="space-y-4">
                                         <div className="flex flex-col gap-1.5">
-                                            <label className="text-[10px] uppercase tracking-widest px-1 text-gray-400 font-bold">Nom du Service</label>
+                                            <label className="text-[10px] uppercase tracking-widest px-1 text-gray-400 dark:text-slate-500 font-bold">Nom du Service</label>
                                             <input
                                                 type="text"
-                                                className="w-full bg-white border border-gray-100 rounded-xl px-4 py-3 text-sm font-bold text-gray-900 outline-none focus:border-blue-500 transition-all"
+                                                className="w-full bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-xl px-4 py-3 text-sm font-bold text-gray-900 dark:text-slate-100 outline-none focus:border-blue-500 dark:focus:border-blue-400 transition-all"
                                                 placeholder="Installation, Réparation, Maintenance..."
                                                 value={product.productName || ''}
                                                 onChange={(e) => handleProductChange(editingProductIdx, 'productName', e.target.value)}
                                             />
                                         </div>
                                         <div className="flex flex-col gap-1.5">
-                                            <label className="text-[10px] uppercase tracking-widest px-1 text-gray-400 font-bold">Durée Estimée</label>
+                                            <label className="text-[10px] uppercase tracking-widest px-1 text-gray-400 dark:text-slate-500 font-bold">Durée Estimée</label>
                                             <div className="flex items-center gap-2">
                                                 <div className="relative flex-1">
                                                     <input
                                                         type="number"
                                                         min="1"
-                                                        className="w-full bg-white border border-gray-100 rounded-xl px-4 py-3 text-sm font-bold text-gray-900 outline-none focus:border-blue-500 transition-all pl-10"
+                                                        className="w-full bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-xl px-4 py-3 text-sm font-bold text-gray-900 dark:text-slate-100 outline-none focus:border-blue-500 dark:focus:border-blue-400 transition-all pl-10"
                                                         placeholder="15"
                                                         value={Math.round((product.service_time || 900) / 60)}
                                                         onChange={(e) => handleProductChange(editingProductIdx, 'service_time', parseInt(e.target.value || '15', 10) * 60)}
                                                     />
-                                                    <Timer size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-300" />
+                                                    <Timer size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-300 dark:text-slate-600" />
                                                 </div>
-                                                <span className="text-xs font-bold text-gray-400 uppercase">minutes</span>
+                                                <span className="text-xs font-bold text-gray-400 dark:text-slate-500 uppercase">minutes</span>
                                             </div>
                                         </div>
                                     </div>
@@ -258,13 +258,13 @@ const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                                             <div className="relative">
                                                 <input
                                                     type="text"
-                                                    className="w-full bg-white border border-gray-100 rounded-xl px-4 py-3 text-sm font-bold text-gray-900 outline-none focus:border-blue-500 transition-all pl-10"
+                                                    className="w-full bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-xl px-4 py-3 text-sm font-bold text-gray-900 dark:text-slate-100 outline-none focus:border-blue-500 dark:focus:border-blue-400 transition-all pl-10"
                                                     placeholder="ID ou Nom du produit..."
                                                     value={transitItemSearch}
                                                     onChange={(e) => setTransitItemSearch(e.target.value)}
                                                     onFocus={() => setIsSearchingTransitItems(true)}
                                                 />
-                                                <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-300" />
+                                                <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-300 dark:text-slate-600" />
                                             </div>
 
                                             {isSearchingTransitItems && (
@@ -276,7 +276,7 @@ const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                                                     <motion.div
                                                         initial={{ opacity: 0, y: -10 }}
                                                         animate={{ opacity: 1, y: 0 }}
-                                                        className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-100 rounded-2xl shadow-xl z-20 overflow-hidden max-h-[240px] overflow-y-auto scrollbar-hide"
+                                                        className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-2xl shadow-xl z-20 overflow-hidden max-h-[240px] overflow-y-auto scrollbar-hide"
                                                     >
                                                         {availableTransitItems
                                                             .filter((it: any) =>
@@ -315,12 +315,12 @@ const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                                             )}
                                         </div>
                                         {product.type === 'pickup' && (
-                                            <div className="p-6 border-2 border-dashed border-gray-100 rounded-3xl flex flex-col items-center justify-center text-center">
-                                                <p className="text-[10px] font-black text-gray-300 uppercase tracking-widest mb-3">Ou créer un nouvel article</p>
+                                            <div className="p-6 border-2 border-dashed border-gray-100 dark:border-slate-800 rounded-3xl flex flex-col items-center justify-center text-center">
+                                                <p className="text-[10px] font-black text-gray-300 dark:text-slate-600 uppercase tracking-widest mb-3">Ou créer un nouvel article</p>
                                                 <button
                                                     onClick={handleCreateTransitItem}
                                                     disabled={isCreatingTransitItem}
-                                                    className="px-6 py-2 bg-blue-50 text-blue-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-100 transition-all flex items-center gap-2"
+                                                    className="px-6 py-2 bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-all flex items-center gap-2"
                                                 >
                                                     {isCreatingTransitItem ? (
                                                         <Loader2 size={14} className="animate-spin" />
@@ -339,30 +339,30 @@ const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                             <>
                                 <div
                                     onClick={() => (handleOpenEditItemForm as any)(product.transitItem)}
-                                    className="flex items-center justify-between p-4 bg-white border border-gray-100 rounded-[22px] mb-4 group cursor-pointer hover:border-blue-200 hover:shadow-md transition-all gap-4"
+                                    className="flex items-center justify-between p-4 bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-[22px] mb-4 group cursor-pointer hover:border-blue-200 dark:hover:border-blue-500/30 hover:shadow-md transition-all gap-4"
                                 >
                                     {/* Name & ID */}
                                     <div className="flex flex-col min-w-0 flex-1">
-                                        <span className="text-sm font-bold text-gray-900 truncate pr-2">
+                                        <span className="text-sm font-bold text-gray-900 dark:text-slate-100 truncate pr-2">
                                             {product.type === 'service'
                                                 ? (product.productName || 'Service')
                                                 : (product.transitItem?.name || product.productName || 'Article')}
                                         </span>
-                                        <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest mt-0.5">
+                                        <span className="text-[9px] font-black text-gray-400 dark:text-slate-500 uppercase tracking-widest mt-0.5">
                                             {formatId(product.transitItemId)}
                                         </span>
                                     </div>
 
                                     {/* Packaging Type */}
-                                    <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-full shrink-0 group-hover:bg-blue-50 transition-colors">
+                                    <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 dark:bg-slate-800 rounded-full shrink-0 group-hover:bg-blue-50 dark:group-hover:bg-blue-500/10 transition-colors">
                                         {product.transitItem?.packaging_type === 'pallet' ? (
-                                            <Layers size={14} className="text-gray-400 group-hover:text-blue-500" />
+                                            <Layers size={14} className="text-gray-400 dark:text-slate-500 group-hover:text-blue-500 dark:group-hover:text-blue-400" />
                                         ) : product.transitItem?.packaging_type === 'envelope' ? (
-                                            <Inbox size={14} className="text-gray-400 group-hover:text-blue-500" />
+                                            <Inbox size={14} className="text-gray-400 dark:text-slate-500 group-hover:text-blue-500 dark:group-hover:text-blue-400" />
                                         ) : (
-                                            <Package size={14} className="text-gray-400 group-hover:text-blue-500" />
+                                            <Package size={14} className="text-gray-400 dark:text-slate-500 group-hover:text-blue-500 dark:group-hover:text-blue-400" />
                                         )}
-                                        <span className="text-[10px] font-bold text-gray-500 group-hover:text-blue-600 uppercase tracking-wider">
+                                        <span className="text-[10px] font-bold text-gray-500 dark:text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 uppercase tracking-wider">
                                             {product.transitItem?.packaging_type || 'unite'}
                                         </span>
                                     </div>
@@ -379,11 +379,11 @@ const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                                                     });
                                                 }
                                             }}
-                                            className="p-1.5 text-gray-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all"
+                                            className="p-1.5 text-gray-300 dark:text-slate-600 hover:text-rose-500 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition-all"
                                         >
                                             <X size={16} />
                                         </button>
-                                        <ChevronRight size={18} className="text-gray-300 group-hover:text-blue-500 group-hover:translate-x-0.5 transition-all" />
+                                        <ChevronRight size={18} className="text-gray-300 dark:text-slate-600 group-hover:text-blue-500 dark:group-hover:text-blue-400 group-hover:translate-x-0.5 transition-all" />
                                     </div>
                                 </div>
                                 {product.type === 'service' && (
@@ -403,8 +403,8 @@ const ProductDetailView: React.FC<ProductDetailViewProps> = ({
 
                                 {product.type === 'service' ? (
                                     <>
-                                        <div className="flex items-center gap-3 p-3 bg-white rounded-2xl border border-gray-100 shadow-sm">
-                                            <div className="p-1.5 bg-purple-50 text-purple-600 rounded-lg">
+                                        <div className="flex items-center gap-3 p-3 bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm">
+                                            <div className="p-1.5 bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400 rounded-lg">
                                                 <Timer size={14} />
                                             </div>
                                             <div className="flex-1">
@@ -434,7 +434,7 @@ const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                                         />
                                     </>
                                 ) : (
-                                    <div className="bg-blue-50/30 p-4 rounded-3xl border border-blue-50/50">
+                                    <div className="bg-blue-50/30 dark:bg-blue-500/5 p-4 rounded-3xl border border-blue-50/50 dark:border-blue-900/10">
                                         <EditableField
                                             label="Quantity"
                                             value={product.quantity || 1}
@@ -453,10 +453,10 @@ const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                     <section className="pb-10">
                         <div className="flex items-center justify-between mb-4">
                             <div className="flex items-center gap-2">
-                                <div className="p-2 bg-purple-50 text-purple-600 rounded-lg">
+                                <div className="p-2 bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400 rounded-lg">
                                     <PenTool size={16} />
                                 </div>
-                                <h3 className="text-[12px] uppercase tracking-widest text-gray-400 font-bold">Validation Rules</h3>
+                                <h3 className="text-[12px] uppercase tracking-widest text-gray-400 dark:text-slate-500 font-bold">Validation Rules</h3>
                             </div>
                             <button
                                 onClick={() => {
@@ -465,7 +465,7 @@ const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                                     setEditingValidationIdx(null);
                                     setSelectedValidationType(null);
                                 }}
-                                className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-purple-50 text-purple-600 hover:bg-purple-100 transition-all text-[11px] font-black uppercase tracking-wider"
+                                className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-500/20 transition-all text-[11px] font-black uppercase tracking-wider"
                             >
                                 <Plus size={14} /> Add
                             </button>
@@ -517,20 +517,20 @@ const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                                                 setDirection(1);
                                                 setView('validation-edit');
                                             }}
-                                            className={`flex-1 flex items-center justify-between p-4 bg-white rounded-3xl border border-transparent ${isConfirmingDelete ? 'pointer-events-none' : 'hover:border-' + typeColor + '-200 shadow-sm hover:shadow-md cursor-pointer'} transition-all`}
+                                            className={`flex-1 flex items-center justify-between p-4 bg-white dark:bg-slate-900 rounded-3xl border border-transparent ${isConfirmingDelete ? 'pointer-events-none' : 'hover:border-' + typeColor + '-200 dark:hover:border-' + typeColor + '-500/30 shadow-sm hover:shadow-md cursor-pointer'} transition-all`}
                                         >
                                             <div className="flex items-center gap-3 min-w-0">
-                                                <div className={`p-2 rounded-xl bg-${typeColor}-50 text-${typeColor}-600 flex-shrink-0`}>
+                                                <div className={`p-2 rounded-xl bg-${typeColor}-50 dark:bg-${typeColor}-500/10 text-${typeColor}-600 dark:text-${typeColor}-400 flex-shrink-0`}>
                                                     <TypeIcon size={18} />
                                                 </div>
                                                 <div className="flex flex-col min-w-0">
-                                                    <span className="text-sm font-bold text-gray-900 truncate group-hover:text-blue-600 transition-colors">
+                                                    <span className="text-sm font-bold text-gray-900 dark:text-slate-100 truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
                                                         {v.name}
                                                     </span>
                                                     <div className="flex gap-2 mt-1">
-                                                        {v.pickup && <span className="text-[8px] uppercase tracking-tighter bg-gray-50 text-gray-500 px-1.5 py-0.5 rounded">Pickup</span>}
-                                                        {v.delivery && <span className="text-[8px] uppercase tracking-tighter bg-gray-50 text-gray-500 px-1.5 py-0.5 rounded">Delivery</span>}
-                                                        {v.compare && <span className={`text-[8px] uppercase tracking-tighter bg-${typeColor}-50 text-${typeColor}-600 px-1.5 py-0.5 rounded`}>Compare</span>}
+                                                        {v.pickup && <span className="text-[8px] uppercase tracking-tighter bg-gray-50 dark:bg-slate-800 text-gray-500 dark:text-slate-400 px-1.5 py-0.5 rounded">Pickup</span>}
+                                                        {v.delivery && <span className="text-[8px] uppercase tracking-tighter bg-gray-50 dark:bg-slate-800 text-gray-500 dark:text-slate-400 px-1.5 py-0.5 rounded">Delivery</span>}
+                                                        {v.compare && <span className={`text-[8px] uppercase tracking-tighter bg-${typeColor}-50 dark:bg-${typeColor}-500/10 text-${typeColor}-600 dark:text-${typeColor}-400 px-1.5 py-0.5 rounded`}>Compare</span>}
                                                     </div>
                                                 </div>
                                             </div>
@@ -542,11 +542,11 @@ const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                                                                 e.stopPropagation();
                                                                 setConfirmDeleteKey(itemKey);
                                                             }}
-                                                            className="p-2 text-gray-300 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all opacity-0 group-hover:opacity-100"
+                                                            className="p-2 text-gray-300 dark:text-slate-600 hover:text-rose-500 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-xl transition-all opacity-0 group-hover:opacity-100"
                                                         >
                                                             <Trash2 size={16} />
                                                         </button>
-                                                        <ChevronRight size={18} className="text-gray-300 group-hover:translate-x-0.5 transition-all" />
+                                                        <ChevronRight size={18} className="text-gray-300 dark:text-slate-600 group-hover:translate-x-0.5 transition-all" />
                                                     </>
                                                 )}
                                             </div>
@@ -555,8 +555,8 @@ const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                                 );
                             })}
                             {allValidations.length === 0 && (
-                                <div className="text-center py-10 border-2 border-dashed border-gray-100 rounded-3xl">
-                                    <p className="text-[10px] font-black text-gray-300 uppercase tracking-widest">No validations configured</p>
+                                <div className="text-center py-10 border-2 border-dashed border-gray-100 dark:border-slate-800 rounded-3xl">
+                                    <p className="text-[10px] font-black text-gray-300 dark:text-slate-600 uppercase tracking-widest">No validations configured</p>
                                 </div>
                             )}
                         </div>
@@ -565,7 +565,7 @@ const ProductDetailView: React.FC<ProductDetailViewProps> = ({
             </div >
 
             {/* Footer */}
-            < div className="p-6 bg-white border-t border-gray-100 flex gap-3" >
+            < div className="p-6 bg-white dark:bg-slate-900 border-t border-gray-100 dark:border-slate-800 flex gap-3" >
                 <button
                     onClick={() => {
                         setDirection(-1);

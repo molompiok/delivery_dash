@@ -32,6 +32,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { Vehicle3DModel } from './components/Vehicle3DModel';
 import { useHeader } from '../../../../context/HeaderContext';
+import { useTheme } from '../../../../context/ThemeContext';
 import { MapLibre as GoogleMap, Marker } from '../../../../components/MapLibre';
 import { fleetService } from '../../../../api/fleet';
 import { authService } from '../../../../api/auth';
@@ -63,7 +64,8 @@ const WHITE_MAP_STYLE = [
 export default function Page() {
     const pageContext = usePageContext();
     const { id } = pageContext.routeParams;
-    const { setHeaderContent } = useHeader();
+    const { setHeaderContent, headerHeight } = useHeader();
+    const { theme } = useTheme();
 
     const [vehicles, setVehicles] = useState<Vehicle[]>([]);
     const [selectedVehicle, setSelectedVehicle] = useState<any>(null);
@@ -178,13 +180,13 @@ export default function Page() {
         ];
 
         setHeaderContent(
-            <div className="flex items-center gap-6 px-6 py-1.5 bg-white/50 backdrop-blur-md rounded-xl border border-white/40 shadow-sm">
+            <div className="flex items-center gap-6 px-6 py-1.5 bg-white/50 dark:bg-slate-900/50 backdrop-blur-md rounded-xl border border-white/40 dark:border-slate-800/50 shadow-sm">
                 {GLOBAL_STATS.map((stat, i) => (
                     <div key={i} className="flex items-center gap-2.5">
                         <div className={`w-1 h-1 rounded-full ${stat.color === 'emerald' ? 'bg-emerald-500' : stat.color === 'rose' ? 'bg-rose-500' : stat.color === 'blue' ? 'bg-blue-500' : 'bg-amber-500'}`} />
                         <div className="flex flex-col">
-                            <span className="text-[9px] font-bold text-slate-400 leading-none">{stat.label}</span>
-                            <span className="text-lg font-black text-slate-800 leading-tight">{stat.value}</span>
+                            <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 leading-none">{stat.label}</span>
+                            <span className="text-lg font-black text-slate-800 dark:text-slate-100 leading-tight">{stat.value}</span>
                         </div>
                     </div>
                 ))}
@@ -195,31 +197,31 @@ export default function Page() {
 
     if (loading || !selectedVehicle) {
         return (
-            <div className="flex items-center justify-center w-full h-full bg-slate-50">
+            <div className="flex items-center justify-center w-full h-full bg-slate-50 dark:bg-slate-950">
                 <div className="text-center">
                     <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-                    <p className="text-slate-400 font-bold text-xs uppercase tracking-widest">Initialisation de la flotte...</p>
+                    <p className="text-slate-400 dark:text-slate-500 font-bold text-xs uppercase tracking-widest">Initialisation de la flotte...</p>
                 </div>
             </div>
         );
     }
 
     return (
-        <div className="flex flex-col flex-1 w-full h-full bg-[#f0f2f5] text-slate-900 font-sans overflow-hidden relative">
+        <div className="flex flex-col flex-1 w-full h-full bg-[#f0f2f5] dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans overflow-hidden relative">
 
             {/* Main Content Area: 3D Background + HUD Overlay */}
-            <div className="flex-1 relative overflow-hidden min-h-0 bg-slate-50">
+            <div className="flex-1 relative overflow-hidden min-h-0 bg-slate-50 dark:bg-slate-950">
                 {/* 3D Background Layer */}
                 <div className="absolute inset-0 z-0">
                     <Canvas shadows gl={{ antialias: true }} camera={{ position: [5, 2, 5], fov: 50 }}>
-                        <color attach="background" args={['#ffffff']} />
+                        <color attach="background" args={[theme === 'dark' ? '#020617' : '#ffffff']} />
                         <Suspense fallback={null}>
                             <PerspectiveCamera makeDefault position={[5, 2, 5]} fov={50} />
                             <OrbitControls enablePan={false} minDistance={3} maxDistance={12} makeDefault />
-                            <ambientLight intensity={0.7} />
-                            <pointLight position={[10, 10, 10]} intensity={1} />
-                            <directionalLight position={[-5, 5, 5]} intensity={1} castShadow shadow-mapSize={[1024, 1024]} />
-                            <hemisphereLight intensity={0.5} groundColor="#f0f2f5" />
+                            <ambientLight intensity={theme === 'dark' ? 0.3 : 0.7} />
+                            <pointLight position={[10, 10, 10]} intensity={theme === 'dark' ? 0.5 : 1} />
+                            <directionalLight position={[-5, 5, 5]} intensity={theme === 'dark' ? 0.5 : 1} castShadow shadow-mapSize={[1024, 1024]} />
+                            <hemisphereLight intensity={0.5} groundColor={theme === 'dark' ? "#020617" : "#f0f2f5"} />
                             <Float speed={1.5} rotationIntensity={0.2} floatIntensity={0.5}>
                                 <Vehicle3DModel type={selectedVehicle.type as any} data={selectedVehicle} viewMode={activeView} />
                             </Float>
@@ -234,9 +236,12 @@ export default function Page() {
                         {/* Top Row: Details */}
                         <div className="flex-1 flex gap-4 min-h-0">
                             {/* Left HUD Panel */}
-                            <div className="w-[400px] flex flex-col gap-4 pointer-events-none h-full ml-4 mt-2 pb-2">
+                            <div
+                                className="w-[400px] flex flex-col gap-4 pointer-events-none h-full ml-4 pb-2 transition-all duration-300"
+                                style={{ marginTop: `${headerHeight}px` }}
+                            >
                                 {/* Tab Switcher */}
-                                <div className="bg-white/90 backdrop-blur-md rounded-[24px] p-2 shadow-xl border border-white flex gap-1 pointer-events-auto shrink-0 overflow-x-auto scrollbar-none">
+                                <div className="bg-white/90 dark:bg-slate-900/90 backdrop-blur-md rounded-[24px] p-2 shadow-xl border border-white dark:border-slate-800 flex gap-1 pointer-events-auto shrink-0 overflow-x-auto scrollbar-none">
                                     {[
                                         { id: 'STATUS', icon: Activity, label: 'Stats' },
                                         { id: 'DOCUMENTS', icon: FileText, label: 'Docs' },
@@ -246,7 +251,7 @@ export default function Page() {
                                         <button
                                             key={tab.id}
                                             onClick={() => setActiveTab(tab.id as any)}
-                                            className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-xl transition-all ${activeTab === tab.id ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' : 'text-slate-400 hover:bg-slate-50 hover:text-slate-600'}`}
+                                            className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-xl transition-all ${activeTab === tab.id ? 'bg-blue-600 text-white shadow-lg shadow-blue-200 dark:shadow-none' : 'text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-600 dark:hover:text-slate-300'}`}
                                         >
                                             <tab.icon size={16} />
                                             <span className="text-[10px] font-black uppercase tracking-widest">{tab.label}</span>
@@ -266,20 +271,20 @@ export default function Page() {
                                                 className="space-y-5 flex flex-col shrink-0"
                                             >
                                                 {/* Vehicle Info Card */}
-                                                <div className="bg-white/95 backdrop-blur-md rounded-[24px] p-4 shadow-2xl border border-white relative overflow-hidden shrink-0">
-                                                    <div className="absolute top-0 right-0 p-4 opacity-5">
+                                                <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-[24px] p-4 shadow-2xl border border-white dark:border-slate-800 relative overflow-hidden shrink-0">
+                                                    <div className="absolute top-0 right-0 p-4 opacity-5 text-slate-400 dark:text-slate-100">
                                                         <Truck size={80} />
                                                     </div>
                                                     <div className="flex items-center gap-4 mb-6">
-                                                        <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600 border border-blue-100 shadow-inner">
+                                                        <div className="w-16 h-16 bg-blue-50 dark:bg-blue-500/10 rounded-2xl flex items-center justify-center text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-500/20 shadow-inner">
                                                             <Truck size={32} />
                                                         </div>
                                                         <div>
                                                             <div className="flex items-center gap-2">
-                                                                <h2 className="text-xl font-black text-slate-800 leading-none">{selectedVehicle.name}</h2>
-                                                                <span className="px-2 py-0.5 bg-blue-50 text-blue-600 text-[8px] font-black rounded-md uppercase tracking-widest border border-blue-100">Live</span>
+                                                                <h2 className="text-xl font-black text-slate-800 dark:text-slate-100 leading-none">{selectedVehicle.name}</h2>
+                                                                <span className="px-2 py-0.5 bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 text-[8px] font-black rounded-md uppercase tracking-widest border border-blue-100 dark:border-blue-500/20">Live</span>
                                                             </div>
-                                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-1">{selectedVehicle.plate}</p>
+                                                            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mt-1">{selectedVehicle.plate}</p>
                                                         </div>
                                                     </div>
 
@@ -290,10 +295,10 @@ export default function Page() {
 
                                                     <div className="mt-6">
                                                         <div className="flex justify-between items-center mb-1.5">
-                                                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">Used capacity</span>
-                                                            <span className="text-[10px] font-black text-slate-800 tabular-nums">{selectedVehicle.capacity}%</span>
+                                                            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest leading-none">Used capacity</span>
+                                                            <span className="text-[10px] font-black text-slate-800 dark:text-slate-100 tabular-nums">{selectedVehicle.capacity}%</span>
                                                         </div>
-                                                        <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                                        <div className="h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                                                             <div className="h-full bg-blue-600 transition-all duration-1000" style={{ width: `${selectedVehicle.capacity}%` }} />
                                                         </div>
                                                     </div>
@@ -315,11 +320,11 @@ export default function Page() {
                                                 initial={{ opacity: 0, x: -20 }}
                                                 animate={{ opacity: 1, x: 0 }}
                                                 exit={{ opacity: 0, x: -20 }}
-                                                className="bg-white/95 backdrop-blur-md rounded-[24px] p-4 shadow-2xl border border-white flex flex-col pointer-events-auto mb-2"
+                                                className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-[24px] p-4 shadow-2xl border border-white dark:border-slate-800 flex flex-col pointer-events-auto mb-2"
                                             >
                                                 <div className="flex items-center justify-between mb-4">
-                                                    <h2 className="text-lg font-black text-slate-800 flex items-center gap-2">
-                                                        <FileText className="text-blue-600" /> Documents
+                                                    <h2 className="text-lg font-black text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                                                        <FileText className="text-blue-600 dark:text-blue-400" /> Documents
                                                     </h2>
                                                     <div className="relative group">
                                                         <input
@@ -340,26 +345,26 @@ export default function Page() {
                                                         { type: 'VEHICLE_TECHNICAL_VISIT', label: 'Visite Technique', files: selectedVehicle.vehicleTechnicalVisit || [] },
                                                         { type: 'VEHICLE_REGISTRATION', label: 'Carte Grise', files: selectedVehicle.vehicleRegistration || [] },
                                                     ].map(doc => (
-                                                        <div key={doc.type} className="bg-slate-50/50 border border-slate-100 rounded-xl p-3">
+                                                        <div key={doc.type} className="bg-slate-50/50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 rounded-xl p-3">
                                                             <div className="flex items-center justify-between mb-2">
-                                                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{doc.label}</span>
-                                                                <span className="text-[9px] font-bold bg-white px-2 py-0.5 rounded-full text-slate-500 shadow-sm border border-slate-50">{doc.files.length}</span>
+                                                                <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">{doc.label}</span>
+                                                                <span className="text-[9px] font-bold bg-white dark:bg-slate-800 px-2 py-0.5 rounded-full text-slate-500 dark:text-slate-400 shadow-sm border border-slate-50 dark:border-slate-700">{doc.files.length}</span>
                                                             </div>
 
                                                             {doc.files.length > 0 ? (
                                                                 <div className="space-y-2">
                                                                     {doc.files.map((file: string, idx: number) => (
-                                                                        <div key={idx} className="flex items-center justify-between p-2 bg-white rounded-xl border border-slate-100 shadow-sm group">
+                                                                        <div key={idx} className="flex items-center justify-between p-2 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-xl shadow-sm group">
                                                                             <div className="flex items-center gap-2 overflow-hidden">
-                                                                                <FileText size={14} className="text-blue-500" />
-                                                                                <span className="text-[10px] font-bold text-slate-600 truncate">{file.split('/').pop()}</span>
+                                                                                <FileText size={14} className="text-blue-500 dark:text-blue-400" />
+                                                                                <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300 truncate">{file.split('/').pop()}</span>
                                                                             </div>
                                                                             <button
                                                                                 onClick={async () => {
                                                                                     const url = await fleetService.getSignedUrl(file);
                                                                                     window.open(url, '_blank');
                                                                                 }}
-                                                                                className="p-1.5 hover:bg-blue-50 text-blue-600 rounded-lg transition-colors"
+                                                                                className="p-1.5 hover:bg-blue-50 dark:hover:bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-lg transition-colors"
                                                                             >
                                                                                 <Maximize2 size={12} />
                                                                             </button>
@@ -367,8 +372,8 @@ export default function Page() {
                                                                     ))}
                                                                 </div>
                                                             ) : (
-                                                                <div className="text-center py-4 border-2 border-dashed border-slate-100 rounded-xl">
-                                                                    <p className="text-[9px] font-bold text-slate-300 uppercase italic">Aucun document</p>
+                                                                <div className="text-center py-4 border-2 border-dashed border-slate-100 dark:border-slate-800 rounded-xl">
+                                                                    <p className="text-[9px] font-bold text-slate-300 dark:text-slate-600 uppercase italic">Aucun document</p>
                                                                 </div>
                                                             )}
                                                         </div>
@@ -383,37 +388,37 @@ export default function Page() {
                                                 initial={{ opacity: 0, x: -20 }}
                                                 animate={{ opacity: 1, x: 0 }}
                                                 exit={{ opacity: 0, x: -20 }}
-                                                className="bg-white/95 backdrop-blur-md rounded-[24px] p-4 shadow-2xl border border-white flex flex-col pointer-events-auto mb-2"
+                                                className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-[24px] p-4 shadow-2xl border border-white dark:border-slate-800 flex flex-col pointer-events-auto mb-2"
                                             >
-                                                <h2 className="text-lg font-black text-slate-800 mb-3 flex items-center gap-2">
-                                                    <History className="text-blue-600" /> Commandes
+                                                <h2 className="text-lg font-black text-slate-800 dark:text-slate-100 mb-3 flex items-center gap-2">
+                                                    <History className="text-blue-600 dark:text-blue-400" /> Commandes
                                                 </h2>
                                                 <div className="space-y-3 pr-1">
                                                     {orders.length > 0 ? orders.map(order => (
-                                                        <div key={order.id} className="bg-slate-50/50 border border-slate-100 rounded-2xl p-3.5 hover:bg-white hover:shadow-lg transition-all group">
+                                                        <div key={order.id} className="bg-slate-50/50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 rounded-2xl p-3.5 hover:bg-white dark:hover:bg-slate-900 hover:shadow-lg transition-all group">
                                                             <div className="flex justify-between items-start mb-2">
-                                                                <span className="text-[10px] font-black text-blue-600 uppercase italic">#{order.id.slice(-6)}</span>
-                                                                <span className="text-[9px] font-bold text-slate-400">{new Date(order.createdAt).toLocaleDateString()}</span>
+                                                                <span className="text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase italic">#{order.id.slice(-6)}</span>
+                                                                <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500">{new Date(order.createdAt).toLocaleDateString()}</span>
                                                             </div>
                                                             <div className="flex flex-col gap-1.5 mb-2">
-                                                                <p className="text-[11px] font-bold text-slate-800 truncate" title={order.pickupAddress?.formattedAddress}>
+                                                                <p className="text-[11px] font-bold text-slate-800 dark:text-slate-200 truncate" title={order.pickupAddress?.formattedAddress}>
                                                                     <span className="text-emerald-500 mr-2 inline-block w-1.5 h-1.5 rounded-full bg-current" />
                                                                     {order.pickupAddress?.formattedAddress}
                                                                 </p>
-                                                                <p className="text-[11px] font-bold text-slate-400 truncate" title={order.deliveryAddress?.formattedAddress}>
-                                                                    <span className="text-slate-300 mr-2 inline-block w-1.5 h-1.5 rounded-full bg-current" />
+                                                                <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 truncate" title={order.deliveryAddress?.formattedAddress}>
+                                                                    <span className="text-slate-300 dark:text-slate-700 mr-2 inline-block w-1.5 h-1.5 rounded-full bg-current" />
                                                                     {order.deliveryAddress?.formattedAddress}
                                                                 </p>
                                                             </div>
                                                             <div className="flex justify-between items-center">
-                                                                <span className="text-[9px] font-black bg-white px-2 py-0.5 rounded-md text-slate-600 border border-slate-50 uppercase tracking-tighter">{order.status}</span>
-                                                                <span className="text-[11px] font-black text-slate-800 italic">{order.pricingData?.finalPrice || 0} FCFA</span>
+                                                                <span className="text-[9px] font-black bg-white dark:bg-slate-800 px-2 py-0.5 rounded-md text-slate-600 dark:text-slate-400 border border-slate-50 dark:border-slate-700 uppercase tracking-tighter">{order.status}</span>
+                                                                <span className="text-[11px] font-black text-slate-800 dark:text-slate-100 italic">{order.pricingData?.finalPrice || 0} FCFA</span>
                                                             </div>
                                                         </div>
                                                     )) : (
-                                                        <div className="h-full flex flex-col items-center justify-center opacity-30 italic py-10">
-                                                            <Package size={48} className="mb-2" />
-                                                            <p className="text-xs font-bold uppercase tracking-widest">Aucune commande</p>
+                                                        <div className="h-full flex flex-col items-center justify-center opacity-30 dark:opacity-20 italic py-10">
+                                                            <Package size={48} className="mb-2 text-slate-800 dark:text-slate-100" />
+                                                            <p className="text-xs font-bold uppercase tracking-widest text-slate-800 dark:text-slate-100">Aucune commande</p>
                                                         </div>
                                                     )}
                                                 </div>
@@ -426,32 +431,32 @@ export default function Page() {
                                                 initial={{ opacity: 0, x: -20 }}
                                                 animate={{ opacity: 1, x: 0 }}
                                                 exit={{ opacity: 0, x: -20 }}
-                                                className="bg-white/95 backdrop-blur-md rounded-[24px] p-5 shadow-2xl border border-white flex flex-col pointer-events-auto mb-2"
+                                                className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-[24px] p-5 shadow-2xl border border-white dark:border-slate-800 flex flex-col pointer-events-auto mb-2"
                                             >
-                                                <h2 className="text-lg font-black text-slate-800 mb-4 uppercase tracking-widest italic">Driver profile</h2>
+                                                <h2 className="text-lg font-black text-slate-800 dark:text-slate-100 mb-4 uppercase tracking-widest italic">Driver profile</h2>
 
                                                 {selectedVehicle.assignedDriver ? (
                                                     <div className="flex flex-col items-center text-center">
-                                                        <div className="w-32 h-32 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-full flex items-center justify-center text-white text-5xl font-black shadow-2xl mb-6 border-8 border-white">
+                                                        <div className="w-32 h-32 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-full flex items-center justify-center text-white text-5xl font-black shadow-2xl mb-6 border-8 border-white dark:border-slate-800">
                                                             {selectedVehicle.avatar}
                                                         </div>
-                                                        <h3 className="text-2xl font-black text-slate-800 leading-tight mb-2">{selectedVehicle.driverName}</h3>
-                                                        <p className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-8">{selectedVehicle.assignedDriver.phone || '+225 07 00 00 00 00'}</p>
+                                                        <h3 className="text-2xl font-black text-slate-800 dark:text-slate-100 leading-tight mb-2">{selectedVehicle.driverName}</h3>
+                                                        <p className="text-sm font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-8">{selectedVehicle.assignedDriver.phone || '+225 07 00 00 00 00'}</p>
 
                                                         <div className="w-full grid grid-cols-2 gap-4">
-                                                            <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100">
-                                                                <span className="text-[10px] font-black text-slate-400 uppercase block mb-1">XP Points</span>
-                                                                <span className="text-xl font-black text-slate-800 tabular-nums">2,450</span>
+                                                            <div className="bg-slate-50 dark:bg-slate-800 rounded-2xl p-4 border border-slate-100 dark:border-slate-700">
+                                                                <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase block mb-1">XP Points</span>
+                                                                <span className="text-xl font-black text-slate-800 dark:text-slate-100 tabular-nums">2,450</span>
                                                             </div>
-                                                            <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100">
-                                                                <span className="text-[10px] font-black text-slate-400 uppercase block mb-1">Status</span>
+                                                            <div className="bg-slate-50 dark:bg-slate-800 rounded-2xl p-4 border border-slate-100 dark:border-slate-700">
+                                                                <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase block mb-1">Status</span>
                                                                 <span className="text-xl font-black text-emerald-600 italic">Active</span>
                                                             </div>
                                                         </div>
 
                                                         <button
                                                             onClick={() => window.location.href = `/validation/drivers/${selectedVehicle.assignedDriverId}`}
-                                                            className="w-full mt-8 py-4 bg-slate-900 text-white rounded-[20px] text-xs font-black uppercase tracking-widest hover:bg-black transition-all shadow-xl flex items-center justify-center gap-3 group"
+                                                            className="w-full mt-8 py-4 bg-slate-900 dark:bg-blue-600 text-white rounded-[20px] text-xs font-black uppercase tracking-widest hover:bg-black dark:hover:bg-blue-700 transition-all shadow-xl dark:shadow-none flex items-center justify-center gap-3 group"
                                                         >
                                                             Full details <ChevronRight size={18} className="group-hover:translate-x-1 transition-transform" />
                                                         </button>
@@ -472,21 +477,21 @@ export default function Page() {
                         {/* Bottom Row: Map, Stats & Camera */}
                         <div className="h-[300px] flex gap-4 shrink-0">
                             {/* Route Map Card */}
-                            <div className="w-80 bg-white/90 backdrop-blur-md rounded-[16px] shadow-xl border border-white shrink-0 flex flex-col pointer-events-auto">
+                            <div className="w-80 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md rounded-[16px] shadow-xl border border-white dark:border-slate-800 shrink-0 flex flex-col pointer-events-auto">
 
-                                <div className="flex-1 rounded-[16px] overflow-hidden border border-slate-200 relative bg-white">
+                                <div className="flex-1 rounded-[16px] overflow-hidden border border-slate-200 dark:border-slate-800 relative bg-white dark:bg-slate-950">
                                     {/* Overlay HUD for Map (Multiple Cards) */}
                                     <div className="absolute top-3 left-3 z-10 flex items-center gap-2 pointer-events-auto">
-                                        <div className="px-3 py-1.5 bg-white/90 backdrop-blur-md rounded-xl border border-white shadow-lg">
-                                            <h3 className="text-[10px] font-black text-slate-800 uppercase tracking-widest leading-none">Route map</h3>
+                                        <div className="px-3 py-1.5 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md rounded-xl border border-white dark:border-slate-800 shadow-lg">
+                                            <h3 className="text-[10px] font-black text-slate-800 dark:text-slate-100 uppercase tracking-widest leading-none">Route map</h3>
                                         </div>
                                     </div>
 
                                     <div className="absolute top-3 right-3 z-10 flex items-center gap-2 pointer-events-auto">
-                                        <div className="flex items-center gap-1.5 px-2 py-1.5 bg-white/90 backdrop-blur-md text-emerald-600 rounded-xl border border-white shadow-lg ring-1 ring-emerald-50 font-bold text-[7px] uppercase tracking-tighter">
+                                        <div className="flex items-center gap-1.5 px-2 py-1.5 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md text-emerald-600 dark:text-emerald-400 rounded-xl border border-white dark:border-slate-800 shadow-lg ring-1 ring-emerald-50 dark:ring-emerald-500/20 font-bold text-[7px] uppercase tracking-tighter">
                                             <div className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse" /> In route
                                         </div>
-                                        <a href={`/map?vehicle_id=${selectedVehicle.id}`} className="bg-white/90 backdrop-blur-md rounded-xl border border-white shadow-lg pointer-events-auto">
+                                        <a href={`/map?vehicle_id=${selectedVehicle.id}`} className="bg-white/90 dark:bg-slate-900/90 backdrop-blur-md rounded-xl border border-white dark:border-slate-800 shadow-lg pointer-events-auto">
                                             <IconButton icon={Maximize2} small />
                                         </a>
                                     </div>
@@ -513,15 +518,15 @@ export default function Page() {
                             </div>
 
                             {/* Statistics Card (Center) */}
-                            <div className="flex-1 bg-white/90 backdrop-blur-md rounded-[28px] p-5 shadow-xl border border-white flex flex-col justify-between overflow-hidden pointer-events-auto">
+                            <div className="flex-1 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md rounded-[28px] p-5 shadow-xl border border-white dark:border-slate-800 flex flex-col justify-between overflow-hidden pointer-events-auto">
                                 <div className="flex items-center justify-between mb-1 shrink-0">
                                     <div className="flex flex-col">
-                                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest leading-none mb-0.5">Daily active time</span>
-                                        <span className="text-sm font-black text-slate-800 leading-none">8h 40min / 10h</span>
+                                        <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest leading-none mb-0.5">Daily active time</span>
+                                        <span className="text-sm font-black text-slate-800 dark:text-slate-100 leading-none">8h 40min / 10h</span>
                                     </div>
-                                    <div className="w-10 h-10 rounded-full border-4 border-slate-50 relative group overflow-hidden">
+                                    <div className="w-10 h-10 rounded-full border-4 border-slate-50 dark:border-slate-700 relative group overflow-hidden">
                                         <svg className="w-full h-full -rotate-90">
-                                            <circle cx="20" cy="20" r="16" fill="none" stroke="#f1f5f9" strokeWidth="4" />
+                                            <circle cx="20" cy="20" r="16" fill="none" stroke={theme === 'dark' ? '#334155' : '#f1f5f9'} strokeWidth="4" />
                                             <circle cx="20" cy="20" r="16" fill="none" stroke="#2563eb" strokeWidth="4" strokeDasharray="100.5" strokeDashoffset="20" />
                                         </svg>
                                         <span className="absolute inset-0 flex items-center justify-center text-[9px] font-black tabular-nums">80%</span>
@@ -530,11 +535,11 @@ export default function Page() {
 
                                 <div className="mb-1 shrink-0">
                                     <div className="flex items-center justify-between mb-1">
-                                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest leading-none">Speed avg</span>
-                                        <span className="text-[12px] font-black text-slate-800 tabular-nums">72 km/h</span>
+                                        <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest leading-none">Speed avg</span>
+                                        <span className="text-[12px] font-black text-slate-800 dark:text-slate-100 tabular-nums">72 km/h</span>
                                     </div>
                                     <div className="flex items-center gap-2">
-                                        <div className="flex-1 h-1 bg-slate-100 rounded-full relative">
+                                        <div className="flex-1 h-1 bg-slate-100 dark:bg-slate-800 rounded-full relative">
                                             <div className="absolute left-[72%] w-1.5 h-1.5 -translate-y-[1px] bg-emerald-500 rounded-full shadow-lg" />
                                         </div>
                                         <span className="text-[8px] font-black text-emerald-500 uppercase tracking-tighter">Optimal</span>
@@ -543,15 +548,15 @@ export default function Page() {
 
                                 <div className="shrink-0">
                                     <div className="flex items-center justify-between mb-1.5">
-                                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest leading-none">Condition</span>
+                                        <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest leading-none">Condition</span>
                                         <div className="flex items-center gap-1.5">
-                                            <span className="text-[14px] font-black text-slate-800 tabular-nums">91%</span>
+                                            <span className="text-[14px] font-black text-slate-800 dark:text-slate-100 tabular-nums">91%</span>
                                             <span className="text-[8px] font-black text-emerald-500 uppercase tracking-tighter">Optimal</span>
                                         </div>
                                     </div>
                                     <div className="flex gap-1 overflow-hidden">
                                         {[90, 90, 80, 89, 92].map((v, i) => (
-                                            <div key={i} className="flex-1 h-4 bg-blue-50 rounded-sm relative overflow-hidden group">
+                                            <div key={i} className="flex-1 h-4 bg-blue-50 dark:bg-blue-900/20 rounded-sm relative overflow-hidden group">
                                                 <div className="absolute bottom-0 left-0 right-0 bg-blue-600 transition-all duration-1000" style={{ height: `${v}%` }} />
                                             </div>
                                         ))}
@@ -560,9 +565,9 @@ export default function Page() {
                             </div>
 
                             {/* Camera Preview Card (Right) */}
-                            <div className="flex-1 bg-white/90 backdrop-blur-md rounded-[28px] p-4 shadow-xl border border-white flex flex-col min-w-0 pointer-events-auto">
+                            <div className="flex-1 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md rounded-[28px] p-4 shadow-xl border border-white dark:border-slate-800 flex flex-col min-w-0 pointer-events-auto">
                                 <div className="flex items-center justify-between mb-2 shrink-0">
-                                    <h3 className="text-sm font-black text-slate-800">Camera</h3>
+                                    <h3 className="text-sm font-black text-slate-800 dark:text-slate-100">Camera</h3>
                                     <IconButton icon={Maximize2} small />
                                 </div>
                                 <div className="flex-1 bg-slate-950 rounded-[20px] overflow-hidden relative border border-slate-800 shadow-xl">
@@ -579,9 +584,12 @@ export default function Page() {
                     </div>
 
                     {/* Right Panel: Truck List HUD */}
-                    <div className="w-80 bg-white/95 backdrop-blur-md rounded-[32px] shadow-2xl border border-white flex flex-col p-5 shrink-0 overflow-hidden pointer-events-auto">
+                    <div
+                        className="w-80 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-[32px] shadow-2xl border border-white dark:border-slate-800 flex flex-col p-5 shrink-0 overflow-hidden pointer-events-auto transition-all duration-300"
+                        style={{ marginTop: `${headerHeight}px`, marginBottom: '16px', marginRight: '16px' }}
+                    >
                         <div className="flex items-center justify-between mb-5 shrink-0">
-                            <h2 className="text-xl font-black text-slate-800 leading-none">Truck list</h2>
+                            <h2 className="text-xl font-black text-slate-800 dark:text-slate-100 leading-none">Truck list</h2>
                             <IconButton icon={Settings} small />
                         </div>
 
@@ -592,40 +600,40 @@ export default function Page() {
                                     <button
                                         key={vhc.id}
                                         onClick={() => setSelectedVehicle(vhc)}
-                                        className={`w-full text-left p-4 rounded-[24px] border transition-all duration-300 relative group overflow-hidden ${selectedVehicle.id === vhc.id ? 'bg-white ring-2 ring-blue-600 shadow-xl shadow-blue-100' : 'bg-slate-50/50 border-transparent hover:bg-slate-100/80'}`}
+                                        className={`w-full text-left p-4 rounded-[24px] border transition-all duration-300 relative group overflow-hidden ${selectedVehicle.id === vhc.id ? 'bg-white dark:bg-slate-800 ring-2 ring-blue-600 shadow-xl shadow-blue-100 dark:shadow-none' : 'bg-slate-50/50 dark:bg-slate-800/40 border-transparent hover:bg-slate-100/80 dark:hover:bg-slate-700/80'}`}
                                     >
                                         <div className="flex gap-3 mb-3 shrink-0">
-                                            <div className="w-14 h-9 bg-white rounded-lg border border-slate-100 overflow-hidden flex items-center justify-center p-1 shrink-0">
-                                                <Truck size={22} className="text-slate-400" />
+                                            <div className="w-14 h-9 bg-white dark:bg-slate-700 rounded-lg border border-slate-100 dark:border-slate-600 overflow-hidden flex items-center justify-center p-1 shrink-0">
+                                                <Truck size={22} className="text-slate-400 dark:text-slate-500" />
                                             </div>
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center justify-between gap-2">
-                                                    <span className="text-[12px] font-black text-slate-800 truncate">{vhc.name}</span>
+                                                    <span className="text-[12px] font-black text-slate-800 dark:text-slate-100 truncate">{vhc.name}</span>
                                                     <span className="text-[8px] font-black text-emerald-500 uppercase flex items-center gap-1 shrink-0">
                                                         <div className="w-1 h-1 rounded-full bg-emerald-500" /> {vhc.status}
                                                     </span>
                                                 </div>
-                                                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest leading-none">{vhc.id}</span>
+                                                <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest leading-none">{vhc.id}</span>
                                             </div>
                                         </div>
 
                                         <div className="flex justify-between items-end mb-2.5 shrink-0">
                                             <div className="flex flex-col">
-                                                <span className="text-[8px] font-bold text-slate-400 uppercase leading-none mb-1">Burden</span>
-                                                <span className="text-[10px] font-black text-slate-800 tabular-nums">{vhc.burden}</span>
+                                                <span className="text-[8px] font-bold text-slate-400 dark:text-slate-500 uppercase leading-none mb-1">Burden</span>
+                                                <span className="text-[10px] font-black text-slate-800 dark:text-slate-100 tabular-nums">{vhc.burden}</span>
                                             </div>
                                             <div className="flex flex-col items-end">
-                                                <span className="text-[8px] font-bold text-slate-400 uppercase leading-none mb-1">Used volume</span>
-                                                <span className="text-[10px] font-black text-slate-800 tabular-nums">{vhc.volume}</span>
+                                                <span className="text-[8px] font-bold text-slate-400 dark:text-slate-500 uppercase leading-none mb-1">Used volume</span>
+                                                <span className="text-[10px] font-black text-slate-800 dark:text-slate-100 tabular-nums">{vhc.volume}</span>
                                             </div>
                                         </div>
 
                                         <div className="flex items-center gap-3 shrink-0">
-                                            <span className="text-[8px] font-bold text-slate-400 uppercase shrink-0">Used capacity</span>
-                                            <div className="flex-1 h-1 bg-slate-200 rounded-full overflow-hidden">
-                                                <div className={`h-full transition-all duration-700 ${selectedVehicle.id === vhc.id ? 'bg-blue-600' : 'bg-slate-400'}`} style={{ width: `${vhc.capacity}%` }} />
+                                            <span className="text-[8px] font-bold text-slate-400 dark:text-slate-500 uppercase shrink-0">Used capacity</span>
+                                            <div className="flex-1 h-1 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                                                <div className={`h-full transition-all duration-700 ${selectedVehicle.id === vhc.id ? 'bg-blue-600' : 'bg-slate-400 dark:bg-slate-500'}`} style={{ width: `${vhc.capacity}%` }} />
                                             </div>
-                                            <span className="text-[9px] font-black tabular-nums shrink-0">{vhc.capacity}%</span>
+                                            <span className="text-[9px] font-black text-slate-800 dark:text-slate-100 tabular-nums shrink-0">{vhc.capacity}%</span>
                                         </div>
                                     </button>
                                 );
@@ -640,7 +648,7 @@ export default function Page() {
 
 function NavButton({ icon: Icon, label, active = false }: { icon: any, label?: string, active?: boolean }) {
     return (
-        <button className={`p-2 rounded-xl flex items-center gap-2 transition-all ${active ? 'bg-blue-50 text-blue-600' : 'text-slate-400 hover:bg-slate-50 hover:text-slate-600'}`}>
+        <button className={`p-2 rounded-xl flex items-center gap-2 transition-all ${active ? 'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-600 dark:hover:text-slate-300'}`}>
             <Icon size={18} />
             {label && <span className="text-xs font-black">{label}</span>}
         </button>
@@ -651,7 +659,7 @@ function IconButton({ icon: Icon, small = false, onClick }: { icon: any, small?:
     return (
         <button
             onClick={onClick}
-            className={`${small ? 'p-1.5' : 'p-2.5'} bg-white text-slate-400 rounded-xl border border-slate-100 hover:text-blue-600 hover:border-blue-100 transition-all shadow-sm active:scale-95`}
+            className={`${small ? 'p-1.5' : 'p-2.5'} bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-500 rounded-xl border border-slate-100 dark:border-slate-700 hover:text-blue-600 dark:hover:text-blue-400 hover:border-blue-100 dark:hover:border-blue-500/30 transition-all shadow-sm active:scale-95`}
         >
             <Icon size={small ? 14 : 18} />
         </button>
@@ -661,21 +669,21 @@ function IconButton({ icon: Icon, small = false, onClick }: { icon: any, small?:
 function StatLabel({ label, value }: { label: string, value: string }) {
     return (
         <div className="flex flex-col">
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 leading-none">{label}</span>
-            <span className="text-xs font-black text-slate-800 tabular-nums leading-none">{value}</span>
+            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1 leading-none">{label}</span>
+            <span className="text-xs font-black text-slate-800 dark:text-slate-100 tabular-nums leading-none">{value}</span>
         </div>
     );
 }
 
 function TelemetryCard({ label, value, icon: Icon }: { label: string, value: string, icon: any }) {
     return (
-        <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl flex flex-col gap-2 relative overflow-hidden group min-w-0">
-            <Icon size={16} className="text-slate-300 group-hover:text-blue-500 transition-colors" />
+        <div className="p-4 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700 rounded-2xl flex flex-col gap-2 relative overflow-hidden group min-w-0">
+            <Icon size={16} className="text-slate-300 dark:text-slate-600 group-hover:text-blue-500 dark:group-hover:text-blue-400 transition-colors" />
             <div className="flex flex-col">
-                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest leading-none mb-1.5">{label}</span>
-                <span className="text-lg font-black text-slate-800 tabular-nums leading-none">{value}</span>
+                <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest leading-none mb-1.5">{label}</span>
+                <span className="text-lg font-black text-slate-800 dark:text-slate-100 tabular-nums leading-none">{value}</span>
             </div>
-            <div className="absolute bottom-0 left-0 right-0 h-1 bg-slate-200">
+            <div className="absolute bottom-0 left-0 right-0 h-1 bg-slate-200 dark:bg-slate-700">
                 <div className="h-full bg-blue-600 transition-all duration-700" style={{ width: value.includes('%') ? value : '50%' }} />
             </div>
         </div>

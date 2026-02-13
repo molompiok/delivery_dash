@@ -85,9 +85,9 @@ const EditableField: React.FC<EditableFieldProps> = ({
                     type === 'textarea' ? (
                         <textarea
                             ref={inputRef as any}
-                            className={`w-full bg-white rounded-xl p-2.5 text-sm font-bold text-gray-900 outline-none min-h-[80px] resize-none transition-all ${isEditing
-                                ? 'border-2 border-blue-500 shadow-lg shadow-blue-500/10'
-                                : 'border border-gray-100 hover:border-gray-200 focus:border-blue-500 focus:border-2 focus:shadow-lg focus:shadow-blue-500/10'
+                            className={`w-full bg-white dark:bg-slate-900 rounded-xl p-2.5 text-sm font-bold text-gray-900 dark:text-slate-100 outline-none min-h-[80px] resize-none transition-all ${isEditing
+                                ? 'border-2 border-blue-500 dark:border-blue-400 shadow-lg shadow-blue-500/10'
+                                : 'border border-gray-100 dark:border-slate-800 hover:border-gray-200 dark:hover:border-slate-700 focus:border-blue-500 dark:focus:border-blue-400 focus:border-2 focus:shadow-lg focus:shadow-blue-500/10'
                                 }`}
                             value={tempValue}
                             onChange={(e) => setTempValue(e.target.value)}
@@ -101,9 +101,9 @@ const EditableField: React.FC<EditableFieldProps> = ({
                         <input
                             ref={inputRef as any}
                             type={type}
-                            className={`w-full bg-white rounded-xl px-3 py-2 text-sm font-bold text-gray-900 outline-none transition-all ${isEditing
-                                ? 'border-2 border-blue-500 shadow-lg shadow-blue-500/10'
-                                : 'border border-gray-100 hover:border-gray-200 focus:border-blue-500 focus:border-2 focus:shadow-lg focus:shadow-blue-500/10'
+                            className={`w-full bg-white dark:bg-slate-900 rounded-xl px-3 py-2 text-sm font-bold text-gray-900 dark:text-slate-100 outline-none transition-all ${isEditing
+                                ? 'border-2 border-blue-500 dark:border-blue-400 shadow-lg shadow-blue-500/10'
+                                : 'border border-gray-100 dark:border-slate-800 hover:border-gray-200 dark:hover:border-slate-700 focus:border-blue-500 dark:focus:border-blue-400 focus:border-2 focus:shadow-lg focus:shadow-blue-500/10'
                                 }`}
                             value={tempValue}
                             onChange={(e) => setTempValue(e.target.value)}
@@ -116,16 +116,16 @@ const EditableField: React.FC<EditableFieldProps> = ({
                     )
                 ) : (
                     <div
-                        className="w-full flex flex-col rounded-xl hover:bg-white hover:shadow-sm border border-transparent hover:border-gray-100 transition-all cursor-pointer group/field"
+                        className="w-full flex flex-col rounded-xl hover:bg-white dark:hover:bg-slate-800 hover:shadow-sm border border-transparent hover:border-gray-100 dark:hover:border-slate-700 transition-all cursor-pointer group/field"
                         onClick={() => setIsEditing(true)}
                     >
                         <div className="flex items-center justify-between px-3 py-2">
-                            <span className="text-sm font-bold text-gray-900 break-words flex-1">
+                            <span className="text-sm font-bold text-gray-900 dark:text-slate-100 break-words flex-1">
                                 {truncatedValue}
                             </span>
                             <Edit3
                                 size={14}
-                                className="text-gray-300 opacity-0 group-hover/field:opacity-100 transition-opacity ml-2 shrink-0"
+                                className="text-gray-300 dark:text-slate-600 opacity-0 group-hover/field:opacity-100 transition-opacity ml-2 shrink-0"
                             />
                         </div>
                         {isCollapsibleOverLimit && (

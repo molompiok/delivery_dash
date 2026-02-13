@@ -43,28 +43,28 @@ const ValidationDetailView: React.FC<ValidationDetailViewProps> = ({
                 animate="center"
                 exit="exit"
                 transition={transition}
-                className="absolute inset-0 flex flex-col bg-[#f8fafc]"
+                className="absolute inset-0 flex flex-col bg-[#f8fafc] dark:bg-slate-950"
             >
-                <div className={`flex items-center gap-4 p-6 border-b transition-colors ${stop.isPendingChange ? 'bg-blue-50 border-blue-100' : 'bg-white border-gray-100'}`}>
+                <div className={`flex items-center gap-4 p-6 border-b transition-colors ${stop.isPendingChange ? 'bg-blue-50 dark:bg-blue-500/10 border-blue-100 dark:border-blue-500/30' : 'bg-white dark:bg-slate-900 border-gray-100 dark:border-slate-800'}`}>
                     <button
                         onClick={() => {
                             setDirection(-1);
                             setView('product');
                         }}
-                        className="p-2 bg-gray-50 text-gray-500 hover:text-gray-900 rounded-xl transition-all"
+                        className="p-2 bg-gray-50 dark:bg-slate-800 text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-200 rounded-xl transition-all"
                     >
                         <ChevronLeft size={20} />
                     </button>
                     <div className="flex flex-col">
-                        <span className="text-[10px] text-purple-600 uppercase tracking-[0.2em] mb-0.5">
+                        <span className="text-[10px] text-purple-600 dark:text-purple-400 uppercase tracking-[0.2em] mb-0.5">
                             New Rule
                         </span>
-                        <h2 className="text-xl tracking-tight">Choose Type</h2>
+                        <h2 className="text-xl tracking-tight text-gray-900 dark:text-slate-100">Choose Type</h2>
                     </div>
                 </div>
 
                 <div className="flex-1 p-6 space-y-3">
-                    <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 px-1">Select Type</h3>
+                    <h3 className="text-[10px] font-black text-gray-400 dark:text-slate-500 uppercase tracking-widest mb-2 px-1">Select Type</h3>
 
                     <button
                         onClick={() => {
@@ -81,18 +81,18 @@ const ValidationDetailView: React.FC<ValidationDetailViewProps> = ({
                             setSelectedValidationType('photo');
                             setEditingValidationIdx(photoValidations.length);
                         }}
-                        className="w-full flex items-center justify-between p-4 bg-white rounded-2xl border border-transparent hover:border-blue-200 hover:shadow-md  group"
+                        className="w-full flex items-center justify-between p-4 bg-white dark:bg-slate-900 rounded-2xl border border-transparent hover:border-blue-200 dark:hover:border-blue-500/30 hover:shadow-md  group"
                     >
                         <div className="flex items-center gap-4">
-                            <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl group-hover:bg-blue-600 group-hover:text-white ">
+                            <div className="p-2.5 bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-xl group-hover:bg-blue-600 group-hover:text-white dark:group-hover:text-white">
                                 <Camera size={20} />
                             </div>
                             <div className="flex flex-col items-start leading-tight">
-                                <span className="text-sm font-bold text-gray-900">Photo Validation</span>
-                                <span className="text-[9px] text-gray-400 uppercase tracking-tighter">Capture evidence</span>
+                                <span className="text-sm font-bold text-gray-900 dark:text-slate-100">Photo Validation</span>
+                                <span className="text-[9px] text-gray-400 dark:text-slate-500 uppercase tracking-tighter">Capture evidence</span>
                             </div>
                         </div>
-                        <ChevronRight size={18} className="text-gray-300 group-hover:text-blue-500 group-hover:translate-x-0.5 " />
+                        <ChevronRight size={18} className="text-gray-300 dark:text-slate-600 group-hover:text-blue-500 dark:group-hover:text-blue-400 group-hover:translate-x-0.5 " />
                     </button>
 
                     <button
@@ -110,18 +110,18 @@ const ValidationDetailView: React.FC<ValidationDetailViewProps> = ({
                             setSelectedValidationType('code');
                             setEditingValidationIdx(codeValidations.length);
                         }}
-                        className="w-full flex items-center justify-between p-4 bg-white rounded-2xl border border-transparent hover:border-emerald-200 hover:shadow-md  group"
+                        className="w-full flex items-center justify-between p-4 bg-white dark:bg-slate-900 rounded-2xl border border-transparent hover:border-emerald-200 dark:hover:border-emerald-500/30 hover:shadow-md  group"
                     >
                         <div className="flex items-center gap-4">
-                            <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl group-hover:bg-emerald-600 group-hover:text-white ">
+                            <div className="p-2.5 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-xl group-hover:bg-emerald-600 group-hover:text-white dark:group-hover:text-white">
                                 <QrCode size={20} />
                             </div>
                             <div className="flex flex-col items-start leading-tight">
-                                <span className="text-sm font-bold text-gray-900">Code Scan</span>
-                                <span className="text-[9px] text-gray-400 uppercase tracking-tighter">QR or Barcode</span>
+                                <span className="text-sm font-bold text-gray-900 dark:text-slate-100">Code Scan</span>
+                                <span className="text-[9px] text-gray-400 dark:text-slate-500 uppercase tracking-tighter">QR or Barcode</span>
                             </div>
                         </div>
-                        <ChevronRight size={18} className="text-gray-300 group-hover:text-emerald-500 group-hover:translate-x-0.5 " />
+                        <ChevronRight size={18} className="text-gray-300 dark:text-slate-600 group-hover:text-emerald-500 dark:group-hover:text-emerald-400 group-hover:translate-x-0.5 " />
                     </button>
                 </div>
             </motion.div>
@@ -151,29 +151,29 @@ const ValidationDetailView: React.FC<ValidationDetailViewProps> = ({
             animate="center"
             exit="exit"
             transition={transition}
-            className="absolute inset-0 flex flex-col bg-[#f8fafc]"
+            className="absolute inset-0 flex flex-col bg-[#f8fafc] dark:bg-slate-950"
         >
             {/* Header */}
-            <div className={`flex items-center gap-4 p-6 border-b transition-colors ${stop.isPendingChange ? 'bg-blue-50 border-blue-100' : 'bg-white border-gray-100'}`}>
+            <div className={`flex items-center gap-4 p-6 border-b transition-colors ${stop.isPendingChange ? 'bg-blue-50 dark:bg-blue-500/10 border-blue-100 dark:border-blue-500/30' : 'bg-white dark:bg-slate-900 border-gray-100 dark:border-slate-800'}`}>
                 <button
                     onClick={() => {
                         setDirection(-1);
                         setView('product');
                     }}
-                    className="p-2 bg-gray-50 text-gray-500 hover:text-gray-900 rounded-xl transition-all"
+                    className="p-2 bg-gray-50 dark:bg-slate-800 text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-200 rounded-xl transition-all"
                 >
                     <ChevronLeft size={20} />
                 </button>
                 <div className="flex flex-col">
-                    <span className={`text-[10px] text-${typeInfo.color}-600 uppercase tracking-[0.2em] mb-0.5`}>
+                    <span className={`text-[10px] text-${typeInfo.color}-600 dark:text-${typeInfo.color}-400 uppercase tracking-[0.2em] mb-0.5`}>
                         {validation.name || 'Validation Setting'}
                     </span>
-                    <h2 className="text-xl tracking-tight">Configure Rules</h2>
+                    <h2 className="text-xl tracking-tight text-gray-900 dark:text-slate-100">Configure Rules</h2>
                 </div>
             </div>
 
             {/* Sub-Header / Name */}
-            <div className="p-6 bg-white/50 border-b border-gray-50">
+            <div className="p-6 bg-white/50 dark:bg-slate-900/50 border-b border-gray-50 dark:border-slate-800">
                 <EditableField
                     label="Validation Name"
                     value={validation.name || ''}
@@ -186,26 +186,26 @@ const ValidationDetailView: React.FC<ValidationDetailViewProps> = ({
             <div className="flex-1 overflow-y-auto scrollbar-hide p-6 space-y-6">
                 {/* Workflow */}
                 <section>
-                    <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4 px-1">Required Steps</h3>
+                    <h3 className="text-[10px] font-black text-gray-400 dark:text-slate-500 uppercase tracking-widest mb-4 px-1">Required Steps</h3>
                     <div className="grid grid-cols-2 gap-3">
                         <button
                             onClick={() => updateValidation('pickup', !validation.pickup)}
                             className={`flex items-center gap-3 p-4 rounded-3xl border transition-all ${validation.pickup
-                                ? `border-${typeInfo.color}-300 bg-${typeInfo.color}-50 text-${typeInfo.color}-700`
-                                : 'border-gray-50 bg-white text-gray-400'
+                                ? `border-${typeInfo.color}-300 dark:border-${typeInfo.color}-500/50 bg-${typeInfo.color}-50 dark:bg-${typeInfo.color}-500/10 text-${typeInfo.color}-700 dark:text-${typeInfo.color}-300`
+                                : 'border-gray-50 dark:border-slate-800 bg-white dark:bg-slate-900 text-gray-400 dark:text-slate-500'
                                 }`}
                         >
-                            <ArrowUpRight size={18} className={validation.pickup ? `text-${typeInfo.color}-600` : ''} />
+                            <ArrowUpRight size={18} className={validation.pickup ? `text-${typeInfo.color}-600 dark:text-${typeInfo.color}-400` : ''} />
                             <span className="text-[11px] font-black uppercase tracking-widest">Pickup</span>
                         </button>
                         <button
                             onClick={() => updateValidation('delivery', !validation.delivery)}
                             className={`flex items-center gap-3 p-4 rounded-3xl border transition-all ${validation.delivery
-                                ? `border-${typeInfo.color}-300 bg-${typeInfo.color}-50 text-${typeInfo.color}-700`
-                                : 'border-gray-50 bg-white text-gray-400'
+                                ? `border-${typeInfo.color}-300 dark:border-${typeInfo.color}-500/50 bg-${typeInfo.color}-50 dark:bg-${typeInfo.color}-500/10 text-${typeInfo.color}-700 dark:text-${typeInfo.color}-300`
+                                : 'border-gray-50 dark:border-slate-800 bg-white dark:bg-slate-900 text-gray-400 dark:text-slate-500'
                                 }`}
                         >
-                            <ArrowDownLeft size={18} className={validation.delivery ? `text-${typeInfo.color}-600` : ''} />
+                            <ArrowDownLeft size={18} className={validation.delivery ? `text-${typeInfo.color}-600 dark:text-${typeInfo.color}-400` : ''} />
                             <span className="text-[11px] font-black uppercase tracking-widest">Delivery</span>
                         </button>
                     </div>
@@ -216,18 +216,18 @@ const ValidationDetailView: React.FC<ValidationDetailViewProps> = ({
                     <button
                         onClick={() => updateValidation('compare', !validation.compare)}
                         className={`w-full flex items-center justify-between p-5 rounded-3xl border transition-all ${validation.compare
-                            ? `border-${typeInfo.color}-300 bg-${typeInfo.color}-50 text-${typeInfo.color}-700 shadow-sm`
-                            : 'border-gray-50 bg-white text-gray-400'
+                            ? `border-${typeInfo.color}-300 dark:border-${typeInfo.color}-500/50 bg-${typeInfo.color}-50 dark:bg-${typeInfo.color}-500/10 text-${typeInfo.color}-700 dark:text-${typeInfo.color}-300 shadow-sm`
+                            : 'border-gray-50 dark:border-slate-800 bg-white dark:bg-slate-900 text-gray-400 dark:text-slate-500'
                             }`}
                     >
                         <div className="flex items-center gap-3">
-                            <CheckCircle2 size={20} className={validation.compare ? `text-${typeInfo.color}-600` : ''} />
+                            <CheckCircle2 size={20} className={validation.compare ? `text-${typeInfo.color}-600 dark:text-${typeInfo.color}-400` : ''} />
                             <div className="flex flex-col items-start leading-tight">
                                 <span className="text-[12px] font-black uppercase tracking-widest">Compare Reference</span>
                                 <span className="text-[9px] font-medium opacity-60">Validate input against a source of truth</span>
                             </div>
                         </div>
-                        <div className={`w-10 h-5 rounded-full p-1 transition-colors ${validation.compare ? `bg-${typeInfo.color}-500` : 'bg-gray-200'}`}>
+                        <div className={`w-10 h-5 rounded-full p-1 transition-colors ${validation.compare ? `bg-${typeInfo.color}-500` : 'bg-gray-200 dark:bg-slate-600'}`}>
                             <div className={`w-3 h-3 bg-white rounded-full transition-transform ${validation.compare ? 'translate-x-5' : 'translate-x-0'}`} />
                         </div>
                     </button>
@@ -248,36 +248,36 @@ const ValidationDetailView: React.FC<ValidationDetailViewProps> = ({
                                         onChange={(val) => updateValidation('reference', val)}
                                     />
                                 ) : (
-                                    <div className={`border-2 border-dashed rounded-3xl p-6 transition-colors flex flex-col items-center justify-center gap-3 ${validation.reference ? `border-${typeInfo.color}-200 bg-${typeInfo.color}-50/30` : 'border-gray-100 bg-gray-50/30'
+                                    <div className={`border-2 border-dashed rounded-3xl p-6 transition-colors flex flex-col items-center justify-center gap-3 ${validation.reference ? `border-${typeInfo.color}-200 dark:border-${typeInfo.color}-800 bg-${typeInfo.color}-50/30 dark:bg-${typeInfo.color}-900/10` : 'border-gray-100 dark:border-slate-800 bg-gray-50/30 dark:bg-slate-800/30'
                                         }`}>
                                         {validation.reference ? (
                                             <div className="flex items-center gap-4 w-full">
-                                                <div className={`p-3 rounded-2xl bg-${typeInfo.color}-100 text-${typeInfo.color}-600`}>
+                                                <div className={`p-3 rounded-2xl bg-${typeInfo.color}-100 dark:bg-${typeInfo.color}-900/30 text-${typeInfo.color}-600 dark:text-${typeInfo.color}-400`}>
                                                     <ImageIcon size={24} />
                                                 </div>
                                                 <div className="flex-1 min-w-0">
-                                                    <span className="text-sm font-bold text-gray-700 block truncate">reference_photo.jpg</span>
-                                                    <span className="text-[10px] text-gray-400 uppercase font-black">Ready for comparison</span>
+                                                    <span className="text-sm font-bold text-gray-700 dark:text-slate-300 block truncate">reference_photo.jpg</span>
+                                                    <span className="text-[10px] text-gray-400 dark:text-slate-500 uppercase font-black">Ready for comparison</span>
                                                 </div>
                                                 <button
                                                     onClick={() => updateValidation('reference', null)}
-                                                    className="p-2 text-gray-300 hover:text-rose-500 hover:bg-rose-50 rounded-xl opacity-0 group-hover:opacity-100 transition-all"
+                                                    className="p-2 text-gray-300 dark:text-slate-500 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-xl opacity-0 group-hover:opacity-100 transition-all"
                                                 >
                                                     <Trash2 size={18} />
                                                 </button>
                                             </div>
                                         ) : (
                                             <>
-                                                <div className="p-4 bg-white rounded-full shadow-sm text-gray-300">
+                                                <div className="p-4 bg-white dark:bg-slate-900 rounded-full shadow-sm text-gray-300 dark:text-slate-600">
                                                     <Upload size={32} />
                                                 </div>
                                                 <div className="text-center">
-                                                    <p className="text-[11px] font-black text-gray-500 uppercase tracking-widest">Reference Source Needed</p>
-                                                    <p className="text-[9px] text-gray-400 mt-1 px-4">Import the photo that the driver must match during the operation.</p>
+                                                    <p className="text-[11px] font-black text-gray-500 dark:text-slate-400 uppercase tracking-widest">Reference Source Needed</p>
+                                                    <p className="text-[9px] text-gray-400 dark:text-slate-500 mt-1 px-4">Import the photo that the driver must match during the operation.</p>
                                                 </div>
                                                 <button
                                                     onClick={() => updateValidation('reference', 'mock_id')}
-                                                    className={`mt-2 px-6 py-3 rounded-2xl bg-white border-2 border-gray-100 text-[11px] font-black uppercase text-gray-500 hover:border-${typeInfo.color}-300 hover:text-${typeInfo.color}-600 hover:shadow-lg transition-all`}
+                                                    className={`mt-2 px-6 py-3 rounded-2xl bg-white dark:bg-slate-900 border-2 border-gray-100 dark:border-slate-800 text-[11px] font-black uppercase text-gray-500 dark:text-slate-400 hover:border-${typeInfo.color}-300 dark:hover:border-${typeInfo.color}-700 hover:text-${typeInfo.color}-600 dark:hover:text-${typeInfo.color}-400 hover:shadow-lg transition-all`}
                                                 >
                                                     Choose Reference Photo
                                                 </button>
@@ -292,18 +292,18 @@ const ValidationDetailView: React.FC<ValidationDetailViewProps> = ({
             </div>
 
             {/* Footer */}
-            <div className="p-6 bg-white border-t border-gray-100 flex gap-3">
+            <div className="p-6 bg-white dark:bg-slate-900 border-t border-gray-100 dark:border-slate-800 flex gap-3">
                 <button
                     onClick={() => {
                         setDirection(-1);
                         setView('stop');
                     }}
-                    className={`w-full py-4 text-[12px] font-black text-white bg-${typeInfo.color}-600 hover:bg-${typeInfo.color}-700 rounded-3xl uppercase tracking-widest shadow-lg shadow-${typeInfo.color}-200 transition-all`}
+                    className={`w-full py-4 text-[12px] font-black text-white bg-${typeInfo.color}-600 hover:bg-${typeInfo.color}-700 rounded-3xl uppercase tracking-widest shadow-lg shadow-${typeInfo.color}-200 dark:shadow-${typeInfo.color}-500/20 transition-all`}
                 >
                     Continuer
                 </button>
             </div>
-        </motion.div>
+        </motion.div >
     );
 };
 

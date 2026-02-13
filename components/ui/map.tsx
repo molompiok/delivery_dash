@@ -101,8 +101,8 @@ function useMap() {
 }
 
 const defaultStyles = {
-    dark: "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
-    light: "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
+    dark: "https://tiles.basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
+    light: "https://tiles.basemaps.cartocdn.com/gl/positron-gl-style/style.json",
 };
 
 type MapStyleOption = string | MapLibreGL.StyleSpecification;
@@ -149,6 +149,8 @@ type MapProps = {
     onViewportChange?: (viewport: MapViewport) => void;
     /** Callback fired when the map is clicked. */
     onClick?: (e: MapLibreGL.MapMouseEvent & any) => void;
+    /** Custom cursor for the map */
+    cursor?: string;
 } & Omit<MapLibreGL.MapOptions, "container" | "style">;
 
 type MapRef = MapLibreGL.Map;
@@ -190,6 +192,9 @@ const Map = forwardRef<MapRef, MapProps>(function Map(
     const onViewportChangeRef = useRef(onViewportChange);
     onViewportChangeRef.current = onViewportChange;
 
+    const onClickRef = useRef(props.onClick);
+    onClickRef.current = props.onClick;
+
     const mapStyles = useMemo(
         () => ({
             dark: styles?.dark ?? defaultStyles.dark,
@@ -219,7 +224,7 @@ const Map = forwardRef<MapRef, MapProps>(function Map(
         const map = new MapLibreGL.Map({
             container: containerRef.current,
             style: initialStyle,
-            renderWorldCopies: false,
+            renderWorldCopies: true,
             attributionControl: {
                 compact: true,
             },
@@ -248,7 +253,7 @@ const Map = forwardRef<MapRef, MapProps>(function Map(
         };
 
         const handleClick = (e: MapLibreGL.MapMouseEvent & any) => {
-            props.onClick?.(e);
+            onClickRef.current?.(e);
         };
 
         map.on("load", loadHandler);
@@ -328,6 +333,7 @@ const Map = forwardRef<MapRef, MapProps>(function Map(
             <div
                 ref={containerRef}
                 className={cn("relative w-full h-full", className)}
+                style={{ cursor: props.cursor }}
             >
                 {!isLoaded && <DefaultLoader />}
                 {/* SSR-safe: children render only when map is loaded on client */}
@@ -412,7 +418,10 @@ function MapMarker({
             draggable,
         }).setLngLat([longitude, latitude]);
 
-        const handleClick = (e: MouseEvent) => callbacksRef.current.onClick?.(e); const handleMouseEnter = (e: MouseEvent) =>
+        const handleClick = (e: MouseEvent) => {
+            e.stopPropagation();
+            callbacksRef.current.onClick?.(e);
+        }; const handleMouseEnter = (e: MouseEvent) =>
             callbacksRef.current.onMouseEnter?.(e);
         const handleMouseLeave = (e: MouseEvent) =>
             callbacksRef.current.onMouseLeave?.(e);
@@ -1064,6 +1073,8 @@ function MapRoute({
     interactive = true,
 }: MapRouteProps) {
     const { map, isLoaded } = useMap();
+    const onClickRef = useRef(onClick);
+    onClickRef.current = onClick;
     const autoId = useId();
     const id = propId ?? autoId;
     const sourceId = `route-source-${id}`;
@@ -1136,7 +1147,7 @@ function MapRoute({
         if (!isLoaded || !map || !interactive) return;
 
         const handleClick = () => {
-            onClick?.();
+            onClickRef.current?.();
         };
         const handleMouseEnter = () => {
             map.getCanvas().style.cursor = "pointer";

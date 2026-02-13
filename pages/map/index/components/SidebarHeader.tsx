@@ -10,7 +10,7 @@ export const SidebarHeader: React.FC<SidebarHeaderProps> = ({ isFollowing, onTog
     <div className="p-5 border-b border-gray-100 flex items-center justify-between">
         <button
             onClick={onToggleFollow}
-            className={`flex flex-col items-center gap-1 group px-3 py-1.5 rounded-xl border transition-all ${isFollowing ? 'bg-emerald-600 border-emerald-600 text-white shadow-md shadow-emerald-200' : 'bg-white border-gray-100 text-gray-400 hover:border-emerald-200 hover:text-emerald-600'}`}
+            className={`flex flex-col items-center gap-1 group px-3 py-1.5 rounded-xl border transition-all ${isFollowing ? 'bg-emerald-600 border-emerald-600 text-white shadow-md shadow-emerald-200' : 'bg-white dark:bg-slate-800 border-gray-100 dark:border-slate-700 text-gray-400 hover:border-emerald-200 hover:text-emerald-600'}`}
             title={isFollowing ? "Désactiver le suivi" : "Activer le suivi automatique"}
         >
             <span className="text-[10px] font-bold uppercase tracking-wide flex items-center gap-1">
@@ -23,8 +23,8 @@ export const SidebarHeader: React.FC<SidebarHeaderProps> = ({ isFollowing, onTog
                 <Navigation size={20} />
             </div>
             <div>
-                <h1 className="font-bold text-gray-900 text-lg leading-tight">Suivi Flotte</h1>
-                <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Dashboard Map</p>
+                <h1 className="font-bold text-slate-900 dark:text-slate-100 text-lg leading-tight">Suivi Flotte</h1>
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium uppercase tracking-wider">Dashboard Map</p>
             </div>
         </div>
     </div>

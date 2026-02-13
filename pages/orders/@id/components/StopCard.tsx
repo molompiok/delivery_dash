@@ -65,10 +65,10 @@ const StopCard = ({
             <div
                 ref={setNodeRef}
                 style={style}
-                className="bg-white/50 rounded-[16px] p-4 border border-blue-100 flex flex-col items-center justify-center py-8 animate-pulse grayscale"
+                className="bg-white/50 dark:bg-slate-900/50 rounded-[16px] p-4 border border-blue-100 dark:border-blue-900/30 flex flex-col items-center justify-center py-8 animate-pulse grayscale"
             >
-                <div className="w-8 h-8 rounded-full border-2 border-blue-200 border-t-blue-600 animate-spin mb-3"></div>
-                <div className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Création en cours...</div>
+                <div className="w-8 h-8 rounded-full border-2 border-blue-200 dark:border-blue-900/50 border-t-blue-600 dark:border-t-blue-400 animate-spin mb-3"></div>
+                <div className="text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest">Création en cours...</div>
             </div>
         );
     }
@@ -87,8 +87,8 @@ const StopCard = ({
             style={style}
             key={stop.id}
             onClick={() => onOpenDetail?.(stop)}
-            className={`bg-white rounded-[16px] p-4 shadow-sm border flex flex-col transition-shadow cursor-default group relative ${isDragging ? 'opacity-50 shadow-2xl z-50 ring-2 ring-blue-500/20' : 'hover:shadow-md'
-                } ${stop.isPendingChange ? 'border-blue-500 border-2 shadow-blue-500/10' : 'border-gray-50'}`}
+            className={`bg-white dark:bg-slate-900 rounded-[16px] p-4 shadow-sm border flex flex-col transition-all cursor-default group relative ${isDragging ? 'opacity-50 shadow-2xl z-50 ring-2 ring-blue-500/20' : 'hover:shadow-md'
+                } ${stop.isPendingChange ? 'border-blue-500 dark:border-blue-400 border-2 shadow-blue-500/10' : 'border-gray-50 dark:border-slate-800'}`}
         >
             <div className="flex items-start justify-between gap-3 mb-2">
                 <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -98,7 +98,7 @@ const StopCard = ({
                         <div
                             {...attributes}
                             {...listeners}
-                            className="p-1 -ml-1 text-gray-300 hover:text-gray-500 cursor-grab active:cursor-grabbing transition-colors"
+                            className="p-1 -ml-1 text-gray-300 dark:text-slate-600 hover:text-gray-500 dark:hover:text-slate-400 cursor-grab active:cursor-grabbing transition-colors"
                             title="Drag to reorder"
                         >
                             <GripVertical size={18} />
@@ -108,7 +108,7 @@ const StopCard = ({
                         {!isFirst && onMoveUp && (
                             <button
                                 onClick={(e) => { e.stopPropagation(); onMoveUp(); }}
-                                className="absolute -top-3 -left-2 p-0.5 bg-white border border-gray-100 rounded-full text-blue-500 opacity-0 group-hover/reorder:opacity-100 hover:bg-blue-50 transition-all shadow-sm z-30"
+                                className="absolute -top-3 -left-2 p-0.5 bg-white dark:bg-slate-800 border border-gray-100 dark:border-slate-700 rounded-full text-blue-500 dark:text-blue-400 opacity-0 group-hover/reorder:opacity-100 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-all shadow-sm z-30"
                                 title="Move Up"
                             >
                                 <ChevronUp size={12} />
@@ -117,7 +117,7 @@ const StopCard = ({
                         {!isLast && onMoveDown && (
                             <button
                                 onClick={(e) => { e.stopPropagation(); onMoveDown(); }}
-                                className="absolute -bottom-3 -left-2 p-0.5 bg-white border border-gray-100 rounded-full text-blue-500 opacity-0 group-hover/reorder:opacity-100 hover:bg-blue-50 transition-all shadow-sm z-30"
+                                className="absolute -bottom-3 -left-2 p-0.5 bg-white dark:bg-slate-800 border border-gray-100 dark:border-slate-700 rounded-full text-blue-500 dark:text-blue-400 opacity-0 group-hover/reorder:opacity-100 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-all shadow-sm z-30"
                                 title="Move Down"
                             >
                                 <ChevronDown size={12} />
@@ -125,38 +125,38 @@ const StopCard = ({
                         )}
                     </div>
                     <div className="flex flex-col min-w-0">
-                        <h3 className="text-sm font-bold text-gray-900 truncate tracking-tight">
+                        <h3 className="text-sm font-bold text-gray-900 dark:text-slate-100 truncate tracking-tight">
                             {typeof stop.address === 'object' ? stop.address.street || 'En attente...' : (stop.address || "Indéfini")}
                         </h3>
-                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest truncate">{formatId(stop.id)}</span>
+                        <span className="text-[10px] font-bold text-gray-400 dark:text-slate-500 uppercase tracking-widest truncate">{formatId(stop.id)}</span>
                     </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                     <div className="flex items-center gap-2">
                         {stop.status === 'PENDING' && (
-                            <span className="flex items-center gap-1 text-[9px] font-black text-gray-600 bg-gray-50 px-1.5 py-0.5 rounded-md uppercase tracking-wide">
+                            <span className="flex items-center gap-1 text-[9px] font-black text-gray-600 dark:text-slate-400 bg-gray-50 dark:bg-slate-800/50 px-1.5 py-0.5 rounded-md uppercase tracking-wide">
                                 <Clock size={10} /> En attente
                             </span>
                         )}
                         {stop.status === 'COMPLETED' && (
-                            <span className="flex items-center gap-1 text-[9px] font-black text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-md uppercase tracking-wide">
+                            <span className="flex items-center gap-1 text-[9px] font-black text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-1.5 py-0.5 rounded-md uppercase tracking-wide">
                                 <ShieldCheck size={10} /> Validé
                             </span>
                         )}
                         {stop.status === 'FAILED' && (
-                            <span className="flex items-center gap-1 text-[9px] font-black text-red-600 bg-red-50 px-1.5 py-0.5 rounded-md uppercase tracking-wide">
+                            <span className="flex items-center gap-1 text-[9px] font-black text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 px-1.5 py-0.5 rounded-md uppercase tracking-wide">
                                 <AlertCircle size={10} /> Échec
                             </span>
                         )}
                         {stop.status === 'ARRIVED' && (
-                            <span className="flex items-center gap-1 text-[9px] font-black text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-md uppercase tracking-wide">
+                            <span className="flex items-center gap-1 text-[9px] font-black text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 px-1.5 py-0.5 rounded-md uppercase tracking-wide">
                                 <Truck size={10} /> Arrivé
                             </span>
                         )}
                     </div>
                     <button
                         onClick={(e) => { e.stopPropagation(); onOpenDetail?.(stop); }}
-                        className="p-1.5 hover:bg-gray-50 rounded-lg text-gray-400 transition-colors shrink-0"
+                        className="p-1.5 hover:bg-gray-50 dark:hover:bg-slate-800 rounded-lg text-gray-400 dark:text-slate-500 transition-colors shrink-0"
                     >
                         <Edit3 size={16} />
                     </button>
@@ -175,9 +175,9 @@ const StopCard = ({
                         >
                             {/* Top Row: Product Name & Quantity & TypeIcon */}
                             <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-2 min-w-0">
+                                <div className="flex items-center gap-2 min-w-0 text-slate-400 dark:text-slate-500">
                                     <ChevronRight size={14} />
-                                    <span className="text-xs font-bold text-gray-900 truncate">
+                                    <span className="text-xs font-bold text-gray-900 dark:text-slate-200 truncate">
                                         {(['pickup', 'delivery'].includes(action.type?.toLowerCase()) && action.transitItem?.name)
                                             ? action.transitItem.name
                                             : action.productName}
@@ -185,17 +185,17 @@ const StopCard = ({
                                 </div>
                                 <div className="flex items-center gap-1">
                                     {action.type === 'service' ? (
-                                        <span className="text-[10px] font-black text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-md">
+                                        <span className="text-[10px] font-black text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 px-1.5 py-0.5 rounded-md">
                                             {action.service_time || 10} min
                                         </span>
                                     ) : (
-                                        <span className="text-[10px] font-black text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-md">
+                                        <span className="text-[10px] font-black text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 px-1.5 py-0.5 rounded-md">
                                             x{action.quantity}
                                         </span>
                                     )}
-                                    <div className={`p-1 rounded-md ${action.type === 'pickup' ? 'bg-orange-50 text-orange-600' :
-                                        action.type === 'delivery' ? 'bg-emerald-50 text-emerald-600' :
-                                            'bg-blue-50 text-blue-600'
+                                    <div className={`p-1 rounded-md ${action.type === 'pickup' ? 'bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400' :
+                                        action.type === 'delivery' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' :
+                                            'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400'
                                         }`}>
                                         {action.type === 'pickup' ? <ArrowUpRight size={14} /> :
                                             action.type === 'delivery' ? <ArrowDownLeft size={14} /> :
@@ -208,9 +208,9 @@ const StopCard = ({
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-1">
                                     {action.requirements.map((req: string, i: number) => (
-                                        <span key={i} className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[11px]  uppercase tracking-tighter ${req === 'froid' ? 'bg-blue-50 text-blue-600' :
-                                            req === 'fragile' ? 'bg-rose-50 text-rose-600' :
-                                                'bg-gray-100 text-gray-600'
+                                        <span key={i} className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[11px] uppercase tracking-tighter ${req === 'froid' ? 'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400' :
+                                            req === 'fragile' ? 'bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400' :
+                                                'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-400'
                                             }`}>
                                             {req === 'froid' && <ThermometerSnowflake size={10} />}
                                             {req === 'fragile' && <AlertCircle size={10} />}
@@ -218,19 +218,19 @@ const StopCard = ({
                                         </span>
                                     ))}
                                     {action.requirements.length === 0 && (
-                                        <span className="px-1.5 py-0.5 rounded-md text-[11px] uppercase tracking-tighter bg-gray-50 text-gray-400">Générique</span>
+                                        <span className="px-1.5 py-0.5 rounded-md text-[11px] uppercase tracking-tighter bg-gray-50 dark:bg-slate-800/10 text-gray-400 dark:text-slate-500">Générique</span>
                                     )}
                                 </div>
 
                                 <div className="flex items-center gap-2">
                                     {/* Secure Indicator */}
                                     {action.secure !== 'none' && (
-                                        <div className="flex items-center gap-1 text-gray-400" title={`Validation by ${action.secure}`}>
+                                        <div className="flex items-center gap-1 text-gray-400 dark:text-slate-600" title={`Validation by ${action.secure}`}>
                                             {action.secure === 'photo' ? <Camera size={14} /> : <QrCode size={14} />}
-                                            <ShieldCheck size={12} className="text-blue-400" />
+                                            <ShieldCheck size={12} className="text-blue-400 dark:text-blue-500" />
                                         </div>
                                     )}
-                                    <span className={`text-[11px]  uppercase tracking-widest ${action.status === 'Pending' ? 'text-gray-400' : 'text-blue-600'}`}>
+                                    <span className={`text-[11px] uppercase tracking-widest ${action.status === 'Pending' ? 'text-gray-400 dark:text-slate-500' : 'text-blue-600 dark:text-blue-400'}`}>
                                         {action.status}
                                     </span>
                                 </div>
@@ -245,7 +245,7 @@ const StopCard = ({
                             e.stopPropagation();
                             setIsExpanded(!isExpanded);
                         }}
-                        className="w-full flex items-center justify-center gap-2 py-2 text-[10px] font-black uppercase tracking-widest text-blue-600 hover:bg-blue-50 rounded-xl transition-all border border-blue-100/50 mt-2"
+                        className="w-full flex items-center justify-center gap-2 py-2 text-[10px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-xl transition-all border border-blue-100/50 dark:border-blue-900/10 mt-2"
                     >
                         <span>{isExpanded ? 'Show less' : `+ ${stop.actions.length - 3} actions`}</span>
                         <motion.div
@@ -260,23 +260,23 @@ const StopCard = ({
 
             {/* Client info - Only show if name or phone exists */}
             {(stop.client.name || stop.client.phone) && (
-                <div className="pt-4 border-t border-gray-50 flex items-center justify-between gap-2">
+                <div className="pt-4 border-t border-gray-50 dark:border-slate-800 flex items-center justify-between gap-2 mt-4">
                     <div className="flex items-center gap-3 min-w-0">
                         {stop.client.avatar ? (
-                            <img src={stop.client.avatar} alt={stop.client.name} className="w-8 h-8 rounded-full border border-gray-100 shrink-0" />
+                            <img src={stop.client.avatar} alt={stop.client.name} className="w-8 h-8 rounded-full border border-gray-100 dark:border-slate-700 shrink-0" />
                         ) : (
-                            <div className="w-8 h-8 rounded-full bg-blue-50 border border-blue-100 flex items-center justify-center shrink-0">
-                                <span className="text-[10px] font-black text-blue-600 uppercase">
+                            <div className="w-8 h-8 rounded-full bg-blue-50 dark:bg-blue-500/10 border border-blue-100 dark:border-blue-900/30 flex items-center justify-center shrink-0">
+                                <span className="text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase">
                                     {stop.client.name ? stop.client.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2) : '?'}
                                 </span>
                             </div>
                         )}
                         <div className="min-w-0">
-                            <div className="text-[11px] font-bold text-gray-900 truncate">{stop.client.name || 'Sans Nom'}</div>
+                            <div className="text-[11px] font-bold text-gray-900 dark:text-slate-100 truncate">{stop.client.name || 'Sans Nom'}</div>
                             <div className="flex items-center gap-2">
-                                <span className="text-[10px] font-medium text-gray-400 uppercase shrink-0">Client</span>
+                                <span className="text-[10px] font-medium text-gray-400 dark:text-slate-500 uppercase shrink-0">Client</span>
                                 {stop.estimatedTime && (
-                                    <div className="flex items-center gap-1 px-1.5 py-0.5 bg-gray-50 text-gray-400 rounded-md shrink-0">
+                                    <div className="flex items-center gap-1 px-1.5 py-0.5 bg-gray-50 dark:bg-slate-800/50 text-gray-400 dark:text-slate-500 rounded-md shrink-0">
                                         <Clock size={10} />
                                         <span className="text-[9px] font-black">{stop.estimatedTime}</span>
                                     </div>
@@ -286,10 +286,10 @@ const StopCard = ({
                     </div>
                     {stop.client.phone && (
                         <div className="flex gap-2 shrink-0">
-                            <button className="p-2 bg-gray-50 text-blue-600 rounded-full hover:bg-blue-50 transition-colors">
+                            <button className="p-2 bg-gray-50 dark:bg-slate-800/50 text-blue-600 dark:text-blue-400 rounded-full hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors">
                                 <Phone size={14} />
                             </button>
-                            <button className="p-2 bg-gray-50 text-blue-600 rounded-full hover:bg-blue-50 transition-colors">
+                            <button className="p-2 bg-gray-50 dark:bg-slate-800/50 text-blue-600 dark:text-blue-400 rounded-full hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors">
                                 <MessageSquare size={14} />
                             </button>
                         </div>

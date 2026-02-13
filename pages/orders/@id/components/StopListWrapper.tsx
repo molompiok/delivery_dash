@@ -132,15 +132,15 @@ const StopListWrapper = ({
                 {isLinked ? (
                     <div className="relative pl-7 transition-all duration-500 ease-in-out">
                         {/* Dashed Vertical Rail */}
-                        <div className="absolute left-[12px] top-12 bottom-12 w-0 border-l-2 border-dashed border-blue-600/20"></div>
+                        <div className="absolute left-[12px] top-12 bottom-12 w-0 border-l-2 border-dashed border-blue-600/20 dark:border-blue-400/20"></div>
 
                         <div className="space-y-4">
                             {stops.map((stop, idx) => (
                                 <div key={stop.id} className="relative group/linked">
                                     {/* Circular connection point on the rail */}
-                                    <div className="absolute -left-[19px] top-11 w-[9px] h-[9px] rounded-full border-2 border-blue-600 bg-white z-20 shadow-sm transition-all group-hover/linked:scale-125 group-hover/linked:border-blue-700"></div>
-                                    <div className="absolute -left-[23px] top-14 z-20 group-hover/linked:scale-125 group-hover/linked:border-blue-700">
-                                        <ChevronDownIcon className="w-4 h-4 text-blue-600" />
+                                    <div className="absolute -left-[19px] top-11 w-[9px] h-[9px] rounded-full border-2 border-blue-600 dark:border-blue-400 bg-white dark:bg-slate-900 z-20 shadow-sm transition-all group-hover/linked:scale-125 group-hover/linked:border-blue-700 dark:group-hover/linked:border-blue-300"></div>
+                                    <div className="absolute -left-[23px] top-14 z-20 group-hover/linked:scale-125 group-hover/linked:border-blue-700 dark:group-hover/linked:border-blue-300">
+                                        <ChevronDownIcon className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                                     </div>
 
                                     <SortableStopItem

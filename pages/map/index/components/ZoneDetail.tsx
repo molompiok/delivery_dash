@@ -90,9 +90,9 @@ export const ZoneDetail: React.FC<ZoneDetailProps> = ({
                 <div className="space-y-6">
                     <button
                         onClick={onBack}
-                        className="flex items-center gap-2 text-gray-500 hover:text-gray-900 mb-2 font-medium text-xs uppercase tracking-wide group"
+                        className="flex items-center gap-2 text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-100 mb-2 font-medium text-xs uppercase tracking-wide group"
                     >
-                        <div className="p-1 bg-gray-100 rounded-lg group-hover:bg-gray-200 transition-colors">
+                        <div className="p-1 bg-gray-100 dark:bg-slate-800 rounded-lg group-hover:bg-gray-200 dark:group-hover:bg-slate-700 transition-colors">
                             <ChevronLeft size={14} />
                         </div>
                         Retour à la liste
@@ -138,7 +138,7 @@ export const ZoneDetail: React.FC<ZoneDetailProps> = ({
                                 <div className="flex items-center gap-1.5">
                                     <button
                                         onClick={() => onEdit({ isActive: !zone.isActive })}
-                                        className={`p-1.5 rounded-lg transition-all ${zone.isActive ? 'bg-emerald-50 text-emerald-600' : 'bg-gray-100 text-gray-400 opacity-50'}`}
+                                        className={`p-1.5 rounded-lg transition-all ${zone.isActive ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-gray-100 dark:bg-slate-800 text-gray-400 dark:text-slate-500 opacity-50'}`}
                                         title={zone.isActive ? 'Désactiver' : 'Activer'}
                                     >
                                         <Activity size={16} strokeWidth={3} />
@@ -155,11 +155,11 @@ export const ZoneDetail: React.FC<ZoneDetailProps> = ({
                             <div className="flex items-center gap-3">
                                 <div className="flex items-center gap-2">
                                     <div className="w-3 h-3 rounded-full" style={{ backgroundColor: zone.color }}></div>
-                                    <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">{zone.sector || 'Non classé'}</span>
+                                    <span className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">{zone.sector || 'Non classé'}</span>
                                 </div>
                                 <button
                                     onClick={() => onEdit({ isActive: !zone.isActive })}
-                                    className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase transition-colors ${zone.isActive ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border border-emerald-200' : 'bg-gray-100 text-gray-500 hover:bg-gray-200 border border-gray-200'}`}
+                                    className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase transition-colors ${zone.isActive ? 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-200 dark:hover:bg-emerald-500/30 border border-emerald-200 dark:border-emerald-500/40' : 'bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-700 border border-gray-200 dark:border-slate-700'}`}
                                 >
                                     {zone.isActive ? 'Actif' : 'Inactif'}
                                 </button>
@@ -169,12 +169,12 @@ export const ZoneDetail: React.FC<ZoneDetailProps> = ({
 
                     {/* Settings */}
                     <div className="grid grid-cols-2 gap-3">
-                        <div className="p-3 bg-gray-50 rounded-xl border border-gray-100 relative group/picker">
+                        <div className="p-3 bg-gray-50 dark:bg-slate-800/50 rounded-xl border border-gray-100 dark:border-slate-800 relative group/picker">
                             <div className="flex items-center justify-between mb-1">
-                                <label className="text-[10px] font-bold text-gray-400 uppercase">Couleur</label>
+                                <label className="text-[10px] font-bold text-gray-400 dark:text-slate-500 uppercase">Couleur</label>
                                 <button
                                     onClick={() => setShowColorPicker(!showColorPicker)}
-                                    className="p-1 rounded-md hover:bg-white hover:shadow-sm border border-transparent hover:border-gray-200 transition-all text-gray-400 hover:text-emerald-500"
+                                    className="p-1 rounded-md hover:bg-white dark:hover:bg-slate-700 hover:shadow-sm border border-transparent hover:border-gray-200 dark:hover:border-slate-600 transition-all text-gray-400 hover:text-emerald-500 dark:hover:text-emerald-400"
                                 >
                                     <Plus size={14} />
                                 </button>
@@ -207,11 +207,11 @@ export const ZoneDetail: React.FC<ZoneDetailProps> = ({
                             )}
                         </div>
 
-                        <div ref={containerRef} className="p-3 bg-gray-50 rounded-xl border border-gray-100 flex flex-col justify-between relative">
-                            <label className="text-[10px] font-bold text-gray-400 uppercase mb-1">Groupe</label>
+                        <div ref={containerRef} className="p-3 bg-gray-50 dark:bg-slate-800/50 rounded-xl border border-gray-100 dark:border-slate-800 flex flex-col justify-between relative">
+                            <label className="text-[10px] font-bold text-gray-400 dark:text-slate-500 uppercase mb-1">Groupe</label>
                             <div className="relative">
                                 <input
-                                    className="w-full bg-white border border-gray-200 text-xs font-bold rounded-lg p-1.5 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all"
+                                    className="w-full bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 text-xs font-bold rounded-lg p-1.5 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all dark:text-slate-100"
                                     value={isGroupFocused ? groupSearch : (zone.sector || '')}
                                     placeholder="Nouveau groupe..."
                                     onFocus={() => {
@@ -290,9 +290,9 @@ export const ZoneDetail: React.FC<ZoneDetailProps> = ({
                         <div className="space-y-2">
                             {assignedDrivers.length > 0 ? (
                                 assignedDrivers.map(d => (
-                                    <div key={d.id} className="flex items-center justify-between p-2 bg-white border border-gray-100 rounded-xl shadow-sm group">
+                                    <div key={d.id} className="flex items-center justify-between p-2 bg-white dark:bg-slate-800/50 border border-gray-100 dark:border-slate-800 rounded-xl shadow-sm group">
                                         <div className="flex items-center gap-3">
-                                            <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center font-bold text-gray-500 text-xs">
+                                            <div className="w-8 h-8 rounded-full bg-gray-100 dark:bg-slate-700 flex items-center justify-center font-bold text-gray-500 dark:text-slate-400 text-xs">
                                                 {d.photo ? <img src={d.photo} alt="" className="w-full h-full rounded-full object-cover" /> : `${d.firstName[0]}${d.lastName[0]}`}
                                             </div>
                                             <div>
