@@ -53,6 +53,14 @@ const StopDetailPanel: React.FC<StopDetailPanelProps> = ({
     const [transitItemSearch, setTransitItemSearch] = useState('');
     const [isSearchingTransitItems, setIsSearchingTransitItems] = useState(false);
     const [isCreatingTransitItem, setIsCreatingTransitItem] = useState(false);
+    const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1200);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const handleResize = () => setWindowWidth(window.innerWidth);
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
 
     // New Transit Item Form State
     const [newItemForm, setNewItemForm] = useState<NewItemFormState>({
@@ -372,7 +380,8 @@ const StopDetailPanel: React.FC<StopDetailPanelProps> = ({
 
                     {/* Panel */}
                     <div
-                        className="fixed right-0 top-0 bottom-0 w-[420px] bg-[#f8fafc] dark:bg-slate-950 shadow-2xl z-[101] flex flex-col border-l border-white/50 dark:border-slate-800 overflow-hidden"
+                        className="fixed right-0 top-0 bottom-0 bg-[#f8fafc] dark:bg-slate-950 shadow-2xl z-[101] flex flex-col border-l border-white/50 dark:border-slate-800 overflow-hidden transition-all duration-300"
+                        style={{ width: windowWidth < 650 ? '100%' : '420px' }}
                     >
                         <AnimatePresence mode="wait" custom={direction}>
                             {renderContent()}

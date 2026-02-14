@@ -31,7 +31,7 @@ const ListOptions = ({
             {/* Left Section: Search or Search Input */}
             <div className="flex-1 min-w-0">
                 {step.isSearchExpanded ? (
-                    <div className="flex items-center gap-2 bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-2xl px-3 py-1.5 shadow-sm focus-within:ring-2 focus-within:ring-blue-100 dark:focus-within:ring-blue-900 transition-all">
+                    <div className="flex items-center gap-2 bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-2xl px-3 py-1.5 shadow-sm focus-within:ring-2 focus-within:ring-emerald-100 dark:focus-within:ring-emerald-900 transition-all">
                         <Search size={16} className="text-gray-400 dark:text-slate-500 shrink-0" />
                         <input
                             type="text"
@@ -51,7 +51,7 @@ const ListOptions = ({
                 ) : (
                     <button
                         onClick={onToggleSearch}
-                        className="p-2.5 bg-white dark:bg-slate-900 text-gray-400 dark:text-slate-500 rounded-xl border border-gray-100 dark:border-slate-800 hover:bg-gray-50 dark:hover:bg-slate-800 hover:text-blue-500 dark:hover:text-blue-400 transition-all shadow-sm"
+                        className="p-2.5 bg-white dark:bg-slate-900 text-gray-400 dark:text-slate-500 rounded-xl border border-gray-100 dark:border-slate-800 hover:bg-gray-50 dark:hover:bg-slate-800 hover:text-emerald-500 dark:hover:text-emerald-400 transition-all shadow-sm"
                         title="Search"
                     >
                         <Search size={18} />
@@ -74,8 +74,8 @@ const ListOptions = ({
                     <button
                         onClick={onToggleLink}
                         className={`p-2.5 rounded-xl border transition-all shadow-sm ${step.isLinked
-                            ? 'bg-blue-600 dark:bg-blue-600 text-white border-blue-600 dark:border-blue-500 shadow-lg shadow-blue-100 dark:shadow-blue-900/20'
-                            : 'bg-white dark:bg-slate-900 text-gray-400 dark:text-slate-500 border-gray-100 dark:border-slate-800 hover:bg-gray-50 dark:hover:bg-slate-800 hover:text-blue-500 dark:hover:text-blue-400'
+                            ? 'bg-emerald-600 dark:bg-emerald-600 text-white border-emerald-600 dark:border-emerald-500 shadow-lg shadow-emerald-100 dark:shadow-emerald-900/20'
+                            : 'bg-white dark:bg-slate-900 text-gray-400 dark:text-slate-500 border-gray-100 dark:border-slate-800 hover:bg-gray-50 dark:hover:bg-slate-800 hover:text-emerald-500 dark:hover:text-emerald-400'
                             }`}
                         title={step.isLinked ? "Locked (Linked)" : "Unlocked (Not Linked)"}
                     >
@@ -84,7 +84,7 @@ const ListOptions = ({
                 )}
                 <button
                     onClick={onAdd}
-                    className="flex items-center justify-center p-2.5 bg-[#dbeafe] dark:bg-blue-500/20 text-[#2563eb] dark:text-blue-400 rounded-2xl font-bold hover:bg-[#bfdbfe] dark:hover:bg-blue-500/30 transition-colors shadow-sm"
+                    className="flex items-center justify-center p-2.5 bg-[#d1fae5] dark:bg-emerald-500/20 text-[#059669] dark:text-emerald-400 rounded-2xl font-bold hover:bg-[#a7f3d0] dark:hover:bg-emerald-500/30 transition-colors shadow-sm"
                     title="Add Stop"
                 >
                     <Plus size={18} />

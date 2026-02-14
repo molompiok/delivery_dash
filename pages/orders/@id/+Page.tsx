@@ -34,7 +34,8 @@ import {
     ArrowDownLeft,
     Wrench,
     Package,
-    Flag
+    Flag,
+    List
 } from 'lucide-react';
 import { arrayMove } from '@dnd-kit/sortable';
 import ListOptions from './components/ListOptions';
@@ -51,6 +52,7 @@ import { fleetService } from '../../../api/fleet';
 import { trackingApi } from '../../../api/tracking';
 import { User as UserType, CompanyDriverSetting, Vehicle } from '../../../api/types';
 import { socketClient } from '../../../api/socket';
+import { cn } from '../../../lib/utils';
 
 interface Stop {
     id: string;
@@ -131,8 +133,20 @@ export default function Page() {
     const [direction, setDirection] = useState(0);
     const [isSidebarFullscreen, setIsSidebarFullscreen] = useState(false);
     const [activeRouteTab, setActiveRouteTab] = useState<'details' | 'history'>('details');
-    const [activeRightPanel, setActiveRightPanel] = useState<'route' | 'history' | 'operation' | 'weight' | 'items' | null>(null);
-    const handleRightPanelToggle = (panel: 'route' | 'history' | 'operation' | 'weight' | 'items') => {
+    const [activeRightPanel, setActiveRightPanel] = useState<'list' | 'route' | 'history' | 'operation' | 'weight' | 'items' | null>('list');
+    const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1200);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const handleResize = () => {
+            const width = window.innerWidth;
+            setWindowWidth(width);
+        };
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+
+    const handleRightPanelToggle = (panel: 'list' | 'route' | 'history' | 'operation' | 'weight' | 'items') => {
         setActiveRightPanel(prev => prev === panel ? null : panel);
     };
     const [visibleLayers, setVisibleLayers] = useState({
@@ -141,7 +155,6 @@ export default function Page() {
         actual: true,
         auto: true
     });
-    const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
     // Auto-layer logic based on order state
     useEffect(() => {
@@ -157,8 +170,14 @@ export default function Page() {
     }, [visibleLayers.auto, order?.hasPendingChanges]);
 
     const [isLayerMenuOpen, setIsLayerMenuOpen] = useState(false);
-    const { setHeaderContent, clearHeaderContent, headerHeight, setHeaderHidden } = useHeader();
+    const { setHeaderContent, clearHeaderContent, headerHeight, setHeaderHidden, setHeaderSuppressed } = useHeader();
     const listRefs = useRef<{ [key: number]: HTMLDivElement | null }>({});
+
+    // Sync sidebar fullscreen with header suppression
+    useEffect(() => {
+        setHeaderSuppressed(isSidebarFullscreen);
+        return () => setHeaderSuppressed(false);
+    }, [isSidebarFullscreen, setHeaderSuppressed]);
     const lastScrollYList = useRef(0);
     const kanbanRef = useRef<HTMLDivElement | null>(null);
 
@@ -206,39 +225,87 @@ export default function Page() {
         center: { lat: 5.3486, lng: -4.0305 }, // Abidjan default
         zoom: 12
     });
+    const [hoveredStopId, setHoveredStopId] = useState<string | null>(null);
+    const [hoveredMarkerId, setHoveredMarkerId] = useState<string | null>(null);
 
     const activeStepRef = useRef(activeStep);
     useEffect(() => { activeStepRef.current = activeStep; }, [activeStep]);
 
-    // --- SOCKET.IO REAL-TIME UPDATES ---
+    // --- STOP-MARKER LINKING EFFECTS ---
+    useEffect(() => {
+        if (!hoveredMarkerId) return;
+
+        // 1. Find the step containing this stop
+        let foundStepIdx = -1;
+        steps.forEach((step, idx) => {
+            if (step.stops.some(s => s.id === hoveredMarkerId)) {
+                foundStepIdx = idx;
+            }
+        });
+
+        if (foundStepIdx !== -1) {
+            // 2. Ensure the stop list panel is open
+            if (!activeRightPanel) setActiveRightPanel('list');
+
+            // 3. Switch step tab if necessary (when not in fullscreen kanban)
+            if (!isSidebarFullscreen && activeStep !== foundStepIdx) {
+                setDirection(foundStepIdx > activeStep ? 1 : -1);
+                setActiveStep(foundStepIdx);
+            }
+
+            // 4. Auto-scroll to the card
+            setTimeout(() => {
+                const element = document.getElementById(`stop-card-${hoveredMarkerId}`);
+                if (element) {
+                    element.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'center',
+                        inline: 'nearest'
+                    });
+                }
+            }, 100);
+        }
+    }, [hoveredMarkerId]); // Only trigger when marker is hovered
+
+    // --- SOCKET.IO REAL-TIME UPDATES (Debounced) ---
+    const lastRefreshTime = useRef(0);
+    const refreshTimeout = useRef<NodeJS.Timeout | null>(null);
+
+    const debouncedRefresh = (data: any, type: 'order' | 'route') => {
+        console.log(`[SOCKET] Received ${type} update event:`, data);
+        if (data.orderId !== id) return;
+
+        // Clear existing timeout
+        if (refreshTimeout.current) clearTimeout(refreshTimeout.current);
+
+        const now = Date.now();
+        const timeSinceLast = now - lastRefreshTime.current;
+
+        // Minimum 500ms between refreshes
+        const delay = Math.max(0, 500 - timeSinceLast);
+
+        refreshTimeout.current = setTimeout(() => {
+            console.log(`[SOCKET] Executing debounced refresh for ${type}`);
+            if (type === 'order') fetchOrder(false);
+            else fetchRoute({ silent: true });
+            lastRefreshTime.current = Date.now();
+        }, delay);
+    };
+
     useEffect(() => {
         if (!id || !socketClient) return;
 
-        // Ensure connected
         const socket = socketClient.connect();
-
-        const handleUpdate = (data: any) => {
-            console.log("[SOCKET] Received update event:", data);
-            if (data.orderId === id) {
-                fetchOrder(false); // Silent refresh
-            }
-        };
-
-        const handleRouteUpdate = (data: any) => {
-            console.log("[SOCKET] Received route update event:", data);
-            if (data.orderId === id) {
-                fetchRoute({ silent: true });
-            }
-        };
-
-        // Join the room for this order
         socket.emit('join', `order:${id}`);
 
-        // Listen for events
+        const handleUpdate = (data: any) => debouncedRefresh(data, 'order');
+        const handleRouteUpdate = (data: any) => debouncedRefresh(data, 'route');
+
         socket.on('order_updated', handleUpdate);
         socket.on('route_updated', handleRouteUpdate);
 
         return () => {
+            if (refreshTimeout.current) clearTimeout(refreshTimeout.current);
             socket.off('order_updated', handleUpdate);
             socket.off('route_updated', handleRouteUpdate);
         };
@@ -346,8 +413,8 @@ export default function Page() {
                         ? (st.actions[0].type === 'PICKUP' ? 'Collecte' : st.actions[0].type === 'DELIVERY' ? 'Livraison' : 'Service')
                         : 'Service',
                     typeColor: (st.actions && st.actions.length > 0)
-                        ? (st.actions[0].type === 'PICKUP' ? 'bg-orange-50 text-orange-600' : st.actions[0].type === 'DELIVERY' ? 'bg-emerald-50 text-emerald-600' : 'bg-blue-50 text-blue-600')
-                        : 'bg-blue-50 text-blue-600',
+                        ? (st.actions[0].type === 'PICKUP' ? 'bg-orange-50 text-orange-600' : st.actions[0].type === 'DELIVERY' ? 'bg-emerald-50 text-emerald-600' : 'bg-emerald-50 text-emerald-600')
+                        : 'bg-emerald-50 text-emerald-600',
                     address: {
                         id: st.address?.id || '',
                         addressId: st.addressId,
@@ -407,15 +474,16 @@ export default function Page() {
     const fetchOrder = async (showLoading = true) => {
         if (showLoading) setIsLoading(true);
         try {
-            const response = await ordersApi.get(id);
+            // We fetch the order WITHOUT 'leg' (heavy geometry) because fetchRoute will get it
+            const response = await ordersApi.get(id, []);
             const serverOrder = (response as any).entity || (response as any).order || response;
 
             const serverSteps = Array.isArray(serverOrder.steps) ? serverOrder.steps : [];
             const mappedSteps = mapServerToLocalSteps(serverSteps);
             setSteps(mappedSteps);
-            setOrder(serverOrder);
+            setOrder(prev => prev ? { ...serverOrder, ...prev } : serverOrder);
 
-            // Deferred route loading
+            // Deferred route loading remains, but now we know it's fulfilling a specific role
             fetchRoute({ silent: !showLoading });
         } catch (error) {
             console.error("Failed to fetch order", error);
@@ -891,7 +959,7 @@ export default function Page() {
                     ? (savedStop.actions[0].type === 'PICKUP' ? 'Collecte' : savedStop.actions[0].type === 'DELIVERY' ? 'Livraison' : 'Service')
                     : 'Point',
                 typeColor: (savedStop.actions && savedStop.actions.length > 0)
-                    ? (savedStop.actions[0].type === 'PICKUP' ? 'bg-orange-50 text-orange-600' : savedStop.actions[0].type === 'DELIVERY' ? 'bg-emerald-50 text-emerald-600' : 'bg-blue-50 text-blue-600')
+                    ? (savedStop.actions[0].type === 'PICKUP' ? 'bg-orange-50 text-orange-600' : savedStop.actions[0].type === 'DELIVERY' ? 'bg-emerald-50 text-emerald-600' : 'bg-emerald-50 text-emerald-600')
                     : 'bg-gray-100 text-gray-400',
                 address: {
                     id: savedStop.address?.id || '',
@@ -1095,77 +1163,48 @@ export default function Page() {
         const isPending = order && !['DRAFT', 'DELIVERED', 'CANCELLED', 'FAILED'].includes(order.status);
 
         setHeaderContent(
-            <div className="flex items-center justify-between w-full h-full gap-4">
-                <div className="flex items-center gap-3 overflow-hidden">
-                    <button
-                        onClick={() => window.history.back()}
-                        className="p-2 bg-white dark:bg-slate-800 border border-gray-100 dark:border-slate-700 hover:text-emerald-600 rounded-xl shadow-sm transition-all shrink-0"
-                    >
-                        <ChevronLeft size={20} />
-                    </button>
-                    <div className="overflow-hidden">
-                        <h1 className="text-lg font-black text-slate-900 dark:text-slate-100 tracking-tight leading-tight truncate">
-                            {isDraft ? 'Nouvelle mission' : `Commande #${id?.slice(-6)}`}
-                        </h1>
-                        <div className="flex items-center gap-2">
-                            {order && (
-                                <span className={`text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded ${isDraft ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400' :
-                                    order.status === 'PENDING' ? 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400' :
-                                        order.status === 'DELIVERED' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400' :
-                                            'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
-                                    }`}>
-                                    {order.status}
-                                </span>
-                            )}
-                            <p className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest truncate hidden sm:block">
-                                {order?.refId || 'Mission Standard'}
-                            </p>
-                        </div>
-                    </div>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                    {isDraft && (
-                        <>
-                            <button
-                                onClick={() => window.history.back()}
-                                className="px-4 py-2 text-[10px] font-black text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl uppercase tracking-widest transition-colors hidden sm:block"
-                            >
-                                Annuler
-                            </button>
-                            <button
-                                onClick={handleSubmit}
-                                className="px-5 py-2.5 text-[10px] font-black text-white bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600 rounded-xl uppercase tracking-widest shadow-lg shadow-emerald-200/50 dark:shadow-none transition-all flex items-center gap-2"
-                            >
-                                <Send size={14} />
-                                <span className="hidden sm:inline">Soumettre</span>
-                                <span className="sm:hidden">OK</span>
-                            </button>
-                        </>
-                    )}
-                    {isPending && order?.hasPendingChanges && (
-                        <>
-                            <button
-                                onClick={handleRevert}
-                                className="p-2.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-xl transition-colors border border-transparent hover:border-rose-100 dark:hover:border-rose-500/20"
-                                title="Annuler les modifications"
-                            >
-                                <RotateCcw size={18} />
-                            </button>
-                            <button
-                                onClick={handlePushUpdates}
-                                className="px-5 py-2.5 text-[10px] font-black text-white bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600 rounded-xl uppercase tracking-widest shadow-lg shadow-emerald-200/50 dark:shadow-none transition-all flex items-center gap-2"
-                            >
-                                <Check size={14} />
-                                <span className="hidden sm:inline">Confirmer</span>
-                                <span className="sm:hidden">OK</span>
-                            </button>
-                        </>
-                    )}
-                </div>
+            <div className=" flex items-center justify-end w-full h-full gap-4">
+                {isDraft && (
+                    <>
+                        <button
+                            onClick={() => window.history.back()}
+                            className="px-4 py-2 text-[10px] font-black text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl uppercase tracking-widest transition-colors hidden sm:block"
+                        >
+                            Annuler
+                        </button>
+                        <button
+                            onClick={handleSubmit}
+                            className="px-5 py-2.5 text-[10px] font-black text-white bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600 rounded-xl uppercase tracking-widest shadow-lg shadow-emerald-200/50 dark:shadow-none transition-all flex items-center gap-2"
+                        >
+                            <Send size={14} />
+                            <span className="hidden sm:inline">Soumettre</span>
+                            <span className="sm:hidden">OK</span>
+                        </button>
+                    </>
+                )}
+                {isPending && order?.hasPendingChanges && (
+                    <>
+                        <button
+                            onClick={handleRevert}
+                            className="p-2.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-xl transition-colors border border-transparent hover:border-rose-100 dark:hover:border-rose-500/20"
+                            title="Annuler les modifications"
+                        >
+                            <RotateCcw size={18} />
+                        </button>
+                        <button
+                            onClick={handlePushUpdates}
+                            className="px-5 py-2.5 text-[10px] font-black text-white bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600 rounded-xl uppercase tracking-widest shadow-lg shadow-emerald-200/50 dark:shadow-none transition-all flex items-center gap-2"
+                        >
+                            <Check size={14} />
+                            <span className="hidden sm:inline">Confirmer</span>
+                            <span className="sm:hidden">OK</span>
+                        </button>
+                    </>
+                )}
             </div>
         );
         return () => clearHeaderContent();
-    }, [setHeaderContent, clearHeaderContent, order, id]);
+    }, [setHeaderContent, clearHeaderContent, order, id, windowWidth]);
 
 
     const livePath = React.useMemo(() => {
@@ -1249,7 +1288,7 @@ export default function Page() {
         return (
             <div className="flex flex-col h-full bg-[#f4f7fa] dark:bg-slate-950 items-center justify-center font-sans transition-colors duration-500">
                 <div className="flex flex-col items-center gap-4">
-                    <Loader2 size={40} className="text-blue-600 animate-spin" />
+                    <Loader2 size={40} className="text-emerald-600 animate-spin" />
                     <p className="text-[11px] font-black text-gray-400 dark:text-slate-500 uppercase tracking-widest">
                         Chargement de la commande...
                     </p>
@@ -1262,219 +1301,8 @@ export default function Page() {
         <div className="relative w-full h-full bg-[#f4f7fa] dark:bg-slate-950 overflow-hidden font-sans transition-colors duration-500 text-slate-900 dark:text-slate-100">
 
             <main className="relative w-full h-full overflow-hidden">
-                {/* Left Sidebar: Stop List (Floating Island) */}
-                <aside
-                    className={`absolute left-4 z-40 flex flex-col bg-white/40 dark:bg-slate-900/40 backdrop-blur-2xl px-4 pt-4 pb-2 rounded-[24px] border border-white/20 dark:border-slate-800 shadow-2xl transition-all duration-500 ease-in-out pointer-events-auto ${isSidebarFullscreen ? 'right-4 !top-4 !left-6' : isSidebarCollapsed ? 'w-20' : 'w-[380px]'
-                        }`}
-                    style={{
-                        top: isSidebarFullscreen ? '16px' : `${headerHeight}px`,
-                        bottom: '16px'
-                    }}
-                >
-                    {/* Toggle Button for Sidebar Collapse */}
-                    {!isSidebarFullscreen && (
-                        <button
-                            onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-                            className="absolute -right-3 top-10 w-6 h-12 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border border-white/20 dark:border-slate-700 rounded-full shadow-lg flex items-center justify-center z-50 hover:bg-white dark:hover:bg-slate-700 transition-colors"
-                        >
-                            <ChevronLeft size={16} className={`transition-transform duration-500 ${isSidebarCollapsed ? 'rotate-180' : ''}`} />
-                        </button>
-                    )}
+                {/* Left Controls: Icon Bar + Sidebar */}
 
-                    {/* Absolute Actions in Fullscreen Mode */}
-                    {isSidebarFullscreen && (
-                        <div className="absolute top-4 right-6 z-50 flex items-center gap-2 bg-white/45 dark:bg-slate-900/45 backdrop-blur-2xl p-1.5 rounded-[20px] border border-white/40 shadow-xl shadow-blue-900/5">
-                            <button
-                                onClick={handleAddStep}
-                                className="p-2.5 bg-white dark:bg-slate-900 text-blue-600 rounded-xl border border-gray-100 dark:border-slate-800 hover:bg-blue-50 hover:border-blue-100 transition-all shadow-sm flex items-center gap-2 group"
-                                title="Add Step"
-                            >
-                                <Plus size={18} className="group-hover:rotate-90 transition-transform" />
-                                <span className="text-[10px] font-black uppercase tracking-widest pr-1">Add Step</span>
-                            </button>
-                            <button
-                                onClick={() => setIsSidebarFullscreen(false)}
-                                className="p-2.5 bg-blue-50 border border-blue-100 text-blue-600 rounded-xl transition-all shadow-sm hover:bg-blue-100 group"
-                                title="Exit Fullscreen"
-                            >
-                                <Minimize2 size={18} className="group-scale-90 transition-transform" />
-                            </button>
-                        </div>
-                    )}
-                    {/* Step Navigation */}
-                    {/* Step Navigation & Actions */}
-                    {/* Step Navigation & Actions (Normal Mode only) */}
-                    {!isSidebarFullscreen && (
-                        <div className={`flex items-center justify-between gap-3 mb-4 bg-white/30 dark:bg-slate-900/40 p-1.5 rounded-2xl border border-white/10 dark:border-slate-800 shadow-sm flex-shrink-0 transition-opacity duration-300 ${isSidebarCollapsed ? 'opacity-0' : 'opacity-100'}`}>
-                            <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide flex-1">
-                                {steps.map((step, idx) => (
-                                    <button
-                                        key={idx}
-                                        onClick={() => {
-                                            setDirection(idx > activeStep ? 1 : -1);
-                                            setActiveStep(idx);
-                                        }}
-                                        className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 group/tab ${activeStep === idx
-                                            ? 'bg-blue-600 text-white shadow-lg shadow-blue-200'
-                                            : 'bg-white dark:bg-slate-900/80 text-gray-400 border border-gray-100 dark:border-slate-800 hover:border-blue-200 hover:text-blue-500'
-                                            }`}
-                                    >
-                                        <span>{step.name}</span>
-                                        {activeStep === idx && steps.length > 1 && (
-                                            <X
-                                                size={12}
-                                                className="hover:text-rose-200 transition-colors"
-                                                onClick={(e) => { e.stopPropagation(); handleDeleteStep(idx); }}
-                                            />
-                                        )}
-                                    </button>
-                                ))}
-                            </div>
-
-                            <div className="flex items-center gap-1.5 pl-2 border-l border-gray-200/50 dark:border-slate-800">
-                                <button
-                                    onClick={handleAddStep}
-                                    className="p-2 bg-white dark:bg-slate-900 text-blue-600 rounded-xl border border-gray-200 dark:border-slate-800 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:border-blue-200 transition-all shadow-sm"
-                                    title="Add Step"
-                                >
-                                    <Plus size={16} />
-                                </button>
-                                <button
-                                    onClick={() => setIsSidebarFullscreen(!isSidebarFullscreen)}
-                                    className="p-2 bg-white dark:bg-slate-900 text-gray-400 rounded-xl border border-gray-200 dark:border-slate-800 hover:bg-gray-50 dark:hover:bg-slate-800 transition-all shadow-sm"
-                                    title="Fullscreen"
-                                >
-                                    <Maximize2 size={16} />
-                                </button>
-                            </div>
-                        </div>
-                    )}
-                    <div
-                        ref={kanbanRef}
-                        className={`flex-1 overflow-hidden transition-opacity duration-300 ${isSidebarCollapsed ? 'opacity-0' : 'opacity-100'} ${isSidebarFullscreen ? 'flex flex-row gap-2 overflow-x-auto pb-4 scrollbar-hide px-4 lg:pr-60' : 'flex flex-col'}`}
-                    >
-                        {isSidebarFullscreen ? (
-                            steps.map((step, stepIdx) => (
-                                <div key={stepIdx} className="w-[340px] shrink-0 flex flex-col h-full rounded-[32px] bg-white dark:bg-slate-900/60 p-1 border border-white/10 dark:border-slate-800/50 hover:bg-white dark:hover:bg-slate-900/80 transition-colors">
-                                    <div className="flex items-center justify-between p-4 flex-shrink-0">
-                                        <h3 className="text-[11px] font-black text-gray-900 dark:text-slate-100 uppercase tracking-widest">{step.name}</h3>
-                                        <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 px-2 py-0.5 rounded-full">{step.stops.length} stops</span>
-                                    </div>
-
-                                    <ListOptions
-                                        step={step}
-                                        stepIdx={stepIdx}
-                                        stopCount={step.stops.length}
-                                        totalSteps={steps.length}
-                                        onSearch={(val) => handleSearch(stepIdx, val)}
-                                        onAdd={() => handleAddStop(stepIdx)}
-                                        onToggleSearch={() => handleToggleSearch(stepIdx)}
-                                        onToggleLink={() => handleToggleLink(stepIdx)}
-                                        onDelete={() => handleDeleteStep(stepIdx)}
-                                    />
-
-                                    <div
-                                        ref={el => { listRefs.current[stepIdx] = el; }}
-                                        className="flex-1 overflow-y-auto scrollbar-hide p-3 pb-32"
-                                    >
-                                        <StopListWrapper
-                                            stops={step.stops}
-                                            isLinked={step.isLinked}
-                                            onReorder={(activeId, overId) => handleReorderStop(stepIdx, activeId, overId)}
-                                            onMoveItem={(idx, dir) => handleMoveItem(stepIdx, idx, dir)}
-                                            onOpenDetail={(stop) => {
-                                                const stopIdx = step.stops.findIndex(s => s.id === stop.id);
-                                                handleOpenStopDetail(stepIdx, stopIdx);
-                                            }}
-                                        >
-                                            {step.stops.length === 0 && (
-                                                <div
-                                                    onClick={() => handleAddStop(stepIdx)}
-                                                    className="flex flex-col items-center justify-center py-12 border-2 border-dashed border-gray-200 rounded-[28px] text-gray-400 m-2 cursor-pointer hover:border-blue-300 hover:bg-blue-50/30 transition-all group"
-                                                >
-                                                    <Plus size={24} className="text-gray-300 group-hover:text-blue-400 transition-colors mb-2" />
-                                                    <div className="text-[10px] font-black uppercase tracking-widest">Add Stop</div>
-                                                </div>
-                                            )}
-                                        </StopListWrapper>
-                                    </div>
-                                </div>
-                            ))
-                        ) : (
-                            <div className="flex-1 flex flex-col relative overflow-hidden">
-                                <AnimatePresence initial={false} custom={direction}>
-                                    <motion.div
-                                        key={activeStep}
-                                        custom={direction}
-                                        variants={{
-                                            enter: (direction: number) => ({
-                                                x: direction > 0 ? '100%' : '-100%',
-                                                opacity: 0
-                                            }),
-                                            center: {
-                                                x: 0,
-                                                opacity: 1
-                                            },
-                                            exit: (direction: number) => ({
-                                                x: direction < 0 ? '100%' : '-100%',
-                                                opacity: 0
-                                            })
-                                        }}
-                                        initial="enter"
-                                        animate="center"
-                                        exit="exit"
-                                        transition={{
-                                            x: { type: "spring", stiffness: 300, damping: 30 },
-                                            opacity: { duration: 0.2 }
-                                        }}
-                                        className="absolute inset-0 flex flex-col pt-1"
-                                    >
-                                        {steps[activeStep] && (
-                                            <ListOptions
-                                                step={steps[activeStep]}
-                                                stepIdx={activeStep}
-                                                stopCount={steps[activeStep]?.stops?.length || 0}
-                                                totalSteps={steps.length}
-                                                onSearch={(val) => handleSearch(activeStep, val)}
-                                                onAdd={() => handleAddStop(activeStep)}
-                                                onToggleSearch={() => handleToggleSearch(activeStep)}
-                                                onToggleLink={() => handleToggleLink(activeStep)}
-                                                onDelete={() => handleDeleteStep(activeStep)}
-                                            />
-                                        )}
-                                        <div
-                                            ref={el => { listRefs.current[activeStep] = el; }}
-                                            className="flex-1 overflow-y-auto scrollbar-hide pb-24 px-1"
-                                            onScroll={handleListScroll}
-                                        >
-                                            <StopListWrapper
-                                                stops={steps[activeStep]?.stops || []}
-                                                isLinked={steps[activeStep]?.isLinked || false}
-                                                onReorder={(activeId, overId) => handleReorderStop(activeStep, activeId, overId)}
-                                                onMoveItem={(idx, dir) => handleMoveItem(activeStep, idx, dir)}
-                                                onOpenDetail={(stop) => {
-                                                    if (!steps[activeStep]) return;
-                                                    const stopIdx = steps[activeStep].stops.findIndex(s => s.id === stop.id);
-                                                    handleOpenStopDetail(activeStep, stopIdx);
-                                                }}
-                                            >
-                                                {steps[activeStep]?.stops?.length === 0 && (
-                                                    <div
-                                                        onClick={() => handleAddStop(activeStep)}
-                                                        className="flex flex-col items-center justify-center py-12 border-2 border-dashed border-gray-200 rounded-[28px] text-gray-400 cursor-pointer hover:border-blue-300 hover:bg-blue-50/30 transition-all group"
-                                                    >
-                                                        <Plus size={24} className="text-gray-300 group-hover:text-blue-400 transition-colors mb-2" />
-                                                        <div className="text-[10px] font-black uppercase tracking-widest">Add Stop</div>
-                                                    </div>
-                                                )}
-                                            </StopListWrapper>
-                                        </div>
-                                    </motion.div>
-                                </AnimatePresence>
-                            </div>
-                        )}
-                    </div>
-                </aside>
 
                 {/* Main Content Area - Full Map (Background) */}
                 <section
@@ -1490,7 +1318,7 @@ export default function Page() {
                                     handleAddStop(activeStepRef.current, e.latLng);
                                 }
                             }}
-                            className="w-full h-full"
+                            className={cn("w-full h-full", isCreativeMode && "creative-mode-map")}
                             // @ts-ignore
                             cursor={isCreativeMode ? 'crosshair' : 'default'}
                             // @ts-ignore
@@ -1522,15 +1350,14 @@ export default function Page() {
                                                 icon={null}
                                                 label={
                                                     <div className="relative flex items-center justify-center cursor-pointer group">
-                                                        {/* Halo Effect - Pulsing Rings */}
-                                                        <div className="absolute inset-0 rounded-full bg-blue-500/20 animate-ping duration-[3000ms]" />
-                                                        <div className="absolute -inset-2 rounded-full bg-blue-500/10 animate-pulse duration-[2000ms] blur-sm" />
+                                                        {/* Dynamic Halo - Premium Pulsing */}
+                                                        <div className="absolute inset-0 rounded-full bg-emerald-500/30 animate-[ping_3s_linear_infinite]" />
+                                                        <div className="absolute -inset-4 rounded-full bg-emerald-400/10 animate-[pulse_2s_ease-in-out_infinite] blur-md" />
 
-                                                        {/* Static Glow */}
-                                                        <div className="absolute -inset-1 rounded-full bg-blue-400/20 blur-md opacity-0 group-hover:opacity-100 transition-opacity" />
+                                                        <div className="absolute -inset-2 rounded-full bg-emerald-400/20 blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
 
-                                                        {/* Main Circle Cluster */}
-                                                        <div className="relative flex items-center justify-center bg-blue-600 dark:bg-blue-500 text-white rounded-full w-10 h-10 border-2 border-white dark:border-slate-800 shadow-[0_0_20px_rgba(37,99,235,0.5)] font-black text-sm transition-all group-hover:scale-110 group-active:scale-95 group-hover:bg-blue-700">
+                                                        {/* Main Cluster Body */}
+                                                        <div className="relative flex items-center justify-center bg-gradient-to-br from-emerald-500 to-emerald-700 text-white rounded-full w-12 h-12 border-2 border-white/80 dark:border-slate-800 shadow-[0_8px_32px_rgba(16,185,129,0.4)] font-black text-sm transition-all duration-300 group-hover:scale-110 group-active:scale-95 group-hover:shadow-[0_12px_48px_rgba(16,185,129,0.6)]">
                                                             {pointCount}
                                                         </div>
                                                     </div>
@@ -1557,51 +1384,54 @@ export default function Page() {
                                         <Marker
                                             key={m.stop.id}
                                             position={{ lat: m.lat, lng: m.lng }}
+                                            isBouncing={hoveredStopId === m.stop.id || hoveredMarkerId === m.stop.id}
+                                            onMouseEnter={() => setHoveredMarkerId(m.stop.id)}
+                                            onMouseLeave={() => setHoveredMarkerId(null)}
                                             label={
-                                                <div className={`flex flex-col items-center shadow-lg animate-in fade-in zoom-in duration-300`}>
+                                                <div className={`flex flex-col items-center group/marker transition-all duration-500 animate-in fade-in zoom-in slide-in-from-bottom-2`}>
                                                     {/* Badge for quantities */}
                                                     {(m.pickupQty > 0 || m.deliveryQty > 0 || m.serviceQty > 0) && (
-                                                        <div className="flex items-center gap-1.5 bg-white dark:bg-slate-900 px-2 py-0.5 rounded-t-xl border-x border-t border-gray-100 dark:border-slate-800">
+                                                        <div className="flex items-center gap-1.5 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md px-2.5 py-1 rounded-t-2xl border-x border-t border-white/40 dark:border-slate-800 shadow-[0_-4px_12px_rgba(0,0,0,0.05)] transition-transform group-hover/marker:-translate-y-0.5">
                                                             {m.pickupQty > 0 && (
-                                                                <div className="flex items-center gap-0.5 text-[10px] font-black text-orange-600 dark:text-orange-400">
-                                                                    <ArrowUpRight size={10} />
+                                                                <div className="flex items-center gap-0.5 text-[11px] font-black text-orange-600 dark:text-orange-400">
+                                                                    <ArrowUpRight size={11} strokeWidth={3} />
                                                                     <span>{m.pickupQty}</span>
                                                                 </div>
                                                             )}
                                                             {m.deliveryQty > 0 && (
-                                                                <div className="flex items-center gap-0.5 text-[10px] font-black text-emerald-600 dark:text-emerald-400">
-                                                                    <ArrowDownLeft size={10} />
+                                                                <div className="flex items-center gap-0.5 text-[11px] font-black text-emerald-600 dark:text-emerald-400">
+                                                                    <ArrowDownLeft size={11} strokeWidth={3} />
                                                                     <span>{m.deliveryQty}</span>
                                                                 </div>
                                                             )}
                                                             {m.serviceQty > 0 && (
-                                                                <div className="flex items-center gap-0.5 text-[10px] font-black text-blue-600 dark:text-blue-400">
-                                                                    <Wrench size={10} />
+                                                                <div className="flex items-center gap-0.5 text-[11px] font-black text-indigo-600 dark:text-indigo-400">
+                                                                    <Wrench size={11} strokeWidth={3} />
                                                                     <span>{m.serviceQty}</span>
                                                                 </div>
                                                             )}
                                                         </div>
                                                     )}
                                                     {/* Stop Marker Body */}
-                                                    <div className={`relative px-2 py-1 flex items-center gap-2 rounded-b-xl border-b border-x border-gray-100 dark:border-slate-800 
-                                                        ${m.isStart ? 'bg-emerald-600 text-white min-w-[40px] justify-center rounded-xl border-0 !text-xs ring-4 ring-emerald-500/20' :
-                                                            m.isEnd ? 'bg-rose-600 text-white min-w-[40px] justify-center rounded-xl border-0 !text-xs ring-4 ring-rose-500/20' :
-                                                                'bg-white dark:bg-slate-900 border-gray-100 dark:border-slate-800'}`}>
+                                                    <div className={`relative px-3 py-1.5 flex items-center gap-2.5 rounded-b-2xl border-b border-x border-white/40 dark:border-slate-800 shadow-[0_8px_24px_rgba(0,0,0,0.12)] transition-all group-hover/marker:shadow-[0_12px_32px_rgba(0,0,0,0.2)] group-hover/marker:scale-105
+                                                        ${m.isStart ? 'bg-gradient-to-r from-emerald-600 to-emerald-500 text-white min-w-[45px] justify-center rounded-2xl border-0 ring-4 ring-emerald-500/20' :
+                                                            m.isEnd ? 'bg-gradient-to-r from-rose-600 to-rose-500 text-white min-w-[45px] justify-center rounded-2xl border-0 ring-4 ring-rose-500/20' :
+                                                                'bg-white/95 dark:bg-slate-900/95 backdrop-blur-md'}`}>
 
                                                         {/* Sequence Number */}
-                                                        <span className={`text-[11px] font-black ${m.isStart || m.isEnd ? 'text-white' : 'text-blue-600'}`}>
+                                                        <span className={`text-xs font-black ${m.isStart || m.isEnd ? 'text-white' : 'text-emerald-600 shadow-sm'}`}>
                                                             {m.label}
                                                         </span>
 
-                                                        {/* Address Snippet (hidden for start/end if too large maybe?) */}
-                                                        <span className={`text-[9px] font-bold uppercase tracking-tighter whitespace-nowrap border-l border-gray-100 dark:border-slate-800 pl-2
-                                                            ${m.isStart || m.isEnd ? 'text-white border-white/20' : 'text-gray-500 dark:text-slate-400'}`}>
+                                                        {/* Address Snippet */}
+                                                        <span className={`text-[10px] font-black uppercase tracking-widest whitespace-nowrap border-l border-gray-100 dark:border-slate-800 pl-2.5
+                                                            ${m.isStart || m.isEnd ? 'text-white/90 border-white/20' : 'text-gray-500 dark:text-slate-400'}`}>
                                                             {m.addressSnippet}
                                                         </span>
 
                                                         {/* Visual indicator for Start/End */}
-                                                        {m.isStart && <Navigation size={10} className="fill-white" />}
-                                                        {m.isEnd && <Flag size={10} className="fill-white" />}
+                                                        {m.isStart && <Navigation size={12} className="fill-white animate-pulse" />}
+                                                        {m.isEnd && <Flag size={12} className="fill-white animate-bounce" />}
                                                     </div>
                                                 </div>
                                             }
@@ -1609,7 +1439,7 @@ export default function Page() {
                                         >
                                             <MarkerPopup className="w-64 overflow-hidden !p-0 rounded-2xl border-0 shadow-2xl animate-in fade-in zoom-in duration-200">
                                                 <div className="flex flex-col bg-white dark:bg-slate-900">
-                                                    <div className="bg-blue-600 p-3 text-white">
+                                                    <div className="bg-emerald-600 p-3 text-white">
                                                         <div className="flex justify-between items-start mb-1">
                                                             <div className="text-[10px] font-black uppercase tracking-widest opacity-70">
                                                                 Arrêt {m.label}
@@ -1636,7 +1466,7 @@ export default function Page() {
                                                         <div className="flex flex-wrap gap-1.5 border-t border-gray-50 dark:border-slate-800 pt-3">
                                                             {m.stop.actions?.map((action: any, idx: number) => (
                                                                 <div key={idx} className="flex items-center gap-1 bg-gray-50 dark:bg-slate-800 px-2 py-1 rounded-lg">
-                                                                    <div className={`p-0.5 rounded ${action.type === 'pickup' ? 'text-orange-600' : action.type === 'delivery' ? 'text-emerald-600' : 'text-blue-600'}`}>
+                                                                    <div className={`p-0.5 rounded ${action.type === 'pickup' ? 'text-orange-600' : action.type === 'delivery' ? 'text-emerald-600' : 'text-emerald-600'}`}>
                                                                         {action.type === 'pickup' ? <ArrowUpRight size={10} /> : action.type === 'delivery' ? <ArrowDownLeft size={10} /> : <Wrench size={10} />}
                                                                     </div>
                                                                     <span className="text-[10px] font-bold text-gray-700 dark:text-slate-300">
@@ -1651,7 +1481,7 @@ export default function Page() {
                                                                 e.stopPropagation();
                                                                 handleOpenStopDetail(m.stepIdx, m.stopIdx, m.stop);
                                                             }}
-                                                            className="w-full py-2 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-[10px] font-black rounded-xl transition-all border border-blue-100/50 dark:border-blue-900/10 uppercase tracking-widest hover:bg-blue-100 dark:hover:bg-blue-900/50"
+                                                            className="w-full py-2 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 text-[10px] font-black rounded-xl transition-all border border-emerald-100/50 dark:border-emerald-900/10 uppercase tracking-widest hover:bg-emerald-100 dark:hover:bg-emerald-900/50"
                                                         >
                                                             Éditer l'arrêt
                                                         </button>
@@ -1664,7 +1494,7 @@ export default function Page() {
                             </MarkerClusterer>
                             {/* Live Route in Blue */}
                             {visibleLayers.live && (
-                                <Polyline path={livePath} strokeColor="#2563eb" strokeWeight={6} strokeOpacity={0.8} />
+                                <Polyline path={livePath} strokeColor="#059669" strokeWeight={6} strokeOpacity={0.8} />
                             )}
 
                             {/* Pending Route in Emerald */}
@@ -1717,7 +1547,7 @@ export default function Page() {
                                     className="absolute inset-0 bg-white/10 dark:bg-slate-900/40 backdrop-blur-md z-[10] flex items-center justify-center"
                                 >
                                     <div className="bg-white dark:bg-slate-900 px-4 py-2 rounded-full shadow-lg border border-gray-100 dark:border-slate-800 flex items-center gap-3">
-                                        <Loader2 className="animate-spin text-blue-600" size={18} />
+                                        <Loader2 className="animate-spin text-emerald-600" size={18} />
                                         <span className="text-[11px] font-bold text-gray-700 uppercase tracking-wider">Calcul de l'itinéraire...</span>
                                     </div>
                                 </motion.div>
@@ -1727,20 +1557,20 @@ export default function Page() {
 
                     {/* Map controls overlay (top-left, shifted right of sidebar) */}
                     <div
-                        className="absolute z-[20] flex flex-col gap-2 transition-all duration-500 ease-in-out"
+                        className="absolute z-[50] flex flex-col gap-2 transition-all duration-500 ease-in-out"
                         style={{
                             top: `${headerHeight}px`,
-                            left: isSidebarFullscreen ? 'calc(100% - 60px)' : (isSidebarCollapsed ? '112px' : '412px')
+                            right: isSidebarFullscreen ? '60px' : '16px'
                         }}
                     >
                         <div className="relative">
                             <AnimatePresence>
                                 {isLayerMenuOpen && (
                                     <motion.div
-                                        initial={{ opacity: 0, scale: 0.95, y: 10 }}
-                                        animate={{ opacity: 1, scale: 1, y: 0 }}
-                                        exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                                        className="absolute left-0 top-12 w-48 bg-white/20 dark:bg-slate-900/40 backdrop-blur-2xl rounded-2xl shadow-2xl border border-white/20 dark:border-slate-800 p-2 z-50"
+                                        initial={{ opacity: 0, scale: 0.95, x: 10 }}
+                                        animate={{ opacity: 1, scale: 1, x: 0 }}
+                                        exit={{ opacity: 0, scale: 0.95, x: 10 }}
+                                        className="absolute right-12 top-0 w-48 bg-white/20 dark:bg-slate-900/40 backdrop-blur-2xl rounded-2xl shadow-2xl border border-white/20 dark:border-slate-800 p-2 z-50"
                                     >
                                         <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-3 py-2 border-b border-gray-50 mb-1">Affichage Carte</div>
 
@@ -1759,10 +1589,10 @@ export default function Page() {
 
                                         <button
                                             onClick={() => setVisibleLayers(prev => ({ ...prev, live: !prev.live, auto: false }))}
-                                            className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition-colors ${visibleLayers.live ? 'bg-blue-50 text-blue-700' : 'text-gray-500 hover:bg-gray-50'}`}
+                                            className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition-colors ${visibleLayers.live ? 'bg-emerald-50 text-emerald-700' : 'text-gray-500 hover:bg-gray-50'}`}
                                         >
                                             <span className="text-[11px] font-bold">Route Planifiée</span>
-                                            <div className={`w-2 h-2 rounded-full ${visibleLayers.live ? 'bg-blue-600' : 'bg-gray-200'}`} />
+                                            <div className={`w-2 h-2 rounded-full ${visibleLayers.live ? 'bg-emerald-600' : 'bg-gray-200'}`} />
                                         </button>
 
                                         <button
@@ -1801,7 +1631,7 @@ export default function Page() {
                         </div>
                         <button
                             onClick={() => setIsLayerMenuOpen(!isLayerMenuOpen)}
-                            className={`p-2 rounded-lg shadow-md transition-all ${isLayerMenuOpen ? 'bg-blue-600 text-white' : 'bg-white dark:bg-slate-900 text-gray-600 hover:bg-gray-50'}`}
+                            className={`p-2 rounded-lg shadow-md transition-all ${isLayerMenuOpen ? 'bg-emerald-600 text-white' : 'bg-white dark:bg-slate-900 text-gray-600 hover:bg-gray-50'}`}
                             title="Couches de la carte"
                         >
                             <Layers size={18} />
@@ -1827,319 +1657,601 @@ export default function Page() {
                         </button>
                     </div>
 
-                    {/* RIGHT SIDE: Icon Bar + Expandable Panel */}
                     <div
-                        className="absolute right-4 bottom-4 z-[15] flex items-stretch gap-3 pointer-events-auto transition-all duration-500"
-                        style={{ top: `${headerHeight}px` }}
+                        className="absolute left-4 z-1 flex items-start gap-4 pointer-events-none transition-all duration-500 ease-in-out"
+                        style={{
+                            top: isSidebarFullscreen ? (windowWidth < 650 ? '12px' : '16px') : `${headerHeight}px`,
+                            bottom: '16px',
+                            right: isSidebarFullscreen ? '16px' : 'auto'
+                        }}
                     >
+                        {/* Icon Bar (Left Side) */}
+                        {!isSidebarFullscreen && (
+                            <div className="flex flex-col items-center gap-2 py-3 px-1.5 bg-white/40 dark:bg-slate-900/40 backdrop-blur-3xl rounded-[20px] border border-white/20 dark:border-slate-800/50 shadow-2xl pointer-events-auto self-start">
+                                {([
+                                    { id: 'list' as const, icon: List, label: 'Stop List', activeClass: 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 shadow-lg shadow-emerald-200/50 scale-105', dotClass: 'bg-emerald-500' },
+                                    { id: 'items' as const, icon: Package, label: 'Items', activeClass: 'bg-rose-100 dark:bg-rose-500/20 text-rose-600 shadow-lg shadow-rose-200/50 dark:shadow-rose-500/10 scale-105', dotClass: 'bg-rose-500' },
+                                    { id: 'operation' as const, icon: Truck, label: 'Opération', activeClass: 'bg-indigo-100 dark:bg-indigo-500/20 text-indigo-600 shadow-lg shadow-indigo-200/50 dark:shadow-indigo-500/10 scale-105', dotClass: 'bg-indigo-500' },
+                                    { id: 'weight' as const, icon: LayoutGrid, label: 'Charge', activeClass: 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 shadow-lg shadow-emerald-200/50 dark:shadow-emerald-500/10 scale-105', dotClass: 'bg-emerald-500' },
+                                    { id: 'route' as const, icon: MapPin, label: 'Route', activeClass: 'bg-emerald-200 dark:bg-emerald-500/20 text-emerald-600 shadow-lg shadow-emerald-200/50 dark:shadow-emerald-500/10 scale-105', dotClass: 'bg-emerald-500' },
+                                    { id: 'history' as const, icon: Clock, label: 'Historique', activeClass: 'bg-amber-100 dark:bg-amber-500/20 text-amber-600 shadow-lg shadow-amber-200/50 dark:shadow-amber-500/10 scale-105', dotClass: 'bg-amber-500' },
+                                ]).map(({ id, icon: Icon, label, activeClass, dotClass }) => (
+                                    <button
+                                        key={id}
+                                        onClick={() => handleRightPanelToggle(id)}
+                                        className={`relative p-3 rounded-2xl transition-all duration-200 group ${activeRightPanel === id
+                                            ? activeClass
+                                            : 'text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300 hover:bg-gray-100/60 dark:hover:bg-slate-800/60'
+                                            }`}
+                                        title={label}
+                                    >
+                                        <Icon size={20} />
+                                        {activeRightPanel === id && (
+                                            <motion.div
+                                                layoutId="activeIndicator"
+                                                className={`absolute -left-1 top-1/2 -translate-y-1/2 w-1 h-4 ${dotClass} rounded-full`}
+                                                transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+                                            />
+                                        )}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                    </div>
 
-                        {/* Expandable Panel (conditionally shown) */}
-                        <AnimatePresence>
-                            {activeRightPanel && (
-                                <motion.div
-                                    key="right-panel"
-                                    initial={{ width: 0, opacity: 0 }}
-                                    animate={{ width: 372, opacity: 1 }}
-                                    exit={{ width: 0, opacity: 0 }}
-                                    transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-                                    className="overflow-hidden flex flex-col p-4"
-                                >
-                                    <div className="bg-white/20 dark:bg-slate-900/40 backdrop-blur-2xl rounded-[24px] border border-white/20 dark:border-slate-800 shadow-2xl shadow-black/15 p-5 flex flex-col h-full w-[340px] overflow-hidden">
-                                        {/* Panel Header */}
-                                        <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-200/40 dark:border-slate-700/40 flex-shrink-0">
-                                            <h3 className="text-[11px] font-black text-gray-700 dark:text-slate-200 uppercase tracking-widest">
-                                                {activeRightPanel === 'route' && 'Route Details'}
-                                                {activeRightPanel === 'history' && 'History Status'}
-                                                {activeRightPanel === 'operation' && 'Operation Details'}
-                                                {activeRightPanel === 'weight' && 'Weight Distribution'}
-                                            </h3>
-                                            <button
-                                                onClick={() => setActiveRightPanel(null)}
-                                                className="p-1.5 hover:bg-gray-100/50 dark:hover:bg-slate-800/50 rounded-lg text-gray-400 transition-colors"
-                                            >
-                                                <X size={14} />
-                                            </button>
+
+                    <AnimatePresence mode="wait">
+                        {(isSidebarFullscreen || activeRightPanel === 'list') && (
+                            <motion.aside
+                                initial={{
+                                    opacity: 0,
+                                    x: windowWidth < 650 ? 0 : -20,
+                                    y: windowWidth < 650 ? 20 : 0
+                                }}
+                                animate={{
+                                    opacity: 1,
+                                    x: 0,
+                                    y: 0,
+                                    width: isSidebarFullscreen ? '100%' : (windowWidth < 650 ? 'auto' : 420)
+                                }}
+                                exit={{
+                                    opacity: 0,
+                                    x: windowWidth < 650 ? 0 : -20,
+                                    y: windowWidth < 650 ? 20 : 0,
+                                    transition: { duration: 0.2 }
+                                }}
+                                transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                                className={`z-60 absolute flex flex-col bg-white/40 dark:bg-slate-900/40 backdrop-blur-3xl px-4 pt-4 pb-2 rounded-[32px] border border-white/60 dark:border-slate-800 shadow-[0_20px_50px_rgba(0,0,0,0.15)] dark:shadow-[0_20px_50px_rgba(0,0,0,0.4)] pointer-events-auto min-w-0 
+                                    ${windowWidth < 650 ? 'left-2 right-2 bottom-3' : 'left-[80px] max-w-[calc(100%-32px)]'}`}
+                                style={{
+                                    top: `${headerHeight}px`,
+                                    bottom: windowWidth < 650 ? '12px' : '16px',
+                                }}
+                            >
+                                {/* Absolute Actions in Fullscreen Mode */}
+                                {isSidebarFullscreen && (
+                                    <div className="absolute top-4 right-6 z-50 flex items-center gap-2 bg-white/45 dark:bg-slate-900/45 backdrop-blur-2xl p-1.5 rounded-[20px] border border-white/40 shadow-xl shadow-emerald-900/5">
+                                        <button
+                                            onClick={handleAddStep}
+                                            className="p-2.5 bg-white dark:bg-slate-900 text-emerald-600 rounded-xl border border-gray-100 dark:border-slate-800 hover:bg-emerald-50 hover:border-emerald-100 transition-all shadow-sm flex items-center gap-2 group"
+                                            title="Add Step"
+                                        >
+                                            <Plus size={18} className="group-hover:rotate-90 transition-transform" />
+                                            <span className="text-[10px] font-black uppercase tracking-widest pr-1">Add Step</span>
+                                        </button>
+                                        <button
+                                            onClick={() => setIsSidebarFullscreen(false)}
+                                            className="p-2.5 bg-emerald-50 border border-emerald-100 text-emerald-600 rounded-xl transition-all shadow-sm hover:bg-emerald-100 group"
+                                            title="Exit Fullscreen"
+                                        >
+                                            <Minimize2 size={18} className="group-scale-90 transition-transform" />
+                                        </button>
+                                    </div>
+                                )}
+                                {/* Step Navigation */}
+                                {/* Step Navigation & Actions */}
+                                {/* Step Navigation & Actions (Normal Mode only) */}
+                                {!isSidebarFullscreen && (
+                                    <div className={`flex items-center justify-between gap-3 bg-slate-100/50 dark:bg-slate-800/50 p-1.5 rounded-3xl border border-white/40 dark:border-slate-800/50 shadow-inner flex-shrink-0 transition-opacity duration-300 ${activeRightPanel === 'list' ? 'opacity-100' : 'opacity-0'}`}>
+                                        <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide flex-1 p-0.5">
+                                            {steps.map((step, idx) => (
+                                                <button
+                                                    key={idx}
+                                                    onClick={() => {
+                                                        setDirection(idx > activeStep ? 1 : -1);
+                                                        setActiveStep(idx);
+                                                    }}
+                                                    className={`px-5 py-2.5 rounded-[18px] text-[10px] font-black uppercase tracking-[0.15em] transition-all whitespace-nowrap flex items-center gap-2 group/tab ${activeStep === idx
+                                                        ? 'bg-white dark:bg-slate-700 text-emerald-600 shadow-[0_4px_12px_rgba(0,0,0,0.08)] scale-[1.02]'
+                                                        : 'text-gray-500 dark:text-slate-400 hover:text-emerald-500 hover:bg-white/50 dark:hover:bg-slate-700/50'
+                                                        }`}
+                                                >
+                                                    <span>{step.name}</span>
+                                                    {activeStep === idx && steps.length > 1 && (
+                                                        <X
+                                                            size={12}
+                                                            className="hover:text-rose-500 transition-colors opacity-40 hover:opacity-100"
+                                                            onClick={(e) => { e.stopPropagation(); handleDeleteStep(idx); }}
+                                                        />
+                                                    )}
+                                                </button>
+                                            ))}
                                         </div>
 
-                                        {/* Panel Content */}
-                                        <div className="flex-1 overflow-y-auto scrollbar-hide">
-                                            {/* === ROUTE DETAILS === */}
-                                            {activeRightPanel === 'route' && (
-                                                routeDetails.length > 0 ? (
-                                                    <div className="space-y-6 relative">
-                                                        <div className="absolute left-[11px] top-[10px] bottom-[10px] w-0 border-l-2 border-dashed border-gray-300/70"></div>
-                                                        {routeDetails.map((stop: any) => (
-                                                            <div key={stop.id} className="flex gap-4 relative">
-                                                                <div className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center text-[10px] font-black text-white z-10 shadow-sm">
-                                                                    {stop.id}
+                                        <div className="flex items-center gap-1.5 pl-2 border-l border-gray-200/50 dark:border-slate-700/50">
+                                            <button
+                                                onClick={handleAddStep}
+                                                className="p-2.5 bg-white dark:bg-slate-700 text-emerald-600 rounded-2xl border border-white dark:border-slate-600 hover:scale-105 active:scale-95 transition-all shadow-sm"
+                                                title="Add Step"
+                                            >
+                                                <Plus size={18} />
+                                            </button>
+                                            <button
+                                                onClick={() => {
+                                                    if (windowWidth < 650) {
+                                                        setActiveRightPanel(null);
+                                                    } else {
+                                                        setIsSidebarFullscreen(!isSidebarFullscreen);
+                                                    }
+                                                }}
+                                                className={`p-2.5 bg-white dark:bg-slate-700 rounded-2xl border border-white dark:border-slate-600 hover:scale-105 active:scale-95 transition-all shadow-sm ${windowWidth < 650 ? 'text-rose-500 hover:text-rose-600' : 'text-gray-400 hover:text-emerald-500'}`}
+                                                title={windowWidth < 650 ? "Close" : "Fullscreen"}
+                                            >
+                                                {windowWidth < 650 ? <X size={18} /> : <Maximize2 size={18} />}
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+                                <div
+                                    ref={kanbanRef}
+                                    className={`flex-1 min-w-0 overflow-hidden transition-opacity duration-300 ${activeRightPanel === 'list' ? 'opacity-100' : 'opacity-0'} ${isSidebarFullscreen ? 'flex flex-row gap-2 overflow-x-auto pb-4 scrollbar-hide px-4 lg:pr-60' : 'flex flex-col'}`}
+                                >
+                                    {isSidebarFullscreen ? (
+                                        steps.map((step, stepIdx) => (
+                                            <div key={stepIdx} className="w-[340px] shrink-0 flex flex-col h-full rounded-[32px] bg-white dark:bg-slate-900/60 p-1 border border-white/10 dark:border-slate-800/50 hover:bg-white dark:hover:bg-slate-900/80 transition-colors">
+                                                <div className="flex items-center justify-between p-4 flex-shrink-0">
+                                                    <h3 className="text-[11px] font-black text-gray-900 dark:text-slate-100 uppercase tracking-widest">{step.name}</h3>
+                                                    <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded-full">{step.stops.length} stops</span>
+                                                </div>
+
+                                                <ListOptions
+                                                    step={step}
+                                                    stepIdx={stepIdx}
+                                                    stopCount={step.stops.length}
+                                                    totalSteps={steps.length}
+                                                    onSearch={(val) => handleSearch(stepIdx, val)}
+                                                    onAdd={() => handleAddStop(stepIdx)}
+                                                    onToggleSearch={() => handleToggleSearch(stepIdx)}
+                                                    onToggleLink={() => handleToggleLink(stepIdx)}
+                                                    onDelete={() => handleDeleteStep(stepIdx)}
+                                                />
+
+                                                <div
+                                                    ref={el => { listRefs.current[stepIdx] = el; }}
+                                                    className="flex-1 overflow-y-auto scrollbar-hide p-3 pb-32"
+                                                >
+                                                    <StopListWrapper
+                                                        stops={step.stops}
+                                                        isLinked={step.isLinked}
+                                                        onReorder={(activeId, overId) => handleReorderStop(stepIdx, activeId, overId)}
+                                                        onMoveItem={(idx, dir) => handleMoveItem(stepIdx, idx, dir)}
+                                                        onOpenDetail={(stop) => {
+                                                            const stopIdx = step.stops.findIndex(s => s.id === stop.id);
+                                                            handleOpenStopDetail(stepIdx, stopIdx);
+                                                        }}
+                                                        onMouseEnter={(id) => setHoveredStopId(id)}
+                                                        onMouseLeave={() => setHoveredStopId(null)}
+                                                        hoveredStopId={hoveredMarkerId}
+                                                    >
+                                                        {step.stops.length === 0 && (
+                                                            <div
+                                                                onClick={() => handleAddStop(stepIdx)}
+                                                                className="flex flex-col items-center justify-center py-12 border-2 border-dashed border-gray-200 rounded-[28px] text-gray-400 m-2 cursor-pointer hover:border-emerald-300 hover:bg-emerald-50/30 transition-all group"
+                                                            >
+                                                                <Plus size={24} className="text-gray-300 group-hover:text-emerald-400 transition-colors mb-2" />
+                                                                <div className="text-[10px] font-black uppercase tracking-widest">Add Stop</div>
+                                                            </div>
+                                                        )}
+                                                    </StopListWrapper>
+                                                </div>
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <div className="flex-1 flex flex-col relative overflow-hidden">
+                                            <AnimatePresence initial={false} custom={direction}>
+                                                <motion.div
+                                                    key={activeStep}
+                                                    custom={direction}
+                                                    variants={{
+                                                        enter: (direction: number) => ({
+                                                            x: direction > 0 ? '100%' : '-100%',
+                                                            opacity: 0
+                                                        }),
+                                                        center: {
+                                                            x: 0,
+                                                            opacity: 1
+                                                        },
+                                                        exit: (direction: number) => ({
+                                                            x: direction < 0 ? '100%' : '-100%',
+                                                            opacity: 0
+                                                        })
+                                                    }}
+                                                    initial="enter"
+                                                    animate="center"
+                                                    exit="exit"
+                                                    transition={{
+                                                        x: { type: "spring", stiffness: 300, damping: 30 },
+                                                        opacity: { duration: 0.2 }
+                                                    }}
+                                                    className="absolute inset-0 flex flex-col pt-1"
+                                                >
+                                                    {steps[activeStep] && (
+                                                        <ListOptions
+                                                            step={steps[activeStep]}
+                                                            stepIdx={activeStep}
+                                                            stopCount={steps[activeStep]?.stops?.length || 0}
+                                                            totalSteps={steps.length}
+                                                            onSearch={(val) => handleSearch(activeStep, val)}
+                                                            onAdd={() => handleAddStop(activeStep)}
+                                                            onToggleSearch={() => handleToggleSearch(activeStep)}
+                                                            onToggleLink={() => handleToggleLink(activeStep)}
+                                                            onDelete={() => handleDeleteStep(activeStep)}
+                                                        />
+                                                    )}
+                                                    <div
+                                                        ref={el => { listRefs.current[activeStep] = el; }}
+                                                        className="flex-1 overflow-y-auto scrollbar-hide pb-24 px-1"
+                                                        onScroll={handleListScroll}
+                                                    >
+                                                        <StopListWrapper
+                                                            stops={steps[activeStep]?.stops || []}
+                                                            isLinked={steps[activeStep]?.isLinked || false}
+                                                            onReorder={(activeId, overId) => handleReorderStop(activeStep, activeId, overId)}
+                                                            onMoveItem={(idx, dir) => handleMoveItem(activeStep, idx, dir)}
+                                                            onOpenDetail={(stop) => {
+                                                                if (!steps[activeStep]) return;
+                                                                const stopIdx = steps[activeStep].stops.findIndex(s => s.id === stop.id);
+                                                                handleOpenStopDetail(activeStep, stopIdx);
+                                                            }}
+                                                            onMouseEnter={(id) => setHoveredStopId(id)}
+                                                            onMouseLeave={() => setHoveredStopId(null)}
+                                                            hoveredStopId={hoveredMarkerId}
+                                                        >
+                                                            {steps[activeStep]?.stops?.length === 0 && (
+                                                                <div
+                                                                    onClick={() => handleAddStop(activeStep)}
+                                                                    className="flex flex-col items-center justify-center py-12 border-2 border-dashed border-gray-200 rounded-[28px] text-gray-400 cursor-pointer hover:border-emerald-300 hover:bg-emerald-50/30 transition-all group"
+                                                                >
+                                                                    <Plus size={24} className="text-gray-300 group-hover:text-emerald-400 transition-colors mb-2" />
+                                                                    <div className="text-[10px] font-black uppercase tracking-widest">Add Stop</div>
                                                                 </div>
-                                                                <div className="pt-0.5 flex-1">
-                                                                    <div className="flex items-center justify-between mb-0.5">
-                                                                        <div className="text-xs font-bold text-gray-900 dark:text-slate-100">{stop.location}</div>
-                                                                        <div className="text-[9px] font-black text-blue-600 bg-blue-50/80 px-1.5 py-0.5 rounded-md uppercase tracking-tighter">{stop.timing}</div>
-                                                                    </div>
-                                                                    <div className="text-[10px] font-medium text-gray-500 dark:text-slate-400 uppercase line-clamp-1">{stop.address}</div>
+                                                            )}
+                                                        </StopListWrapper>
+                                                    </div>
+                                                </motion.div>
+                                            </AnimatePresence>
+                                        </div>
+                                    )}
+                                </div>
+                            </motion.aside>
+                        )}
+                    </AnimatePresence>
+
+                    <AnimatePresence>
+                        {activeRightPanel && activeRightPanel !== 'list' && (
+                            <motion.div
+                                key="right-panel"
+                                initial={{ opacity: 0, x: windowWidth < 650 ? 0 : -20, y: windowWidth < 650 ? 20 : 0 }}
+                                animate={{ opacity: 1, x: 0, y: 0, width: windowWidth < 650 ? 'auto' : 372 }}
+                                exit={{ opacity: 0, x: windowWidth < 650 ? 0 : -20, y: windowWidth < 650 ? 20 : 0 }}
+                                transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                                className={`overflow-hidden flex flex-col p-4 z-[60] ${windowWidth < 650 ? 'absolute left-2 right-2 bottom-3' : 'absolute left-[72px] right-0'}`}
+                                style={{
+                                    top: `${headerHeight}px`,
+                                    bottom: '16px'
+                                }}
+                            >
+                                {/* ... panel content ... */}
+                                <div className={`bg-white/40 dark:bg-slate-900/40 backdrop-blur-3xl rounded-[32px] border border-white/60 dark:border-slate-800 shadow-[0_20px_50px_rgba(0,0,0,0.2)] p-6 flex flex-col h-full overflow-hidden ${windowWidth < 650 ? 'w-full' : 'w-[350px]'}`}>
+                                    {/* Panel Header */}
+                                    <div className="flex items-center justify-between mb-5 pb-4 border-b border-gray-200/50 dark:border-slate-700/50 flex-shrink-0">
+                                        <h3 className="text-[11px] font-black text-gray-800 dark:text-slate-200 uppercase tracking-[0.2em]">
+                                            {activeRightPanel === 'route' && 'Route Details'}
+                                            {activeRightPanel === 'history' && 'History Status'}
+                                            {activeRightPanel === 'operation' && 'Operation Details'}
+                                            {activeRightPanel === 'weight' && 'Weight Distribution'}
+                                            {activeRightPanel === 'items' && 'Transit Items'}
+                                        </h3>
+                                        <button
+                                            onClick={() => setActiveRightPanel(null)}
+                                            className="p-2 hover:bg-gray-100/80 dark:hover:bg-slate-800/80 rounded-xl text-gray-400 hover:text-rose-500 transition-all active:scale-90"
+                                        >
+                                            <X size={16} />
+                                        </button>
+                                    </div>
+
+                                    {/* Panel Content (Rest of the panel content follows...) */}
+
+                                    {/* Panel Content */}
+                                    <div className="flex-1 overflow-y-auto scrollbar-hide">
+                                        {/* === ROUTE DETAILS === */}
+                                        {activeRightPanel === 'route' && (
+                                            routeDetails.length > 0 ? (
+                                                <div className="space-y-6 relative animate-in fade-in slide-in-from-right-4 duration-500">
+                                                    <div className="absolute left-[11px] top-[14px] bottom-[14px] w-0 border-l-2 border-dashed border-emerald-200 dark:border-emerald-800/50"></div>
+                                                    {routeDetails.map((stop: any) => (
+                                                        <div key={stop.id} className="flex gap-4 relative group">
+                                                            <div className="flex-shrink-0 w-6 h-6 rounded-full bg-emerald-600 dark:bg-emerald-500 flex items-center justify-center text-[10px] font-black text-white z-10 shadow-lg shadow-emerald-500/20 group-hover:scale-115 transition-transform">
+                                                                {stop.id}
+                                                            </div>
+                                                            <div className="pt-0.5 flex-1 min-w-0">
+                                                                <div className="flex items-center justify-between mb-1">
+                                                                    <div className="text-[12px] font-black text-slate-800 dark:text-slate-100 truncate group-hover:text-emerald-500 transition-colors uppercase tracking-tight">{stop.location}</div>
+                                                                    <div className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 bg-emerald-50/80 dark:bg-emerald-500/10 px-2 py-0.5 rounded-lg uppercase tracking-tighter shrink-0">{stop.timing}</div>
+                                                                </div>
+                                                                <div className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest leading-relaxed line-clamp-1">{stop.address}</div>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            ) : (
+                                                <div className="flex flex-col items-center justify-center h-full text-center py-20 animate-in fade-in duration-700">
+                                                    <div className="w-16 h-16 bg-slate-50 dark:bg-slate-800/50 rounded-[28px] flex items-center justify-center mb-4 text-slate-300 dark:text-slate-700 border border-slate-100 dark:border-slate-800">
+                                                        <MapPin size={32} />
+                                                    </div>
+                                                    <p className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] mb-2">Pas d'itinéraire</p>
+                                                    <p className="text-[9px] text-slate-400 dark:text-slate-500 font-bold max-w-[180px] leading-relaxed">Ajoutez des points de passage pour générer le parcours détaillé.</p>
+                                                </div>
+                                            )
+                                        )}
+
+                                        {/* === HISTORY STATUS === */}
+                                        {activeRightPanel === 'history' && (
+                                            historyStatus.length > 0 ? (
+                                                <div className="space-y-6 relative animate-in fade-in slide-in-from-right-4 duration-500">
+                                                    <div className="absolute left-[11px] top-[14px] bottom-[14px] w-0 border-l-2 border-slate-100 dark:border-slate-800/50"></div>
+                                                    {historyStatus.map((item, idx) => (
+                                                        <div key={idx} className="flex gap-5 relative group">
+                                                            <div className={`flex-shrink-0 w-6 h-6 rounded-lg ${item.bgColor} flex items-center justify-center z-10 shadow-sm group-hover:scale-110 transition-transform`}>
+                                                                <item.icon size={12} className={item.iconColor} />
+                                                            </div>
+                                                            <div className="pt-0.5 min-w-0 flex-1">
+                                                                <div className="flex items-center justify-between mb-1">
+                                                                    <span className="text-[11px] font-black text-slate-800 dark:text-slate-100 uppercase tracking-tight truncate">{item.status}</span>
+                                                                    <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest shrink-0">{item.time}</span>
+                                                                </div>
+                                                                <div className="text-[10px] font-bold text-slate-500 dark:text-slate-400 leading-relaxed">
+                                                                    {item.description}
                                                                 </div>
                                                             </div>
-                                                        ))}
-                                                    </div>
-                                                ) : (
-                                                    <div className="flex flex-col items-center justify-center h-full text-center py-12">
-                                                        <div className="w-12 h-12 bg-white/50 dark:bg-slate-800/50 rounded-full flex items-center justify-center mb-3 text-gray-400 dark:text-slate-600">
-                                                            <MapPin size={24} />
                                                         </div>
-                                                        <p className="text-[11px] font-black text-gray-500 dark:text-slate-400 uppercase tracking-widest mb-1">No route generated</p>
-                                                        <p className="text-[10px] text-gray-400 dark:text-slate-500 font-medium">Add stops to your shipment <br /> to see the journey details.</p>
+                                                    ))}
+                                                </div>
+                                            ) : (
+                                                <div className="flex flex-col items-center justify-center h-full text-center py-20 animate-in fade-in duration-700">
+                                                    <div className="w-16 h-16 bg-slate-50 dark:bg-slate-800/50 rounded-[28px] flex items-center justify-center mb-4 text-slate-300 dark:text-slate-700 border border-slate-100 dark:border-slate-800">
+                                                        <Clock size={32} />
                                                     </div>
-                                                )
-                                            )}
+                                                    <p className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] mb-2">Historique vide</p>
+                                                    <p className="text-[9px] text-slate-400 dark:text-slate-500 font-bold max-w-[180px] leading-relaxed">Les changements de statut seront <br /> listés ici en temps réel.</p>
+                                                </div>
+                                            )
+                                        )}
 
-                                            {/* === HISTORY STATUS === */}
-                                            {activeRightPanel === 'history' && (
-                                                historyStatus.length > 0 ? (
-                                                    <div className="space-y-6 relative">
-                                                        <div className="absolute left-[11px] top-[10px] bottom-[10px] w-0 border-l-2 border-gray-300/50"></div>
-                                                        {historyStatus.map((item, idx) => (
-                                                            <div key={idx} className="flex gap-4 relative">
-                                                                <div className={`flex-shrink-0 w-6 h-6 rounded-lg ${item.bgColor} flex items-center justify-center z-10 shadow-sm`}>
-                                                                    <item.icon size={12} className={item.iconColor} />
-                                                                </div>
-                                                                <div className="pt-0.5 min-w-0">
-                                                                    <div className="flex items-center gap-2 mb-0.5">
-                                                                        <span className="text-xs font-black text-gray-900 dark:text-slate-100">{item.status}</span>
-                                                                        <span className="text-[9px] font-bold text-gray-400 uppercase">{item.time}</span>
-                                                                    </div>
-                                                                    <div className="text-[10px] font-medium text-gray-500 leading-tight">
-                                                                        {item.description}
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                ) : (
-                                                    <div className="flex flex-col items-center justify-center h-full text-center py-12">
-                                                        <div className="w-12 h-12 bg-white/50 dark:bg-slate-800/50 rounded-full flex items-center justify-center mb-3 text-gray-400 dark:text-slate-600">
-                                                            <Clock size={24} />
+                                        {/* === OPERATION DETAILS === */}
+                                        {activeRightPanel === 'operation' && (
+                                            <div className="flex flex-col animate-in fade-in slide-in-from-right-4 duration-500">
+                                                {/* Truck Image - Enhanced Presentation */}
+                                                <div className="relative group mb-6">
+                                                    <div className="absolute inset-0 bg-gradient-to-t from-emerald-500/20 to-transparent rounded-[40px] blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
+                                                    <div className="relative bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-900 rounded-[32px] p-4 border border-white dark:border-slate-700 shadow-sm overflow-hidden min-h-[160px] flex items-center justify-center">
+                                                        <div className="absolute top-0 right-0 p-3">
+                                                            <div className="bg-emerald-500/10 text-emerald-600 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-tighter">Live Unit</div>
                                                         </div>
-                                                        <p className="text-[11px] font-black text-gray-500 dark:text-slate-400 uppercase tracking-widest mb-1">History pending</p>
-                                                        <p className="text-[10px] text-gray-400 dark:text-slate-500 font-medium">Submit the order to <br /> start tracking the status.</p>
-                                                    </div>
-                                                )
-                                            )}
-
-                                            {/* === OPERATION DETAILS === */}
-                                            {activeRightPanel === 'operation' && (
-                                                <div className="flex flex-col">
-                                                    {/* Truck Image */}
-                                                    <div className="flex justify-center mb-4 relative">
-                                                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-40 h-28 bg-blue-100 rounded-full blur-[60px] opacity-20"></div>
                                                         <img
                                                             src="https://images.unsplash.com/photo-1601584115197-04ecc0da31d7?auto=format&fit=crop&q=80&w=800"
                                                             alt="Delivery Truck"
-                                                            className="w-48 h-32 object-contain relative z-10 drop-shadow-2xl brightness-105"
+                                                            className="w-44 h-32 object-contain drop-shadow-2xl transition-transform duration-700 group-hover:scale-110"
                                                         />
                                                     </div>
+                                                </div>
 
-                                                    <div className="text-center mb-4">
-                                                        <h4 className="text-base font-black text-gray-900 dark:text-slate-100 mb-1">{assignedVehicle ? `${assignedVehicle.brand} ${assignedVehicle.model}` : 'Volvo FMX 460'} - <span className="text-blue-600">#{assignedVehicle?.plate || 'XL-43543'}</span></h4>
-                                                        <div className="flex items-center justify-center gap-2">
-                                                            <span className="px-2 py-0.5 bg-gray-100/80 rounded-md text-[9px] font-black text-gray-500 uppercase tracking-tighter">Container ID</span>
-                                                            <span className="text-[10px] font-mono font-bold text-gray-400">#JAKQHH671</span>
+                                                <div className="text-center mb-6">
+                                                    <h4 className="text-base font-black text-gray-900 dark:text-slate-100 mb-1 flex items-center justify-center gap-2">
+                                                        {assignedVehicle ? `${assignedVehicle.brand} ${assignedVehicle.model}` : 'Volvo FMX 460'}
+                                                        <span className="text-emerald-500">#{assignedVehicle?.plate || 'XL-43543'}</span>
+                                                    </h4>
+                                                    <div className="flex items-center justify-center gap-2">
+                                                        <div className="px-2.5 py-1 bg-slate-100 dark:bg-slate-800 rounded-full text-[9px] font-black text-slate-500 uppercase tracking-widest border border-gray-100 dark:border-slate-700">
+                                                            {assignedVehicle?.type || 'Heavy Duty'}
+                                                        </div>
+                                                        <div className="text-[10px] font-mono font-bold text-slate-400">ID: JAKQHH671</div>
+                                                    </div>
+                                                </div>
+
+                                                <div className="space-y-3 mb-6">
+                                                    <div className="bg-gradient-to-r from-emerald-50/50 to-white dark:from-emerald-900/10 dark:to-slate-900 rounded-[24px] p-4 border border-emerald-100/50 dark:border-emerald-800/30 flex items-center gap-4 group transition-all hover:shadow-md">
+                                                        <div className="w-10 h-10 rounded-2xl bg-emerald-500 text-white flex items-center justify-center shadow-lg shadow-emerald-500/20 group-hover:rotate-6 transition-transform">
+                                                            <Truck size={18} />
+                                                        </div>
+                                                        <div>
+                                                            <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Capacité de charge</div>
+                                                            <div className="text-sm font-bold text-slate-800 dark:text-slate-200">
+                                                                {assignedVehicle ? `0 / ${(assignedVehicle.specs?.maxWeight || 0).toLocaleString()} kg` : '0 / 24,000 kg'}
+                                                            </div>
                                                         </div>
                                                     </div>
 
-                                                    <div className="space-y-3 mb-4">
-                                                        <div className="bg-white/20 dark:bg-slate-800/40 rounded-2xl p-3 border border-white/10 dark:border-slate-700/40 flex items-center gap-3">
-                                                            <div className="w-9 h-9 rounded-xl bg-orange-50/80 dark:bg-orange-500/10 flex items-center justify-center text-orange-500">
-                                                                <LayoutGrid size={16} />
-                                                            </div>
-                                                            <div>
-                                                                <div className="text-[9px] font-black text-gray-400 dark:text-slate-500 uppercase tracking-widest mb-0.5">Container Type</div>
-                                                                <div className="text-sm font-bold text-gray-900 dark:text-slate-100">FLC 20 Standart</div>
-                                                            </div>
+                                                    <div className="bg-gradient-to-r from-blue-50/50 to-white dark:from-blue-900/10 dark:to-slate-900 rounded-[24px] p-4 border border-blue-100/50 dark:border-blue-800/30 flex items-center gap-4 group transition-all hover:shadow-md">
+                                                        <div className="w-10 h-10 rounded-2xl bg-blue-500 text-white flex items-center justify-center shadow-lg shadow-blue-500/20 group-hover:-rotate-6 transition-transform">
+                                                            <Navigation size={18} />
                                                         </div>
-                                                        <div className="bg-white/60 dark:bg-slate-800/60 rounded-2xl p-3 border border-white/40 dark:border-slate-700/40 flex items-center gap-3">
-                                                            <div className="w-9 h-9 rounded-xl bg-emerald-50/80 dark:bg-emerald-500/10 flex items-center justify-center text-emerald-500">
-                                                                <CheckCircle2 size={16} />
-                                                            </div>
-                                                            <div>
-                                                                <div className="text-[9px] font-black text-gray-400 dark:text-slate-500 uppercase tracking-widest mb-0.5">Available Load</div>
-                                                                <div className="text-sm font-bold text-gray-900 dark:text-slate-100">{assignedVehicle ? `0kg / ${(assignedVehicle.specs?.maxWeight || 0).toLocaleString()}kg` : '0kg / 0kg'}</div>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-
-                                                    {/* Driver Card */}
-                                                    <div className="bg-white/20 dark:bg-slate-800/40 border border-white/10 dark:border-slate-700/40 rounded-[20px] p-3 flex items-center justify-between shadow-sm">
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="relative">
-                                                                <img src={`https://i.pravatar.cc/150?u=${assignedDriver?.driverId || 'none'}`} alt="Driver" className="w-10 h-10 rounded-full border-2 border-white dark:border-slate-800 shadow-sm" />
-                                                                <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-white dark:bg-slate-900 rounded-full flex items-center justify-center border border-gray-50 dark:border-slate-800 shadow-sm">
-                                                                    <div className={`w-2 h-2 ${assignedDriver ? 'bg-emerald-500' : 'bg-gray-300'} rounded-full`}></div>
-                                                                </div>
-                                                            </div>
-                                                            <div>
-                                                                <div className="text-sm font-black text-gray-900 dark:text-slate-100">{assignedDriver?.driver.fullName || 'No driver auto-selected'}</div>
-                                                                <div className="text-[10px] font-bold text-gray-400 dark:text-slate-500">{assignedDriver ? 'Senior Driver' : 'Status unknown'} • <span className={`${assignedDriver ? 'text-emerald-500' : 'text-gray-400'} uppercase tracking-tighter`}>{assignedDriver ? 'Available' : 'Unavailable'}</span></div>
-                                                            </div>
-                                                        </div>
-                                                        <div className="flex gap-2">
-                                                            <button className="p-2 text-gray-400 dark:text-slate-500 hover:text-blue-600 hover:bg-blue-50/80 dark:hover:bg-blue-900/20 bg-white/20 dark:bg-slate-900/40 border border-white/10 dark:border-slate-700/40 rounded-full transition-all shadow-sm"><Phone size={14} /></button>
-                                                            <button className="p-2 text-gray-400 dark:text-slate-500 hover:text-blue-600 hover:bg-blue-50/80 dark:hover:bg-blue-900/20 bg-white/20 dark:bg-slate-900/40 border border-white/10 dark:border-slate-700/40 rounded-full transition-all shadow-sm"><MessageSquare size={14} /></button>
+                                                        <div>
+                                                            <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Statut Actuel</div>
+                                                            <div className="text-sm font-bold text-slate-800 dark:text-slate-200">Sur Route - 12km restants</div>
                                                         </div>
                                                     </div>
                                                 </div>
-                                            )}
 
-                                            {/* === WEIGHT DISTRIBUTION === */}
-                                            {activeRightPanel === 'weight' && (
-                                                <div className="flex flex-col">
-                                                    <div className="mb-6 px-2 relative">
-                                                        <div className="flex items-baseline gap-2 mb-8">
-                                                            <span className="text-3xl font-black text-gray-900 dark:text-slate-100 tracking-tighter">0%</span>
-                                                            <span className="text-[10px] font-bold text-gray-400 uppercase">of Total Capacity</span>
-                                                        </div>
-
-                                                        {/* Capacity Gauge */}
-                                                        <div className="relative mb-6 h-8 flex items-center">
-                                                            <div className="h-[2px] w-full bg-gray-200/50 rounded-full relative">
-                                                                <div className="absolute left-[0%] -translate-x-1/2 -top-6 flex flex-col items-center group/tooltip">
-                                                                    <div className="px-2 py-1 bg-gray-900 rounded-lg text-[10px] font-black text-white mb-1 shadow-xl tracking-tighter">0kg</div>
-                                                                    <div className="w-5 h-5 rounded-full border-4 border-white bg-blue-600 shadow-xl relative z-10 transition-transform hover:scale-110"></div>
-                                                                    <div className="w-[2px] h-4 bg-gray-200 mt-[-2px]"></div>
-                                                                </div>
-                                                                <div className="absolute inset-y-0 left-0 bg-blue-600 rounded-full" style={{ width: '0%' }}></div>
+                                                {/* Driver Card - Enhanced */}
+                                                <div className="bg-white dark:bg-slate-800/50 rounded-[28px] p-4 border border-gray-100 dark:border-slate-700 shadow-sm flex items-center justify-between group transition-all hover:border-emerald-500/30">
+                                                    <div className="flex items-center gap-4">
+                                                        <div className="relative">
+                                                            <div className="absolute inset-0 rounded-full bg-emerald-500 animate-pulse opacity-20 blur-md"></div>
+                                                            <img src={`https://i.pravatar.cc/150?u=${assignedDriver?.driverId || 'none'}`} alt="Driver" className="relative w-12 h-12 rounded-full border-2 border-white dark:border-slate-800 shadow-md group-hover:scale-105 transition-transform" />
+                                                            <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border-2 border-white dark:border-slate-800 flex items-center justify-center">
+                                                                <Check size={8} className="text-white" strokeWidth={4} />
                                                             </div>
                                                         </div>
-
-                                                        {/* Frequency bars */}
-                                                        <div className="flex justify-between h-8 items-end gap-[1px] opacity-10">
-                                                            {[...Array(60)].map((_, i) => {
-                                                                const h = 20 + Math.random() * 10;
-                                                                return (
-                                                                    <div
-                                                                        key={i}
-                                                                        className="w-[2px] rounded-full bg-gray-300"
-                                                                        style={{ height: `${h}%` }}
-                                                                    ></div>
-                                                                );
-                                                            })}
+                                                        <div>
+                                                            <div className="text-sm font-black text-slate-800 dark:text-slate-100">{assignedDriver?.driver.fullName || 'Selection Auto...'}</div>
+                                                            <div className="text-[10px] font-bold text-slate-400 flex items-center gap-1.5 uppercase tracking-tighter">
+                                                                <Zap size={10} className="text-amber-500 fill-amber-500" />
+                                                                {assignedDriver ? 'Expert Logistique' : 'Analyse en cours'}
+                                                            </div>
                                                         </div>
                                                     </div>
-
-                                                    <div className="flex-1 space-y-0.5">
-                                                        <div className="flex items-center justify-between text-[10px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-200/30 pb-2 px-2 mb-2">
-                                                            <span>Load Type</span>
-                                                            <span>Weight (g)</span>
-                                                        </div>
-
-                                                        <div className="text-center py-6 border-2 border-dashed border-gray-200/40 rounded-3xl text-gray-400 text-[10px] font-black uppercase tracking-widest">
-                                                            No items in load
-                                                        </div>
+                                                    <div className="flex gap-2">
+                                                        <button className="p-2.5 text-slate-400 dark:text-slate-500 hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 rounded-xl transition-all"><Phone size={16} /></button>
+                                                        <button className="p-2.5 text-slate-400 dark:text-slate-500 hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 rounded-xl transition-all"><MessageSquare size={16} /></button>
                                                     </div>
                                                 </div>
-                                            )}
-                                            {/* === TRANSIT ITEMS === */}
-                                            {activeRightPanel === 'items' && (
-                                                <div className="flex flex-col h-full">
-                                                    <div className="flex items-center justify-between mb-4">
-                                                        <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-2">
-                                                            {order?.transitItems?.length || 0} ITEMS EN TRANSIT
+                                            </div>
+                                        )}
+
+                                        {/* === WEIGHT DISTRIBUTION === */}
+                                        {activeRightPanel === 'weight' && (
+                                            <div className="flex flex-col animate-in fade-in slide-in-from-right-4 duration-500">
+                                                <div className="mb-8 px-2 relative">
+                                                    <div className="flex items-baseline gap-2 mb-10">
+                                                        <span className="text-4xl font-black text-slate-900 dark:text-slate-100 tracking-tighter">0%</span>
+                                                        <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Capacité Utilisée</span>
+                                                    </div>
+
+                                                    {/* Capacity Gauge - Enhanced Visual */}
+                                                    <div className="relative mb-8 h-12 flex items-center">
+                                                        <div className="h-2.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full border border-gray-100 dark:border-slate-700 relative overflow-visible">
+                                                            <div
+                                                                className="absolute top-1/2 left-0 -translate-y-1/2 flex flex-col items-center group/tooltip"
+                                                                style={{ left: '0%' }}
+                                                            >
+                                                                <div className="absolute -top-12 px-3 py-1.5 bg-slate-900 dark:bg-slate-700 rounded-xl text-[10px] font-black text-white shadow-2xl tracking-tight scale-0 group-hover/tooltip:scale-100 transition-transform origin-bottom">
+                                                                    Charge: 0kg
+                                                                    <div className="absolute top-full left-1/2 -translate-x-1/2 border-8 border-transparent border-t-slate-900 dark:border-t-slate-700"></div>
+                                                                </div>
+                                                                <div className="w-8 h-8 rounded-full border-4 border-white dark:border-slate-900 bg-emerald-500 shadow-xl relative z-10 transition-all hover:scale-110 cursor-pointer active:scale-90"></div>
+                                                            </div>
+                                                            <div
+                                                                className="absolute inset-y-0 left-0 bg-gradient-to-r from-emerald-500 to-emerald-400 rounded-full shadow-[0_0_20px_rgba(16,185,129,0.3)] transition-all duration-1000 ease-out"
+                                                                style={{ width: '2%' }}
+                                                            ></div>
                                                         </div>
                                                     </div>
 
-                                                    <div className="flex-1 overflow-y-auto pr-1 space-y-3 scrollbar-hide pb-10">
-                                                        {order?.transitItems && order.transitItems.length > 0 ? (
-                                                            order.transitItems.map((item: any) => (
+                                                    {/* Frequency bars - Visual Depth */}
+                                                    <div className="flex justify-between h-10 items-end gap-[2px] opacity-20">
+                                                        {[...Array(50)].map((_, i) => {
+                                                            const h = 20 + Math.abs(Math.sin(i * 0.2)) * 60;
+                                                            return (
                                                                 <div
-                                                                    key={item.id}
-                                                                    className="group bg-white/20 dark:bg-slate-800/40 rounded-[20px] p-3 border border-white/10 dark:border-slate-700/40 hover:border-blue-300 dark:hover:border-blue-500/50 transition-all cursor-pointer shadow-sm hover:shadow-md"
-                                                                    onClick={() => {
-                                                                        // Find which stop has this item
-                                                                        const stopWithItem = steps.flatMap(s => s.stops).find(st =>
-                                                                            st.actions?.some((a: any) => a.transitItemId === item.id)
-                                                                        );
-                                                                        if (stopWithItem) {
-                                                                            const stepIdx = steps.findIndex(s => s.stops.some(st => st.id === stopWithItem.id));
-                                                                            const stopIdx = steps[stepIdx].stops.findIndex(st => st.id === stopWithItem.id);
-                                                                            handleOpenStopDetail(stepIdx, stopIdx);
-                                                                        }
-                                                                    }}
-                                                                >
-                                                                    <div className="flex items-center gap-3">
-                                                                        <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-500/10 flex items-center justify-center text-blue-500 group-hover:scale-110 transition-transform">
-                                                                            <Package size={18} />
+                                                                    key={i}
+                                                                    className="w-[2px] rounded-full bg-slate-400"
+                                                                    style={{ height: `${h}%` }}
+                                                                ></div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex-1 flex flex-col pt-4">
+                                                    <div className="flex items-center justify-between text-[11px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 dark:border-slate-800 pb-3 px-2 mb-4">
+                                                        <span>Type de charge</span>
+                                                        <span>Poids Brut (kg)</span>
+                                                    </div>
+
+                                                    <div className="flex flex-col items-center justify-center py-12 bg-slate-50/50 dark:bg-slate-800/20 rounded-[32px] border-2 border-dashed border-slate-200 dark:border-slate-700 text-slate-400">
+                                                        <div className="w-12 h-12 rounded-2xl bg-white dark:bg-slate-800 shadow-sm flex items-center justify-center mb-4">
+                                                            <Package size={24} className="opacity-20" />
+                                                        </div>
+                                                        <div className="text-[10px] font-black uppercase tracking-widest opacity-60">Aucun produit chargé</div>
+                                                        <p className="text-[9px] font-bold mt-1 max-w-[160px] text-center opacity-40">Ajoutez des items pour voir la <br />distribution du poids.</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                        {/* === TRANSIT ITEMS === */}
+                                        {activeRightPanel === 'items' && (
+                                            <div className="flex flex-col h-full animate-in fade-in slide-in-from-right-4 duration-500">
+                                                <div className="flex items-center justify-between mb-5 px-1">
+                                                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.15em]">
+                                                        {order?.transitItems?.length || 0} ITEMS EN TRANSIT
+                                                    </div>
+                                                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
+                                                </div>
+
+                                                <div className="flex-1 overflow-y-auto pr-1 space-y-3.5 scrollbar-hide pb-20">
+                                                    {order?.transitItems && order.transitItems.length > 0 ? (
+                                                        order.transitItems.map((item: any) => (
+                                                            <div
+                                                                key={item.id}
+                                                                className="group relative bg-white/40 dark:bg-slate-800/40 rounded-[28px] p-4 border border-white/60 dark:border-slate-700/40 hover:border-emerald-300 dark:hover:border-emerald-500/50 transition-all cursor-pointer shadow-sm hover:shadow-xl hover:-translate-y-1"
+                                                                onClick={() => {
+                                                                    const stopWithItem = steps.flatMap(s => s.stops).find(st =>
+                                                                        st.actions?.some((a: any) => a.transitItemId === item.id)
+                                                                    );
+                                                                    if (stopWithItem) {
+                                                                        const stepIdx = steps.findIndex(s => s.stops.some(st => st.id === stopWithItem.id));
+                                                                        const stopIdx = steps[stepIdx].stops.findIndex(st => st.id === stopWithItem.id);
+                                                                        handleOpenStopDetail(stepIdx, stopIdx);
+                                                                    }
+                                                                }}
+                                                            >
+                                                                <div className="flex items-center gap-4">
+                                                                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-50 to-white dark:from-emerald-900/20 dark:to-slate-800 flex items-center justify-center text-emerald-500 border border-emerald-100/50 dark:border-emerald-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-500">
+                                                                        <Package size={22} strokeWidth={2.5} />
+                                                                    </div>
+                                                                    <div className="flex-1 min-w-0">
+                                                                        <div className="flex justify-between items-start mb-1">
+                                                                            <h4 className="text-[12px] font-black text-slate-800 dark:text-slate-100 uppercase tracking-tight truncate">
+                                                                                {item.name}
+                                                                            </h4>
+                                                                            <span className="text-[10px] font-mono font-black text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded-lg">
+                                                                                {item.weight > 0 ? `${(item.weight / 1000).toFixed(1)}kg` : ''}
+                                                                            </span>
                                                                         </div>
-                                                                        <div className="flex-1 min-w-0">
-                                                                            <div className="flex justify-between items-start mb-0.5">
-                                                                                <h4 className="text-[11px] font-black text-gray-900 dark:text-slate-100 uppercase tracking-tight truncate">
-                                                                                    {item.name}
-                                                                                </h4>
-                                                                                <span className="text-[10px] font-mono font-bold text-gray-400">
-                                                                                    {item.weight > 0 ? `${(item.weight / 1000).toFixed(1)}kg` : ''}
-                                                                                </span>
-                                                                            </div>
-                                                                            <div className="flex items-center gap-2">
-                                                                                <span className={`px-1.5 py-0.5 rounded-md text-[8px] font-black uppercase tracking-tighter
-                                                                                    ${item.status === 'DELIVERED' ? 'bg-emerald-50 text-emerald-600' :
-                                                                                        item.status === 'IN_TRANSIT' ? 'bg-blue-50 text-blue-600' :
-                                                                                            'bg-gray-100 text-gray-500'}`}>
-                                                                                    {item.status || 'DRAFT'}
-                                                                                </span>
-                                                                                <span className="text-[9px] text-gray-400 font-medium truncate">
-                                                                                    {item.packaging_type} • ID: {item.id.slice(-6)}
-                                                                                </span>
+                                                                        <div className="flex items-center gap-2">
+                                                                            <span className={`px-2 py-0.5 rounded-lg text-[8px] font-black uppercase tracking-widest
+                                                                                    ${item.status === 'DELIVERED' ? 'bg-emerald-500 text-white' :
+                                                                                    item.status === 'IN_TRANSIT' ? 'bg-amber-500 text-white' :
+                                                                                        'bg-slate-100 dark:bg-slate-700 text-slate-500'}`}>
+                                                                                {item.status || 'DRAFT'}
+                                                                            </span>
+                                                                            <div className="flex items-center gap-1 text-[9px] text-slate-400 font-bold uppercase tracking-tighter">
+                                                                                <div className="w-1 h-1 rounded-full bg-slate-300"></div>
+                                                                                Ref: {item.id.slice(-8)}
                                                                             </div>
                                                                         </div>
                                                                     </div>
                                                                 </div>
-                                                            ))
-                                                        ) : (
-                                                            <div className="flex flex-col items-center justify-center py-12 text-center opacity-50">
-                                                                <Package size={40} className="text-gray-300 mb-3" />
-                                                                <div className="text-[10px] font-black uppercase tracking-widest text-gray-400">Aucun item</div>
                                                             </div>
-                                                        )}
-                                                    </div>
+                                                        ))
+                                                    ) : (
+                                                        <div className="flex flex-col items-center justify-center py-20 text-slate-300 dark:text-slate-700 text-center">
+                                                            <div className="w-16 h-16 rounded-[24px] bg-slate-50 dark:bg-slate-800/50 flex items-center justify-center mb-4 border border-slate-100 dark:border-slate-800">
+                                                                <Package size={32} className="opacity-20" />
+                                                            </div>
+                                                            <div className="text-[10px] font-black uppercase tracking-widest opacity-50">Aucun item</div>
+                                                        </div>
+                                                    )}
                                                 </div>
-                                            )}
-                                        </div>
+                                            </div>
+                                        )}
                                     </div>
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
+                                </div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
 
-                        {/* Icon Bar (always visible) */}
-                        <div className="flex flex-col items-center gap-2 py-3 px-1.5 bg-white/20 dark:bg-slate-900/40 backdrop-blur-2xl rounded-[20px] border border-white/20 dark:border-slate-600/50 shadow-2xl shadow-black/15 self-start">
-                            {([
-                                { id: 'route' as const, icon: MapPin, label: 'Route', activeClass: 'bg-blue-100 dark:bg-blue-500/20 text-blue-600 shadow-lg shadow-blue-200/50 dark:shadow-blue-500/10 scale-105', dotClass: 'bg-blue-500' },
-                                { id: 'history' as const, icon: Clock, label: 'Historique', activeClass: 'bg-amber-100 dark:bg-amber-500/20 text-amber-600 shadow-lg shadow-amber-200/50 dark:shadow-amber-500/10 scale-105', dotClass: 'bg-amber-500' },
-                                { id: 'operation' as const, icon: Truck, label: 'Opération', activeClass: 'bg-indigo-100 dark:bg-indigo-500/20 text-indigo-600 shadow-lg shadow-indigo-200/50 dark:shadow-indigo-500/10 scale-105', dotClass: 'bg-indigo-500' },
-                                { id: 'weight' as const, icon: LayoutGrid, label: 'Charge', activeClass: 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 shadow-lg shadow-emerald-200/50 dark:shadow-emerald-500/10 scale-105', dotClass: 'bg-emerald-500' },
-                                { id: 'items' as const, icon: Package, label: 'Items', activeClass: 'bg-rose-100 dark:bg-rose-500/20 text-rose-600 shadow-lg shadow-rose-200/50 dark:shadow-rose-500/10 scale-105', dotClass: 'bg-rose-500' },
-                            ]).map(({ id, icon: Icon, label, activeClass, dotClass }) => (
-                                <button
-                                    key={id}
-                                    onClick={() => handleRightPanelToggle(id)}
-                                    className={`relative p-3 rounded-2xl transition-all duration-200 group ${activeRightPanel === id
-                                        ? activeClass
-                                        : 'text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300 hover:bg-gray-100/60 dark:hover:bg-slate-800/60'
-                                        }`}
-                                    title={label}
-                                >
-                                    <Icon size={20} />
-                                    {/* Active indicator dot */}
-                                    {activeRightPanel === id && (
-                                        <motion.div
-                                            layoutId="activeIndicator"
-                                            className={`absolute -left-1 top-1/2 -translate-y-1/2 w-1 h-4 ${dotClass} rounded-full`}
-                                            transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-                                        />
-                                    )}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
                 </section>
             </main>
 
@@ -2177,6 +2289,11 @@ export default function Page() {
                     setSelectedStop(newStop);
 
                     // Sync to server
+                    // specific action updates are handled by onUpdateAction to avoid double requests
+                    if (fieldPath && (fieldPath.startsWith('actions.') || fieldPath.includes('.actions.'))) {
+                        return;
+                    }
+
                     let payload: any = {};
                     if (fieldPath) {
                         // Build nested object from fieldPath

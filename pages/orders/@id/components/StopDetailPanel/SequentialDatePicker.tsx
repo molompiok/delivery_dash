@@ -6,7 +6,7 @@ import { format, parseISO, isValid, set } from 'date-fns';
 import "react-datepicker/dist/react-datepicker.css";
 import { SequentialDatePickerProps } from './types';
 
-const SequentialDatePicker: React.FC<SequentialDatePickerProps> = ({ label, value, onChange, icon: Icon, color = "blue" }) => {
+const SequentialDatePicker: React.FC<SequentialDatePickerProps> = ({ label, value, onChange, icon: Icon, color = "emerald" }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [step, setStep] = useState<'date' | 'time'>('date');
     const [tempDate, setTempDate] = useState<Date | null>(value ? parseISO(value) : null);
@@ -86,7 +86,7 @@ const SequentialDatePicker: React.FC<SequentialDatePickerProps> = ({ label, valu
                                             </button>
                                         )}
                                         <div className="flex flex-col">
-                                            <span className="text-[10px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-0.5">
+                                            <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400 mb-0.5">
                                                 {label}
                                             </span>
                                             <h4 className="text-[13px] font-bold text-gray-900 dark:text-slate-100 leading-none">
@@ -148,8 +148,8 @@ const SequentialDatePicker: React.FC<SequentialDatePickerProps> = ({ label, valu
 
                                 {/* Progress dots */}
                                 <div className="bg-gray-50/50 dark:bg-slate-800/50 p-4 border-t border-gray-50 dark:border-slate-800 flex justify-center gap-1.5">
-                                    <div className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${step === 'date' ? 'bg-blue-600 w-4' : 'bg-gray-200 dark:bg-slate-700'}`} />
-                                    <div className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${step === 'time' ? 'bg-blue-600 w-4' : 'bg-gray-200 dark:bg-slate-700'}`} />
+                                    <div className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${step === 'date' ? 'bg-emerald-600 w-4' : 'bg-gray-200 dark:bg-slate-700'}`} />
+                                    <div className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${step === 'time' ? 'bg-emerald-600 w-4' : 'bg-gray-200 dark:bg-slate-700'}`} />
                                 </div>
                             </motion.div>
                         </div>

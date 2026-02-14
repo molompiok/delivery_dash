@@ -237,6 +237,64 @@ export interface Order {
     route_metadata?: { live_source: string; pending_source: string };
 }
 
+export interface OrderSummary {
+    id: string;
+    status: string;
+    assignment: {
+        mode: 'GLOBAL' | 'INTERNAL' | 'TARGET';
+        priority: 'LOW' | 'MEDIUM' | 'HIGH';
+    };
+    attribution: {
+        driver: {
+            id: string;
+            name: string;
+            phone: string;
+            avatar: string | null;
+        };
+        vehicle: {
+            id: string;
+            type: string;
+            plate: string;
+        } | null;
+    } | null;
+    itinerary: {
+        totalStops: number;
+        visitedCount: number;
+        progressPercent: number;
+        totalActions: number;
+        display: {
+            label: string;
+            from: string;
+            to: string;
+        };
+        stops: {
+            last: {
+                id: string;
+                address: string;
+                actions?: { pickup: number; drop: number; service: number }
+            } | null;
+            next: {
+                id: string;
+                address: string;
+                actions?: { pickup: number; drop: number; service: number }
+            } | null;
+        };
+    };
+    nextStopActions: {
+        type: string;
+        mainItem: string;
+        totalCount: number;
+    } | null;
+    pricing: {
+        amount: number;
+        currency: string;
+    };
+    timestamps: {
+        createdAt: string;
+        updatedAt: string;
+    };
+}
+
 export const ordersApi = {
     // --- Order CRUD ---
     create: async (payload: OrderPayload | HierarchicalOrderPayload) => {
@@ -254,13 +312,15 @@ export const ordersApi = {
         return response.data;
     },
 
-    list: async () => {
-        const response = await client.get<Order[]>('/orders');
+    list: async (options: { view?: 'summary' } = {}) => {
+        const url = options.view ? `/orders?view=${options.view}` : '/orders';
+        const response = await client.get<any[]>(url);
         return response.data;
     },
 
-    get: async (id: string) => {
-        const response = await client.get<Order>(`/orders/${id}`);
+    get: async (id: string, include?: string[]) => {
+        const queryString = include ? `?include=${include.join(',')}` : '';
+        const response = await client.get<Order>(`/orders/${id}${queryString}`);
         return response.data;
     },
 

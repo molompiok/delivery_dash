@@ -86,8 +86,8 @@ const EditableField: React.FC<EditableFieldProps> = ({
                         <textarea
                             ref={inputRef as any}
                             className={`w-full bg-white dark:bg-slate-900 rounded-xl p-2.5 text-sm font-bold text-gray-900 dark:text-slate-100 outline-none min-h-[80px] resize-none transition-all ${isEditing
-                                ? 'border-2 border-blue-500 dark:border-blue-400 shadow-lg shadow-blue-500/10'
-                                : 'border border-gray-100 dark:border-slate-800 hover:border-gray-200 dark:hover:border-slate-700 focus:border-blue-500 dark:focus:border-blue-400 focus:border-2 focus:shadow-lg focus:shadow-blue-500/10'
+                                ? 'border-2 border-emerald-500 dark:border-emerald-400 shadow-lg shadow-emerald-500/10'
+                                : 'border border-gray-100 dark:border-slate-800 hover:border-gray-200 dark:hover:border-slate-700 focus:border-emerald-500 dark:focus:border-emerald-400 focus:border-2 focus:shadow-lg focus:shadow-emerald-500/10'
                                 }`}
                             value={tempValue}
                             onChange={(e) => setTempValue(e.target.value)}
@@ -102,8 +102,8 @@ const EditableField: React.FC<EditableFieldProps> = ({
                             ref={inputRef as any}
                             type={type}
                             className={`w-full bg-white dark:bg-slate-900 rounded-xl px-3 py-2 text-sm font-bold text-gray-900 dark:text-slate-100 outline-none transition-all ${isEditing
-                                ? 'border-2 border-blue-500 dark:border-blue-400 shadow-lg shadow-blue-500/10'
-                                : 'border border-gray-100 dark:border-slate-800 hover:border-gray-200 dark:hover:border-slate-700 focus:border-blue-500 dark:focus:border-blue-400 focus:border-2 focus:shadow-lg focus:shadow-blue-500/10'
+                                ? 'border-2 border-emerald-500 dark:border-emerald-400 shadow-lg shadow-emerald-500/10'
+                                : 'border border-gray-100 dark:border-slate-800 hover:border-gray-200 dark:hover:border-slate-700 focus:border-emerald-500 dark:focus:border-emerald-400 focus:border-2 focus:shadow-lg focus:shadow-emerald-500/10'
                                 }`}
                             value={tempValue}
                             onChange={(e) => setTempValue(e.target.value)}
@@ -134,7 +134,7 @@ const EditableField: React.FC<EditableFieldProps> = ({
                                     e.stopPropagation();
                                     setIsExpanded(!isExpanded);
                                 }}
-                                className="flex items-center gap-1 px-3 pb-2 text-[10px] font-black text-blue-600 uppercase tracking-widest hover:text-blue-700 transition-colors"
+                                className="flex items-center gap-1 px-3 pb-2 text-[10px] font-black text-emerald-600 uppercase tracking-widest hover:text-emerald-700 transition-colors"
                             >
                                 {isExpanded ? (
                                     <>See less <ChevronUp size={12} /></>

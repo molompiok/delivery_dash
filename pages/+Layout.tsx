@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { LayoutDashboard, Users, Truck, Settings, LogOut, Search, Bell, User as UserIcon, Menu, X, ShoppingBag, Map as MapIcon, Calendar, DollarSign, Navigation, FileText, ChevronLeft, LayoutGrid, Activity, Sun, Moon, Monitor, ChevronRight } from 'lucide-react';
+import { LayoutDashboard, Users, Truck, Settings, LogOut, Search, Bell, User as UserIcon, Menu, X, ShoppingBag, Map as MapIcon, Calendar, DollarSign, Navigation, FileText, ChevronLeft, ChevronDown, LayoutGrid, Activity, Sun, Moon, Monitor, ChevronRight } from 'lucide-react';
 import './Layout.css';
 import './tailwind.css';
 import { authService } from '../api/auth';
@@ -101,8 +101,35 @@ function LayoutContent({ children, currentPath }: { children: React.ReactNode, c
 
 function Topbar({ currentPath }: { currentPath: string }) {
   const [user, setUser] = useState<User | null>(null);
-  const { headerContent, isHeaderHidden, setHeaderHeight } = useHeader();
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const menuTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const { headerContent, isHeaderHidden, isHeaderSuppressed, setHeaderHeight } = useHeader();
   const headerRef = useRef<HTMLDivElement>(null);
+
+  const isActuallyHidden = isHeaderHidden || isHeaderSuppressed;
+
+  // Smart auto-close menu
+  const resetTimer = () => {
+    if (menuTimeoutRef.current) clearTimeout(menuTimeoutRef.current);
+    menuTimeoutRef.current = setTimeout(() => {
+      setIsMenuOpen(false);
+    }, 5000);
+  };
+
+  useEffect(() => {
+    if (isMenuOpen) {
+      resetTimer();
+    }
+    return () => {
+      if (menuTimeoutRef.current) clearTimeout(menuTimeoutRef.current);
+    };
+  }, [isMenuOpen]);
+
+  // Handle manual toggle
+  const toggleMenu = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsMenuOpen(!isMenuOpen);
+  };
 
   // Measure header height and update context
   useEffect(() => {
@@ -111,26 +138,22 @@ function Topbar({ currentPath }: { currentPath: string }) {
     const updateHeight = () => {
       if (headerRef.current) {
         const rect = headerRef.current.getBoundingClientRect();
-        // We want the total height from top screen when NOT hidden
-        // rect.height is the bar, but we also have 'top-2/4' (8px/16px)
         const topMargin = window.innerWidth < 768 ? 8 : 16;
-        const totalHeight = rect.height + topMargin + 12; // margin + padding gap
-        setHeaderHeight(isHeaderHidden ? 0 : totalHeight);
+        const totalHeight = rect.height + topMargin + 12;
+        setHeaderHeight(isActuallyHidden ? 0 : totalHeight);
       }
     };
 
     updateHeight();
     const observer = new ResizeObserver(updateHeight);
     observer.observe(headerRef.current);
-
-    // Also re-measure on window resize just in case
     window.addEventListener('resize', updateHeight);
 
     return () => {
       observer.disconnect();
       window.removeEventListener('resize', updateHeight);
     };
-  }, [setHeaderHeight, isHeaderHidden, headerContent]); // Re-measure if content changes
+  }, [setHeaderHeight, isActuallyHidden, headerContent]);
 
   useEffect(() => {
     const userStr = localStorage.getItem('delivery_user');
@@ -161,7 +184,7 @@ function Topbar({ currentPath }: { currentPath: string }) {
     <div
       ref={headerRef}
       className="fixed top-2 md:top-4 left-2 md:left-4 right-2 md:right-4 z-50 pointer-events-none transition-transform duration-500 ease-in-out"
-      style={{ transform: isHeaderHidden ? 'translateY(-120%)' : 'translateY(0)' }}
+      style={{ transform: isActuallyHidden ? 'translateY(-120%)' : 'translateY(0)' }}
     >
       <div
         className="backdrop-blur-2xl rounded-[16px] md:rounded-[20px] shadow-lg border pointer-events-auto h-14 md:h-16 flex items-center justify-between px-3 md:px-6 transition-all duration-500"
@@ -170,20 +193,33 @@ function Topbar({ currentPath }: { currentPath: string }) {
           borderColor: 'var(--header-border)'
         }}
       >
-
-        {/* Left: Logo & Nav */}
+        {/* Left: Logo (Desktop) or Toggle (Mobile) */}
         <div className="flex items-center gap-6 overflow-hidden">
-          <div className="flex items-center gap-2 shrink-0 group cursor-pointer" onClick={() => window.location.href = '/'}>
+          {/* Desktop Logo */}
+          <div className="hidden min-[650px]:flex items-center gap-2 shrink-0 group cursor-pointer" onClick={() => window.location.href = '/'}>
             <div
               className="w-8 h-8 md:w-9 md:h-9 rounded-lg md:rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300"
               style={{ background: 'var(--primary-gradient)' }}
             >
               <Truck size={18} className="text-white" />
             </div>
-            <span className="hidden sm:block text-lg font-black tracking-tight group-hover:translate-x-1 transition-transform duration-300" style={{ color: 'var(--header-text)' }}>Sublymus</span>
+            <span className="text-lg font-black tracking-tight group-hover:translate-x-1 transition-transform duration-300" style={{ color: 'var(--header-text)' }}>Sublymus</span>
           </div>
 
-          <nav className="hidden lg:flex items-center gap-1 overflow-x-auto no-scrollbar">
+          {/* Mobile Toggle Button */}
+          <button
+            onClick={toggleMenu}
+            className="flex min-[650px]:hidden items-center justify-center w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 border border-gray-100 dark:border-slate-700 text-slate-600 dark:text-slate-400 shadow-sm active:scale-95 transition-all"
+          >
+            <motion.div
+              animate={{ rotate: isMenuOpen ? 180 : 0 }}
+              transition={{ duration: 0.3 }}
+            >
+              <ChevronDown size={20} />
+            </motion.div>
+          </button>
+
+          <nav className="hidden min-[650px]:flex items-center gap-1 overflow-x-auto no-scrollbar">
             {NAV_LINKS.map(link => {
               const isActive = link.href === '/'
                 ? currentPath === '/'
@@ -220,23 +256,70 @@ function Topbar({ currentPath }: { currentPath: string }) {
         </div>
 
         {/* Right: Actions & User */}
-        <div className="flex items-center gap-1 md:gap-3 shrink-0">
-          <div className="flex items-center gap-1 md:gap-2 pr-1 md:pr-2 border-r" style={{ borderColor: 'var(--header-border)' }}>
+        <div className="flex items-center gap-1 md:gap-2 shrink-0">
+          <div className="flex items-center gap-0.5 md:gap-1 mr-1 md:mr-2">
             <IconButton icon={Search} />
             <UserMenu user={user} />
           </div>
 
-          <div className="flex items-center gap-2 md:gap-3">
+          <div className="flex items-center gap-2 md:gap-3 border-l border-gray-200/30 pl-4">
             <div className="text-right hidden md:block">
               <div className="text-xs font-black leading-none mb-0.5" style={{ color: 'var(--header-text)' }}>{user?.fullName || 'Admin'}</div>
               <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{user?.role || 'Manager'}</div>
             </div>
-            <a href="/settings" className="w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl border-2 border-white/50 dark:border-slate-800/50 shadow-lg overflow-hidden bg-slate-100 dark:bg-slate-800 hover:scale-105 active:scale-95 transition-all duration-300 ring-4 ring-[var(--primary-500)]/10 active:ring-[var(--primary-500)]/20 shadow-emerald-500/10">
+            <a href="/settings" className="relative w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl border-2 border-white/50 dark:border-slate-800/50 shadow-lg overflow-hidden bg-slate-100 dark:bg-slate-800 hover:scale-105 active:scale-95 transition-all duration-300 ring-4 ring-[var(--primary-500)]/10 active:ring-[var(--primary-500)]/20 shadow-emerald-500/10">
               <img src={`https://ui-avatars.com/api/?name=${user?.fullName || 'A'}&background=random`} alt="User" className="w-full h-full object-cover" />
+              {/* Notif Red Dot */}
+              <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-rose-500 rounded-full border-2 border-white dark:border-slate-900 shadow-sm" />
             </a>
           </div>
         </div>
       </div>
+
+      {/* Mobile Dropdown Menu */}
+      <AnimatePresence>
+        {isMenuOpen && (
+          <motion.div
+            initial={{ opacity: 0, height: 0, y: -10 }}
+            animate={{ opacity: 1, height: 'auto', y: 0 }}
+            exit={{ opacity: 0, height: 0, y: -10 }}
+            onPointerDown={resetTimer}
+            className="absolute top-full left-1/2 -translate-x-1/2 w-[calc(100%-1rem)] max-w-lg min-[650px]:hidden bg-white/80 dark:bg-slate-900/80 backdrop-blur-3xl rounded-3xl border border-gray-100 dark:border-slate-800 shadow-2xl mt-4 overflow-hidden pointer-events-auto"
+          >
+            <div className="p-4 flex flex-col items-center gap-4">
+              <nav className="flex items-center justify-center gap-4 sm:gap-8 flex-wrap">
+                {NAV_LINKS.map(link => {
+                  const isActive = link.href === '/'
+                    ? currentPath === '/'
+                    : currentPath.startsWith(link.activeBase || link.href);
+
+                  const Icon = link.icon;
+
+                  return (
+                    <a
+                      key={link.href}
+                      href={link.href}
+                      className={`p-3 rounded-2xl transition-all duration-300 flex items-center justify-center ${isActive
+                        ? 'active-nav-button text-white scale-110 shadow-lg'
+                        : 'text-slate-400 dark:text-white/80 hover:text-slate-600 dark:hover:text-white'
+                        }`}
+                    >
+                      <Icon style={{ color: isActive ? 'white' : 'var(--header-icon)' }} size={24} />
+                    </a>
+                  );
+                })}
+              </nav>
+
+              {/* Active Page Label */}
+              <div className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-400 animate-in fade-in slide-in-from-bottom-1 transition-all">
+                {NAV_LINKS.find(link =>
+                  link.href === '/' ? currentPath === '/' : currentPath.startsWith(link.activeBase || link.href)
+                )?.label || 'Sublymus'}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

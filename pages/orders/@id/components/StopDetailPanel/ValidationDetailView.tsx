@@ -45,7 +45,7 @@ const ValidationDetailView: React.FC<ValidationDetailViewProps> = ({
                 transition={transition}
                 className="absolute inset-0 flex flex-col bg-[#f8fafc] dark:bg-slate-950"
             >
-                <div className={`flex items-center gap-4 p-6 border-b transition-colors ${stop.isPendingChange ? 'bg-blue-50 dark:bg-blue-500/10 border-blue-100 dark:border-blue-500/30' : 'bg-white dark:bg-slate-900 border-gray-100 dark:border-slate-800'}`}>
+                <div className={`flex items-center gap-4 p-6 border-b transition-colors ${stop.isPendingChange ? 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-100 dark:border-emerald-500/30' : 'bg-white dark:bg-slate-900 border-gray-100 dark:border-slate-800'}`}>
                     <button
                         onClick={() => {
                             setDirection(-1);
@@ -56,7 +56,7 @@ const ValidationDetailView: React.FC<ValidationDetailViewProps> = ({
                         <ChevronLeft size={20} />
                     </button>
                     <div className="flex flex-col">
-                        <span className="text-[10px] text-purple-600 dark:text-purple-400 uppercase tracking-[0.2em] mb-0.5">
+                        <span className="text-[10px] text-emerald-600 dark:text-emerald-400 uppercase tracking-[0.2em] mb-0.5">
                             New Rule
                         </span>
                         <h2 className="text-xl tracking-tight text-gray-900 dark:text-slate-100">Choose Type</h2>
@@ -81,10 +81,10 @@ const ValidationDetailView: React.FC<ValidationDetailViewProps> = ({
                             setSelectedValidationType('photo');
                             setEditingValidationIdx(photoValidations.length);
                         }}
-                        className="w-full flex items-center justify-between p-4 bg-white dark:bg-slate-900 rounded-2xl border border-transparent hover:border-blue-200 dark:hover:border-blue-500/30 hover:shadow-md  group"
+                        className="w-full flex items-center justify-between p-4 bg-white dark:bg-slate-900 rounded-2xl border border-transparent hover:border-emerald-200 dark:hover:border-emerald-500/30 hover:shadow-md  group"
                     >
                         <div className="flex items-center gap-4">
-                            <div className="p-2.5 bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-xl group-hover:bg-blue-600 group-hover:text-white dark:group-hover:text-white">
+                            <div className="p-2.5 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-xl group-hover:bg-emerald-600 group-hover:text-white dark:group-hover:text-white">
                                 <Camera size={20} />
                             </div>
                             <div className="flex flex-col items-start leading-tight">
@@ -92,7 +92,7 @@ const ValidationDetailView: React.FC<ValidationDetailViewProps> = ({
                                 <span className="text-[9px] text-gray-400 dark:text-slate-500 uppercase tracking-tighter">Capture evidence</span>
                             </div>
                         </div>
-                        <ChevronRight size={18} className="text-gray-300 dark:text-slate-600 group-hover:text-blue-500 dark:group-hover:text-blue-400 group-hover:translate-x-0.5 " />
+                        <ChevronRight size={18} className="text-gray-300 dark:text-slate-600 group-hover:text-emerald-500 dark:group-hover:text-emerald-400 group-hover:translate-x-0.5 " />
                     </button>
 
                     <button
@@ -133,7 +133,7 @@ const ValidationDetailView: React.FC<ValidationDetailViewProps> = ({
     const validations = Array.isArray(rawValidations) ? rawValidations : [];
     const validation = validations[editingValidationIdx!] || {};
     const typeInfo = selectedValidationType === 'photo'
-        ? { label: 'Photo', icon: Camera, color: 'blue' }
+        ? { label: 'Photo', icon: Camera, color: 'emerald' }
         : { label: 'QR / Barcode', icon: QrCode, color: 'emerald' };
 
     const updateValidation = (field: string, value: any) => {
@@ -154,7 +154,7 @@ const ValidationDetailView: React.FC<ValidationDetailViewProps> = ({
             className="absolute inset-0 flex flex-col bg-[#f8fafc] dark:bg-slate-950"
         >
             {/* Header */}
-            <div className={`flex items-center gap-4 p-6 border-b transition-colors ${stop.isPendingChange ? 'bg-blue-50 dark:bg-blue-500/10 border-blue-100 dark:border-blue-500/30' : 'bg-white dark:bg-slate-900 border-gray-100 dark:border-slate-800'}`}>
+            <div className={`flex items-center gap-4 p-6 border-b transition-colors ${stop.isPendingChange ? 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-100 dark:border-emerald-500/30' : 'bg-white dark:bg-slate-900 border-gray-100 dark:border-slate-800'}`}>
                 <button
                     onClick={() => {
                         setDirection(-1);

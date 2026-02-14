@@ -119,3 +119,44 @@ body.page-transition #page-content {
   background: var(--primary-gradient);
   box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
 }
+
+/* Creative Mode Map Cursor */
+.creative-mode-map .maplibregl-canvas {
+  cursor: crosshair !important;
+}
+
+/* Linking Animations */
+@keyframes bridged-blink {
+
+  0%,
+  100% {
+    transform: scale(0.98);
+    border-color: transparent;
+  }
+
+  50% {
+    transform: scale(0.95);
+    border-color: #f97316;
+    box-shadow: 0 0 20px rgba(249, 115, 22, 0.4);
+  }
+}
+
+.animate-bridged-blink {
+  animation: bridged-blink 1s infinite ease-in-out;
+}
+
+@keyframes marker-bounce {
+
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.animate-marker-bounce {
+  animation: marker-bounce 0.6s infinite ease-in-out;
+}

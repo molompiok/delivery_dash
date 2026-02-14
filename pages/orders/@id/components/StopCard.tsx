@@ -20,7 +20,11 @@ import {
     ChevronRight,
     ChevronDown as ChevronDownIcon,
     Wrench,
-    Truck
+    Truck,
+    Loader2,
+    CheckCircle2,
+    XCircle,
+    Snowflake
 } from 'lucide-react';
 
 interface StopCardProps {
@@ -38,6 +42,9 @@ interface StopCardProps {
     isLast?: boolean;
     isAnyDragging?: boolean;
     onOpenDetail?: (stop: any) => void;
+    onMouseEnter?: () => void;
+    onMouseLeave?: () => void;
+    isBlinking?: boolean;
 }
 
 const StopCard = ({
@@ -54,7 +61,10 @@ const StopCard = ({
     isFirst,
     isLast,
     isAnyDragging,
-    onOpenDetail
+    onOpenDetail,
+    onMouseEnter,
+    onMouseLeave,
+    isBlinking
 }: StopCardProps) => {
     const [isExpanded, setIsExpanded] = useState(false);
     const visibleActions = isExpanded ? stop.actions : stop.actions.slice(0, 3);
@@ -65,10 +75,10 @@ const StopCard = ({
             <div
                 ref={setNodeRef}
                 style={style}
-                className="bg-white/50 dark:bg-slate-900/50 rounded-[16px] p-4 border border-blue-100 dark:border-blue-900/30 flex flex-col items-center justify-center py-8 animate-pulse grayscale"
+                className="bg-white/50 dark:bg-slate-900/50 rounded-[16px] p-4 border border-emerald-100 dark:border-emerald-900/30 flex flex-col items-center justify-center py-8 animate-pulse grayscale"
             >
-                <div className="w-8 h-8 rounded-full border-2 border-blue-200 dark:border-blue-900/50 border-t-blue-600 dark:border-t-blue-400 animate-spin mb-3"></div>
-                <div className="text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest">Création en cours...</div>
+                <div className="w-8 h-8 rounded-full border-2 border-emerald-200 dark:border-emerald-900/50 border-t-emerald-600 dark:border-t-emerald-400 animate-spin mb-3"></div>
+                <div className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">Création en cours...</div>
             </div>
         );
     }
@@ -86,9 +96,12 @@ const StopCard = ({
             ref={setNodeRef}
             style={style}
             key={stop.id}
+            id={`stop-card-${stop.id}`}
             onClick={() => onOpenDetail?.(stop)}
-            className={`bg-white dark:bg-slate-900 rounded-[16px] p-4 shadow-sm border flex flex-col transition-all cursor-default group relative ${isDragging ? 'opacity-50 shadow-2xl z-50 ring-2 ring-blue-500/20' : 'hover:shadow-md'
-                } ${stop.isPendingChange ? 'border-blue-500 dark:border-blue-400 border-2 shadow-blue-500/10' : 'border-gray-50 dark:border-slate-800'}`}
+            onMouseEnter={onMouseEnter}
+            onMouseLeave={onMouseLeave}
+            className={`bg-white dark:bg-slate-900 rounded-[16px] p-4 shadow-sm border flex flex-col transition-all cursor-default group relative ${isDragging ? 'opacity-50 shadow-2xl z-50 ring-2 ring-emerald-500/20' : 'hover:shadow-md'
+                } ${stop.isPendingChange ? 'border-emerald-500 dark:border-emerald-400 border-2 shadow-emerald-500/10' : 'border-gray-50 dark:border-slate-800'} ${isBlinking ? 'ring-4 ring-orange-500/40 border-orange-500 shadow-orange-500/20 shadow-lg scale-[1.02] z-40 animate-bridged-blink' : ''}`}
         >
             <div className="flex items-start justify-between gap-3 mb-2">
                 <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -108,7 +121,7 @@ const StopCard = ({
                         {!isFirst && onMoveUp && (
                             <button
                                 onClick={(e) => { e.stopPropagation(); onMoveUp(); }}
-                                className="absolute -top-3 -left-2 p-0.5 bg-white dark:bg-slate-800 border border-gray-100 dark:border-slate-700 rounded-full text-blue-500 dark:text-blue-400 opacity-0 group-hover/reorder:opacity-100 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-all shadow-sm z-30"
+                                className="absolute -top-3 -left-2 p-0.5 bg-white dark:bg-slate-800 border border-gray-100 dark:border-slate-700 rounded-full text-emerald-500 dark:text-emerald-400 opacity-0 group-hover/reorder:opacity-100 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-all shadow-sm z-30"
                                 title="Move Up"
                             >
                                 <ChevronUp size={12} />
@@ -117,7 +130,7 @@ const StopCard = ({
                         {!isLast && onMoveDown && (
                             <button
                                 onClick={(e) => { e.stopPropagation(); onMoveDown(); }}
-                                className="absolute -bottom-3 -left-2 p-0.5 bg-white dark:bg-slate-800 border border-gray-100 dark:border-slate-700 rounded-full text-blue-500 dark:text-blue-400 opacity-0 group-hover/reorder:opacity-100 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-all shadow-sm z-30"
+                                className="absolute -bottom-3 -left-2 p-0.5 bg-white dark:bg-slate-800 border border-gray-100 dark:border-slate-700 rounded-full text-emerald-500 dark:text-emerald-400 opacity-0 group-hover/reorder:opacity-100 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-all shadow-sm z-30"
                                 title="Move Down"
                             >
                                 <ChevronDown size={12} />
@@ -149,7 +162,7 @@ const StopCard = ({
                             </span>
                         )}
                         {stop.status === 'ARRIVED' && (
-                            <span className="flex items-center gap-1 text-[9px] font-black text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 px-1.5 py-0.5 rounded-md uppercase tracking-wide">
+                            <span className="flex items-center gap-1 text-[9px] font-black text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-1.5 py-0.5 rounded-md uppercase tracking-wide">
                                 <Truck size={10} /> Arrivé
                             </span>
                         )}
@@ -175,8 +188,20 @@ const StopCard = ({
                         >
                             {/* Top Row: Product Name & Quantity & TypeIcon */}
                             <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-2 min-w-0 text-slate-400 dark:text-slate-500">
-                                    <ChevronRight size={14} />
+                                <div className="flex items-center gap-2 min-w-0">
+                                    <div className={`shrink-0 ${action.status?.toUpperCase() === 'COMPLETED' ? 'text-emerald-500' :
+                                        action.status?.toUpperCase() === 'FAILED' ? 'text-rose-500' :
+                                            ['ARRIVED', 'IN_PROGRESS'].includes(action.status?.toUpperCase()) ? 'text-emerald-500' :
+                                                action.status?.toUpperCase() === 'FROZEN' ? 'text-cyan-500' :
+                                                    'text-slate-400'
+                                        }`}>
+                                        {action.status?.toUpperCase() === 'COMPLETED' ? <CheckCircle2 size={14} /> :
+                                            action.status?.toUpperCase() === 'FAILED' ? <AlertCircle size={14} /> :
+                                                ['ARRIVED', 'IN_PROGRESS'].includes(action.status?.toUpperCase()) ? <Loader2 size={14} className="animate-spin" /> :
+                                                    action.status?.toUpperCase() === 'FROZEN' ? <Snowflake size={14} /> :
+                                                        action.status?.toUpperCase() === 'CANCELLED' ? <XCircle size={14} /> :
+                                                            <ChevronRight size={14} />}
+                                    </div>
                                     <span className="text-xs font-bold text-gray-900 dark:text-slate-200 truncate">
                                         {(['pickup', 'delivery'].includes(action.type?.toLowerCase()) && action.transitItem?.name)
                                             ? action.transitItem.name
@@ -185,17 +210,17 @@ const StopCard = ({
                                 </div>
                                 <div className="flex items-center gap-1">
                                     {action.type === 'service' ? (
-                                        <span className="text-[10px] font-black text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 px-1.5 py-0.5 rounded-md">
+                                        <span className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-1.5 py-0.5 rounded-md">
                                             {action.service_time || 10} min
                                         </span>
                                     ) : (
-                                        <span className="text-[10px] font-black text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 px-1.5 py-0.5 rounded-md">
+                                        <span className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-1.5 py-0.5 rounded-md">
                                             x{action.quantity}
                                         </span>
                                     )}
                                     <div className={`p-1 rounded-md ${action.type === 'pickup' ? 'bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400' :
                                         action.type === 'delivery' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' :
-                                            'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400'
+                                            'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
                                         }`}>
                                         {action.type === 'pickup' ? <ArrowUpRight size={14} /> :
                                             action.type === 'delivery' ? <ArrowDownLeft size={14} /> :
@@ -208,7 +233,7 @@ const StopCard = ({
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-1">
                                     {action.requirements.map((req: string, i: number) => (
-                                        <span key={i} className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[11px] uppercase tracking-tighter ${req === 'froid' ? 'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400' :
+                                        <span key={i} className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[11px] uppercase tracking-tighter ${req === 'froid' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' :
                                             req === 'fragile' ? 'bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400' :
                                                 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-400'
                                             }`}>
@@ -227,10 +252,10 @@ const StopCard = ({
                                     {action.secure !== 'none' && (
                                         <div className="flex items-center gap-1 text-gray-400 dark:text-slate-600" title={`Validation by ${action.secure}`}>
                                             {action.secure === 'photo' ? <Camera size={14} /> : <QrCode size={14} />}
-                                            <ShieldCheck size={12} className="text-blue-400 dark:text-blue-500" />
+                                            <ShieldCheck size={12} className="text-emerald-400 dark:text-emerald-500" />
                                         </div>
                                     )}
-                                    <span className={`text-[11px] uppercase tracking-widest ${action.status === 'Pending' ? 'text-gray-400 dark:text-slate-500' : 'text-blue-600 dark:text-blue-400'}`}>
+                                    <span className={`text-[11px] uppercase tracking-widest ${action.status === 'Pending' ? 'text-gray-400 dark:text-slate-500' : 'text-emerald-600 dark:text-emerald-400'}`}>
                                         {action.status}
                                     </span>
                                 </div>
@@ -245,7 +270,7 @@ const StopCard = ({
                             e.stopPropagation();
                             setIsExpanded(!isExpanded);
                         }}
-                        className="w-full flex items-center justify-center gap-2 py-2 text-[10px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-xl transition-all border border-blue-100/50 dark:border-blue-900/10 mt-2"
+                        className="w-full flex items-center justify-center gap-2 py-2 text-[10px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 rounded-xl transition-all border border-emerald-100/50 dark:border-emerald-900/10 mt-2"
                     >
                         <span>{isExpanded ? 'Show less' : `+ ${stop.actions.length - 3} actions`}</span>
                         <motion.div
@@ -265,8 +290,8 @@ const StopCard = ({
                         {stop.client.avatar ? (
                             <img src={stop.client.avatar} alt={stop.client.name} className="w-8 h-8 rounded-full border border-gray-100 dark:border-slate-700 shrink-0" />
                         ) : (
-                            <div className="w-8 h-8 rounded-full bg-blue-50 dark:bg-blue-500/10 border border-blue-100 dark:border-blue-900/30 flex items-center justify-center shrink-0">
-                                <span className="text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase">
+                            <div className="w-8 h-8 rounded-full bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-100 dark:border-emerald-900/30 flex items-center justify-center shrink-0">
+                                <span className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase">
                                     {stop.client.name ? stop.client.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2) : '?'}
                                 </span>
                             </div>
@@ -286,10 +311,10 @@ const StopCard = ({
                     </div>
                     {stop.client.phone && (
                         <div className="flex gap-2 shrink-0">
-                            <button className="p-2 bg-gray-50 dark:bg-slate-800/50 text-blue-600 dark:text-blue-400 rounded-full hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors">
+                            <button className="p-2 bg-gray-50 dark:bg-slate-800/50 text-emerald-600 dark:text-emerald-400 rounded-full hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors">
                                 <Phone size={14} />
                             </button>
-                            <button className="p-2 bg-gray-50 dark:bg-slate-800/50 text-blue-600 dark:text-blue-400 rounded-full hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors">
+                            <button className="p-2 bg-gray-50 dark:bg-slate-800/50 text-emerald-600 dark:text-emerald-400 rounded-full hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors">
                                 <MessageSquare size={14} />
                             </button>
                         </div>

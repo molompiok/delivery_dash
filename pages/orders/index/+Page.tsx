@@ -14,21 +14,29 @@ import {
     CheckCircle2,
     AlertCircle,
     Layers,
-    X
+    X,
+    ArrowDown,
+    ArrowUp,
+    Settings,
+    MoreHorizontal,
+    Star,
+    Copy,
+    Check
 } from 'lucide-react';
 import { Order } from '../../../api/orders';
 
 // Mocked Orders for the Premium Demo
-import { ordersApi } from '../../../api/orders';
+import { ordersApi, OrderSummary } from '../../../api/orders';
 import { mockService, Order as MockOrder } from '../../../api/mock';
 import { socketClient } from '../../../api/socket';
+import { formatId } from '../../../api/utils';
 import { useHeaderAutoHide } from '../../../hooks/useHeaderAutoHide';
 import { useHeader } from '../../../context/HeaderContext';
 import LocationSearchBar from '../../../components/LocationSearchBar';
 
 export default function Page() {
     useHeaderAutoHide();
-    const [orders, setOrders] = useState<any[]>([]);
+    const [orders, setOrders] = useState<OrderSummary[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [activeFilter, setActiveFilter] = useState('ALL');
@@ -48,15 +56,7 @@ export default function Page() {
     useEffect(() => {
         setHeaderContent(
             <div className="flex items-center justify-between gap-4 w-full">
-                <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-emerald-50 dark:bg-emerald-500/10 rounded-xl flex items-center justify-center text-emerald-600 dark:text-emerald-400">
-                        <ShoppingBag size={20} />
-                    </div>
-                    <div>
-                        <h1 className="text-lg font-black text-slate-900 dark:text-slate-100 tracking-tight leading-tight">Missions</h1>
-                        <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Temps réel • {orders.length} commandes</p>
-                    </div>
-                </div>
+                <span className="text-lg font-black text-slate-900 dark:text-slate-100 tracking-tight ">Missions</span>
                 <div className="flex items-center gap-2">
                     <button
                         onClick={handleNewOrder}
@@ -87,17 +87,8 @@ export default function Page() {
         setIsLoading(true);
         setError(null);
         try {
-            const data = await ordersApi.list();
-            // Transform backend data to match UI expected structure if necessary
-            const transformed = data.map((ord: any) => ({
-                ...ord,
-                pricingData: {
-                    ...ord.pricingData,
-                    finalPrice: ord.pricingData?.clientFee || 0
-                },
-                items: ord.packages || []
-            }));
-            setOrders(transformed);
+            const data = await ordersApi.list({ view: 'summary' });
+            setOrders(data);
         } catch (error: any) {
             console.error("Failed to fetch orders:", error);
             setError("Impossible de charger le flux de commandes. Veuillez vérifier votre connexion au serveur.");
@@ -206,7 +197,7 @@ export default function Page() {
         // Search Term: ID or Phone
         if (searchTerm) {
             const matchesId = order.id.toLowerCase().includes(searchTerm.toLowerCase());
-            const matchesPhone = order.driver?.phone?.includes(searchTerm) || (order.pickupAddress as any)?.phone?.includes(searchTerm) || (order.deliveryAddress as any)?.phone?.includes(searchTerm);
+            const matchesPhone = order.attribution?.driver?.phone?.includes(searchTerm) || order.itinerary.display.from.includes(searchTerm) || order.itinerary.display.to.includes(searchTerm);
             if (!matchesId && !matchesPhone) return false;
         }
 
@@ -220,27 +211,192 @@ export default function Page() {
 
         // Advanced: Dates
         if (filters.startDate) {
-            if (new Date(order.createdAt) < new Date(filters.startDate)) return false;
+            if (new Date(order.timestamps.createdAt) < new Date(filters.startDate)) return false;
         }
         if (filters.endDate) {
             const end = new Date(filters.endDate);
             end.setHours(23, 59, 59);
-            if (new Date(order.createdAt) > end) return false;
+            if (new Date(order.timestamps.createdAt) > end) return false;
         }
 
         // Advanced: Amount
-        if (filters.minAmount && (order.pricingData.finalPrice || 0) < Number(filters.minAmount)) return false;
-        if (filters.maxAmount && (order.pricingData.finalPrice || 0) > Number(filters.maxAmount)) return false;
+        if (filters.minAmount && (order.pricing.amount || 0) < Number(filters.minAmount)) return false;
+        if (filters.maxAmount && (order.pricing.amount || 0) > Number(filters.maxAmount)) return false;
 
         // Advanced: Mode
-        if (!filters.modes.includes(order.assignmentMode)) return false;
+        if (!filters.modes.includes(order.assignment.mode)) return false;
 
         // Advanced: Type (Simulation: Received if target, Emitted if internal/global by default for this ETP)
-        if (filters.type === 'RECEIVED' && order.assignmentMode !== 'TARGET') return false;
-        if (filters.type === 'EMITTED' && order.assignmentMode === 'TARGET') return false;
+        if (filters.type === 'RECEIVED' && order.assignment.mode !== 'TARGET') return false;
+        if (filters.type === 'EMITTED' && order.assignment.mode === 'TARGET') return false;
 
         return true;
     });
+
+    // --- UI Components ---
+    const OrderCard = ({ order }: { order: OrderSummary }) => {
+        const [copied, setCopied] = useState(false);
+
+        const handleCopyId = (e: React.MouseEvent) => {
+            e.stopPropagation();
+            navigator.clipboard.writeText(order.id);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        };
+
+        const isFinished = order.status === 'DELIVERED';
+
+        return (
+            <div
+                onClick={() => window.location.href = `/orders/${order.id}`}
+                className="group relative bg-white/60 dark:bg-slate-900/40 backdrop-blur-2xl rounded-[32px] border border-white dark:border-slate-800/50 p-6 shadow-sm hover:shadow-[0_32px_64px_-12px_rgba(0,0,0,0.1)] dark:hover:shadow-[0_32px_64px_-12px_rgba(0,0,0,0.3)] hover:-translate-y-1 transition-all duration-500 cursor-pointer overflow-hidden flex flex-col gap-5 animate-in fade-in slide-in-from-bottom-4"
+            >
+                {/* Visual Accent Gradient */}
+                <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-indigo-500/10 to-transparent blur-3xl group-hover:from-indigo-500/20 transition-all duration-500" />
+
+                {/* Header */}
+                <div className="flex items-start justify-between relative z-10">
+                    <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-2 group/id">
+                            <span className="font-mono text-[13px] font-black text-slate-900 dark:text-slate-100 uppercase tracking-tight group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                                {formatId(order.id)}
+                            </span>
+                            <button
+                                onClick={handleCopyId}
+                                className="opacity-0 group-hover/id:opacity-100 p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md transition-all"
+                            >
+                                {copied ? <Check size={12} className="text-emerald-500" /> : <Copy size={12} className="text-slate-400" />}
+                            </button>
+                            {order.itinerary.progressPercent > 0 && order.itinerary.progressPercent < 100 && (
+                                <div className="flex items-center gap-1 px-1.5 py-0.5 bg-indigo-500/10 rounded-md">
+                                    <div className="w-1 h-1 rounded-full bg-indigo-500 animate-pulse" />
+                                    <span className="text-[9px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-tighter">Live</span>
+                                </div>
+                            )}
+                        </div>
+                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest flex items-center gap-1.5">
+                            <Clock size={10} />
+                            {new Date(order.timestamps.createdAt).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })} • {new Date(order.timestamps.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                    </div>
+
+                    {order.attribution ? (
+                        <div className="flex items-center gap-2.5 bg-white/40 dark:bg-slate-800/40 p-1.5 pr-3 rounded-full border border-white/60 dark:border-slate-800/50 shadow-sm">
+                            <div className="relative">
+                                <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-500 to-cyan-400 flex items-center justify-center text-[10px] font-black text-white shadow-sm ring-2 ring-white dark:ring-slate-900 uppercase">
+                                    {order.attribution.driver.name.split(' ').map(n => n[0]).join('').substring(0, 2)}
+                                </div>
+                                <div className="absolute -right-1 -bottom-1 w-4 h-4 rounded-full bg-white dark:bg-slate-800 flex items-center justify-center shadow-sm">
+                                    <Truck size={10} className="text-slate-400" />
+                                </div>
+                            </div>
+                            <div className="flex flex-col">
+                                <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 leading-none">{order.attribution.driver.name.split(' ')[0]}</span>
+                                <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">{order.attribution.vehicle?.plate || 'Sans vhc'}</span>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50/50 dark:bg-slate-800/50 rounded-full border border-dashed border-slate-200 dark:border-slate-700 text-slate-400 italic">
+                            <span className="text-[10px] font-bold uppercase tracking-widest">En attente...</span>
+                        </div>
+                    )}
+                </div>
+
+                {/* Itinerary with Action Details */}
+                <div className="flex flex-col gap-5 relative z-10 py-1">
+                    <div className="flex items-start gap-3">
+                        <div className="flex flex-col items-center gap-1 mt-1.5">
+                            <div className="w-2 h-2 rounded-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900" />
+                            <div className="w-px h-8 bg-slate-200 dark:bg-slate-800" />
+                        </div>
+                        <div className="flex flex-col min-w-0">
+                            <span className="text-sm font-bold text-slate-800 dark:text-slate-200 truncate leading-tight mb-2">{order.itinerary.display.from}</span>
+                            <div className="flex items-center gap-4">
+                                <div className="flex items-center gap-1.5 text-emerald-500">
+                                    <ArrowDown size={14} className="stroke-[3]" />
+                                    <span className="text-xs font-black">{order.itinerary.stops.last?.actions?.pickup || 0}</span>
+                                </div>
+                                <div className="flex items-center gap-1.5 text-rose-500">
+                                    <ArrowUp size={14} className="stroke-[3]" />
+                                    <span className="text-xs font-black">{order.itinerary.stops.last?.actions?.drop || 0}</span>
+                                </div>
+                                {(order.itinerary.stops.last?.actions?.service || 0) > 0 && (
+                                    <div className="flex items-center gap-1.5 text-indigo-500">
+                                        <Settings size={14} className="stroke-[3]" />
+                                        <span className="text-xs font-black">{order.itinerary.stops.last?.actions?.service}</span>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                    <div className="flex items-start gap-3 -mt-3">
+                        <div className="flex flex-col items-center gap-1 mt-1.5">
+                            <MapPin size={12} className="text-rose-500" />
+                        </div>
+                        <div className="flex flex-col min-w-0">
+                            <span className="text-sm font-black text-slate-900 dark:text-slate-100 truncate leading-tight mb-2">{order.itinerary.display.to}</span>
+                            <div className="flex items-center gap-4">
+                                <div className="flex items-center gap-1.5 text-emerald-500">
+                                    <ArrowDown size={14} className="stroke-[3]" />
+                                    <span className="text-xs font-black">{order.itinerary.stops.next?.actions?.pickup || 0}</span>
+                                </div>
+                                <div className="flex items-center gap-1.5 text-rose-500">
+                                    <ArrowUp size={14} className="stroke-[3]" />
+                                    <span className="text-xs font-black">{order.itinerary.stops.next?.actions?.drop || 0}</span>
+                                </div>
+                                {(order.itinerary.stops.next?.actions?.service || 0) > 0 && (
+                                    <div className="flex items-center gap-1.5 text-indigo-500">
+                                        <Settings size={14} className="stroke-[3]" />
+                                        <span className="text-xs font-black">{order.itinerary.stops.next?.actions?.service}</span>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+
+                {/* Footer - Regression & Status Area */}
+                <div className="mt-auto pt-4 flex flex-col gap-4 relative z-10 border-t border-slate-100 dark:border-slate-800/50">
+                    <div className="flex items-center justify-between">
+                        <div className="flex flex-col">
+                            <span className="text-lg font-black text-slate-900 dark:text-slate-100 leading-none">
+                                {order.pricing.amount.toLocaleString()} {order.pricing.currency}
+                            </span>
+                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">Montant HT</span>
+                        </div>
+                        <div className="flex flex-col items-end gap-2">
+                            <span className={`px-3 py-1 rounded-full text-[10px] font-black tracking-widest uppercase border ${getStatusStyles(order.status)}`}>
+                                {order.status.replace('_', ' ')}
+                            </span>
+                            {order.assignment.priority === 'HIGH' && (
+                                <div className="flex items-center gap-1 text-rose-500">
+                                    <Star size={10} fill="currentColor" />
+                                    <span className="text-[9px] font-black uppercase tracking-tighter">Prioritaire</span>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Prominent Progress Section */}
+                    <div className="space-y-2">
+                        <div className="flex justify-between items-end">
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Progression Itinéraire</span>
+                            <span className="text-[10px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-tighter">
+                                {Math.round(order.itinerary.progressPercent)}%
+                            </span>
+                        </div>
+                        <div className="h-2 bg-slate-100 dark:bg-slate-800/50 rounded-full overflow-hidden p-0.5">
+                            <div
+                                className="h-full bg-gradient-to-r from-indigo-500 to-cyan-400 rounded-full transition-all duration-1000 shadow-[0_0_12px_rgba(99,102,241,0.4)]"
+                                style={{ width: `${order.itinerary.progressPercent}%` }}
+                            />
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    };
 
     const statusFilters = [
         { id: 'ALL', label: 'Tout', icon: <Layers size={14} />, count: orders.length },
@@ -460,115 +616,31 @@ export default function Page() {
                     </div>
                 )}
 
-                <div className="overflow-hidden rounded-b-3xl">
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
-                            <thead>
-                                <tr className="text-slate-400 dark:text-slate-500 text-[11px] uppercase tracking-wider font-bold">
-                                    <th className="px-6 py-4">Référence / Date</th>
-                                    <th className="px-6 py-4">Articles</th>
-                                    <th className="px-6 py-4">Itinéraire</th>
-                                    <th className="px-6 py-4">Statut</th>
-                                    <th className="px-6 py-4">Attribution</th>
-                                    <th className="px-6 py-4 text-right">Montant</th>
-                                    <th className="px-6 py-4"></th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                                {filteredOrders.map((order) => (
-                                    <tr key={order.id} className="group hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-all cursor-pointer" onClick={() => window.location.href = `/orders/${order.id}`}>
-                                        <td className="px-6 py-4">
-                                            <div className="flex flex-col">
-                                                <span className="font-mono text-sm font-bold text-slate-900 dark:text-slate-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors uppercase">
-                                                    {order.id.replace('ord_', '#')}
-                                                </span>
-                                                <span className="text-xs text-slate-400 dark:text-slate-500 mt-1 flex items-center gap-1.5">
-                                                    <Clock size={12} />
-                                                    {new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                                </span>
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <div className="flex flex-col gap-1.5">
-                                                <div className="flex items-center gap-2">
-                                                    <div className="bg-slate-100 dark:bg-slate-800 p-1.5 rounded-lg">
-                                                        <Package size={14} className="text-slate-500 dark:text-slate-400" />
-                                                    </div>
-                                                    <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                                                        {(order as any).items?.[0]?.name || 'Sans titre'}
-                                                    </span>
-                                                </div>
-                                                {(order as any).items?.length > 1 && (
-                                                    <span className="text-[10px] text-indigo-500 font-bold ml-8">
-                                                        + {(order as any).items.length - 1} AUTRES ARTICLES
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <div className="flex flex-col gap-1 max-w-[200px]">
-                                                <div className="flex items-center gap-2 text-xs">
-                                                    <div className="w-1.5 h-1.5 rounded-full bg-slate-300 dark:bg-slate-700"></div>
-                                                    <span className="text-slate-500 dark:text-slate-400 truncate">{order.pickupAddress?.formattedAddress || 'Adresse inconnue'}</span>
-                                                </div>
-                                                <div className="w-0.5 h-2 bg-slate-200 dark:bg-slate-800 ml-[2.5px]"></div>
-                                                <div className="flex items-center gap-2 text-xs">
-                                                    <MapPin size={12} className="text-rose-400" />
-                                                    <span className="text-slate-900 dark:text-slate-200 font-medium truncate">{order.deliveryAddress?.formattedAddress || 'Adresse inconnue'}</span>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-bold border transition-colors ${getStatusStyles(order.status)}`}>
-                                                {getStatusIcon(order.status)}
-                                                {order.status.replace('_', ' ')}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            {order.driver ? (
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-slate-200 to-slate-100 dark:from-slate-700 dark:to-slate-800 border-2 border-white dark:border-slate-900 shadow-sm flex items-center justify-center text-xs font-bold text-slate-500 dark:text-slate-400">
-                                                        {(order.driver.name || order.driver.phone || 'D').toString().split(' ').map((n: string) => n[0] || '').join('').toUpperCase().substring(0, 2)}
-                                                    </div>
-                                                    <div className="flex flex-col">
-                                                        <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">{order.driver.name || 'Chauffeur sans nom'}</span>
-                                                        <span className="text-[10px] text-slate-400 dark:text-slate-500 flex items-center gap-1">
-                                                            <Truck size={10} /> {order.assignmentMode}
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                            ) : (
-                                                <div className="flex items-center gap-2 text-slate-400 dark:text-slate-500 text-xs italic">
-                                                    <div className="w-8 h-8 rounded-full border-2 border-dashed border-slate-200 dark:border-slate-800 flex items-center justify-center text-slate-300 dark:text-slate-700">
-                                                        ?
-                                                    </div>
-                                                    <span>Recherche en cours...</span>
-                                                </div>
-                                            )}
-                                        </td>
-                                        <td className="px-6 py-6 text-right">
-                                            <div className="flex flex-col items-end">
-                                                <span className="text-sm font-bold text-slate-900 dark:text-slate-100">{(order.pricingData?.finalPrice || 0).toLocaleString()} FCFA</span>
-                                                <span className="text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-tighter">Taxes incluses</span>
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-6">
-                                            <button className="p-2 text-slate-300 dark:text-slate-600 group-hover:text-indigo-500 dark:group-hover:text-indigo-400 group-hover:bg-indigo-50 dark:group-hover:bg-indigo-500/10 rounded-lg transition-all">
-                                                <ChevronRight size={20} />
-                                            </button>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                <div className="p-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-6">
+                        {filteredOrders.length > 0 ? (
+                            filteredOrders.map((order) => (
+                                <OrderCard key={order.id} order={order} />
+                            ))
+                        ) : (
+                            <div className="col-span-full py-20 flex flex-col items-center justify-center text-slate-400 gap-4">
+                                <div className="p-6 bg-slate-50 dark:bg-slate-800/50 rounded-full">
+                                    <ShoppingBag size={48} className="text-slate-200 dark:text-slate-700" />
+                                </div>
+                                <div className="text-center">
+                                    <p className="font-bold text-lg dark:text-slate-300">Aucune mission trouvée</p>
+                                    <p className="text-sm opacity-60">Essayez d'ajuster vos filtres ou lancez une recherche.</p>
+                                </div>
+                            </div>
+                        )}
                     </div>
+                </div>
 
-                    <div className="p-4 bg-slate-50/30 dark:bg-slate-800/30 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center text-sm text-slate-500 dark:text-slate-400">
-                        <p>Affichage de <b>{filteredOrders.length}</b> commandes sur <b>28</b> au total</p>
-                        <div className="flex gap-2">
-                            <button className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors font-medium text-slate-600 dark:text-slate-300 disabled:opacity-50">Précédent</button>
-                            <button className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors font-medium text-slate-600 dark:text-slate-300">Suivant</button>
-                        </div>
+                <div className="p-4 bg-slate-50/30 dark:bg-slate-800/30 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center text-sm text-slate-500 dark:text-slate-400 rounded-b-3xl">
+                    <p>Affichage de <b>{filteredOrders.length}</b> commandes sur <b>28</b> au total</p>
+                    <div className="flex gap-2">
+                        <button className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors font-medium text-slate-600 dark:text-slate-300 disabled:opacity-50">Précédent</button>
+                        <button className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors font-medium text-slate-600 dark:text-slate-300">Suivant</button>
                     </div>
                 </div>
             </div>

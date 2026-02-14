@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
     Map as MapCN,
     MapMarker,
@@ -166,10 +167,13 @@ interface MarkerProps {
     icon?: any;
     label?: React.ReactNode;
     onClick?: () => void;
+    onMouseEnter?: () => void;
+    onMouseLeave?: () => void;
+    isBouncing?: boolean;
     children?: React.ReactNode;
 }
 
-export const Marker: React.FC<MarkerProps> = ({ position, icon, label, onClick, children }) => {
+export const Marker: React.FC<MarkerProps> = ({ position, icon, label, onClick, onMouseEnter, onMouseLeave, isBouncing, children }) => {
     if (!position) return null;
     const color = icon?.fillColor || (icon?.path === 0 ? '#ef4444' : '#3b82f6');
     const rotation = icon?.rotation || 0;
@@ -182,6 +186,8 @@ export const Marker: React.FC<MarkerProps> = ({ position, icon, label, onClick, 
                 e.stopPropagation();
                 onClick?.();
             }}
+            onMouseEnter={onMouseEnter}
+            onMouseLeave={onMouseLeave}
             rotation={rotation}
         >
             <MarkerContent>
@@ -193,6 +199,7 @@ export const Marker: React.FC<MarkerProps> = ({ position, icon, label, onClick, 
                 {icon !== null && (
                     icon?.path && typeof icon.path === 'string' ? (
                         <div
+                            className={isBouncing ? 'animate-marker-bounce' : ''}
                             style={{
                                 width: '24px',
                                 height: '24px',
@@ -204,7 +211,9 @@ export const Marker: React.FC<MarkerProps> = ({ position, icon, label, onClick, 
                             }}
                         />
                     ) : (
-                        <div className="group relative flex items-center justify-center">
+                        <div
+                            className={`group relative flex items-center justify-center ${isBouncing ? 'animate-marker-bounce' : ''}`}
+                        >
                             <div
                                 className="w-8 h-8 flex items-center justify-center transition-transform group-hover:scale-110 active:scale-95"
                                 style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))' }}

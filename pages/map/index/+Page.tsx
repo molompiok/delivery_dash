@@ -622,7 +622,7 @@ export default function Page() {
                 <div className={`bg-white/40 dark:bg-slate-900/40 backdrop-blur-2xl rounded-[24px] md:rounded-[32px] shadow-2xl border border-white/20 dark:border-slate-800 pointer-events-auto overflow-hidden flex flex-col h-full transition-all duration-500`}
                     style={{ width: windowWidth < 650 ? '100%' : '400px' }}
                 >
-                    <SidebarHeader isFollowing={isFollowing} onToggleFollow={() => setIsFollowing(!isFollowing)} />
+                    <SidebarHeader isFollowing={isFollowing} onToggleFollow={() => setIsFollowing(!isFollowing)} onClose={() => setPanelCollapsed(!panelCollapsed)}/>
                     <TabNavigation activeTab={activeTab} onTabChange={setActiveTab} />
 
                     <div className="flex-1 overflow-y-auto p-4 content-scrollbar">
@@ -774,14 +774,7 @@ export default function Page() {
                     </div>
                 </div>
 
-                <button
-                    onClick={() => setPanelCollapsed(!panelCollapsed)}
-                    className={`absolute top-1/2 -translate-y-1/2 -right-3 md:-right-6 w-8 md:w-12 h-16 md:h-24 bg-white/60 dark:bg-slate-900/60 backdrop-blur-2xl rounded-full shadow-2xl border border-white/20 dark:border-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-400 hover:text-emerald-600 active:scale-95 transition-all pointer-events-auto group z-40`}
-                >
-                    <div className="flex flex-col items-center gap-1">
-                        {panelCollapsed ? <ChevronRight size={20} className="md:w-6 md:h-6" /> : <ChevronLeft size={20} className="md:w-6 md:h-6" />}
-                    </div>
-                </button>
+                
             </div>
 
             {/* Floating Mobile Toggle (when sidebar is hidden) */}

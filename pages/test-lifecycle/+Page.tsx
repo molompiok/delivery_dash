@@ -633,44 +633,104 @@ function OrderDetailView({ order, onBack, onAction, onFormAction, actionLoading,
                                                                                         <RefreshCw size={10} className="inline mr-0.5" /> Réactiver
                                                                                     </button>
                                                                                 )}
-                                                                                {canAct && (
-                                                                                    <>
-                                                                                        <button onClick={() => {
-                                                                                            const proofs: Record<string, string> = {};
-                                                                                            if (hasCodeProof && proofInputs[proofKey]) {
-                                                                                                action.confirmationRules.code.forEach((c: any) => { proofs[c.name] = proofInputs[proofKey]; });
-                                                                                            }
-                                                                                            onAction('Complete Action', 'POST', `/actions/${action.id}/complete`, { proofs });
-                                                                                        }}
-                                                                                            disabled={actionLoading !== null}
-                                                                                            className="px-2.5 py-1 bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] font-bold rounded-lg transition-colors disabled:opacity-50">
-                                                                                            {actionLoading === `/actions/${action.id}/complete` ? <Loader2 size={10} className="animate-spin" /> : '✓ Compléter'}
-                                                                                        </button>
-                                                                                        <button onClick={() => onAction('Freeze Action', 'POST', `/actions/${action.id}/freeze`, { reason: 'Gelé via test' })}
-                                                                                            disabled={actionLoading !== null}
-                                                                                            className="px-2.5 py-1 bg-indigo-400 hover:bg-indigo-500 text-white text-[10px] font-bold rounded-lg transition-colors disabled:opacity-50">
-                                                                                            <Snowflake size={10} className="inline" />
-                                                                                        </button>
-                                                                                    </>
-                                                                                )}
                                                                             </div>
                                                                         </div>
-                                                                        {/* Transit Item */}
-                                                                        {action.transitItem && (
-                                                                            <div className="mt-2 text-[10px] text-gray-500">
-                                                                                📦 {action.transitItem.name} — qty: {action.quantity} {action.transitItem.weight && `• ${action.transitItem.weight}kg`}
+                                                                        {/* Proof input */}
+                                                                        {canAct && (
+                                                                            <div className="mt-2 space-y-2">
+                                                                                {hasCodeProof && (
+                                                                                    <div className="flex items-center gap-2">
+                                                                                        <KeyRound size={12} className="text-gray-400" />
+                                                                                        <input
+                                                                                            type="text"
+                                                                                            placeholder="Code (OTP / QR)..."
+                                                                                            value={proofInputs[proofKey] || ''}
+                                                                                            onChange={e => setProofInputs(p => ({ ...p, [proofKey]: e.target.value }))}
+                                                                                            className="flex-1 px-2 py-1 text-[10px] bg-gray-50 dark:bg-slate-700/40 border border-gray-200 dark:border-slate-600 rounded-lg font-mono tracking-wider"
+                                                                                        />
+                                                                                        <button
+                                                                                            onClick={() => {
+                                                                                                // Simulation: In a real app this opens camera. 
+                                                                                                // Here we just focus or maybe fill if we implemented a cheat mode.
+                                                                                                alert("Simulating Camera Scan...\n(In real app: Scanner opens -> Reads QR -> Fills Input)");
+                                                                                            }}
+                                                                                            className="p-1.5 bg-gray-100 hover:bg-gray-200 dark:bg-slate-700 dark:hover:bg-slate-600 rounded-lg text-gray-500 transition-colors"
+                                                                                            title="Simuler Scan QR"
+                                                                                        >
+                                                                                            <span className="text-[10px] font-bold">SCAN</span>
+                                                                                        </button>
+                                                                                    </div>
+                                                                                )}
+
+                                                                                {action.confirmationRules?.photo?.length > 0 && (
+                                                                                    <div className="flex items-center gap-2">
+                                                                                        <Camera size={12} className="text-gray-400" />
+                                                                                        <input
+                                                                                            type="file"
+                                                                                            accept="image/*"
+                                                                                            onChange={e => {
+                                                                                                const file = e.target.files?.[0];
+                                                                                                if (file) {
+                                                                                                    const fieldName = action.confirmationRules.photo[0].name;
+                                                                                                    setProofInputs(p => ({ ...p, [`file_${fieldName}`]: file }));
+                                                                                                }
+                                                                                            }}
+                                                                                            className="flex-1 text-[10px] text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded-lg file:border-0 file:text-[10px] file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+                                                                                        />
+                                                                                    </div>
+                                                                                )}
                                                                             </div>
                                                                         )}
-                                                                        {/* Proof input */}
-                                                                        {canAct && hasCodeProof && (
-                                                                            <div className="mt-2 flex items-center gap-2">
-                                                                                <KeyRound size={12} className="text-gray-400" />
-                                                                                <input
-                                                                                    type="text" placeholder="Code OTP..."
-                                                                                    value={proofInputs[proofKey] || ''}
-                                                                                    onChange={e => setProofInputs(p => ({ ...p, [proofKey]: e.target.value }))}
-                                                                                    className="flex-1 px-2 py-1 text-[10px] bg-gray-50 dark:bg-slate-700/40 border border-gray-200 dark:border-slate-600 rounded-lg"
-                                                                                />
+
+                                                                        {canAct && (
+                                                                            <div className="mt-2 flex justify-end gap-2">
+                                                                                <button onClick={() => {
+                                                                                    const proofs: Record<string, string> = {};
+                                                                                    const formData = new FormData();
+                                                                                    let hasFiles = false;
+
+                                                                                    // Handle Codes
+                                                                                    if (hasCodeProof && proofInputs[proofKey]) {
+                                                                                        action.confirmationRules.code.forEach((c: any) => {
+                                                                                            proofs[c.name] = proofInputs[proofKey];
+                                                                                        });
+                                                                                    }
+
+                                                                                    // Handle Photos
+                                                                                    if (action.confirmationRules?.photo) {
+                                                                                        action.confirmationRules.photo.forEach((p: any) => {
+                                                                                            const file = (proofInputs as any)[`file_${p.name}`];
+                                                                                            if (file) {
+                                                                                                formData.append(p.name, file);
+                                                                                                hasFiles = true;
+                                                                                            }
+                                                                                        });
+                                                                                    }
+
+                                                                                    if (hasFiles) {
+                                                                                        // Append proofs as JSON string or individual fields depending on backend expectation
+                                                                                        // Backend expects `proofs` object in body. With FormData, we usually send it as a JSON string field or individual fields.
+                                                                                        // Looking at MissionsController.completeAction: `const proofs = request.all().proofs || {}`
+                                                                                        // Adonis bodyparser handles JSON in multipart if Content-Type is set, or we can send purely as fields.
+                                                                                        // Safest for Adonis multipart: append each proof key? No, `proofs` is likely expected as an object.
+                                                                                        // Let's iterate and append `proofs[key]`
+                                                                                        Object.keys(proofs).forEach(k => formData.append(`proofs[${k}]`, proofs[k]));
+
+                                                                                        onFormAction('Complete Action', `/actions/${action.id}/complete`, formData);
+                                                                                    } else {
+                                                                                        onAction('Complete Action', 'POST', `/actions/${action.id}/complete`, { proofs });
+                                                                                    }
+                                                                                }}
+                                                                                    disabled={actionLoading !== null}
+                                                                                    className="px-2.5 py-1 bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] font-bold rounded-lg transition-colors disabled:opacity-50">
+                                                                                    {actionLoading === `/actions/${action.id}/complete` ? <Loader2 size={10} className="animate-spin" /> : '✓ Valider Preuves'}
+                                                                                </button>
+
+                                                                                <button onClick={() => onAction('Freeze Action', 'POST', `/actions/${action.id}/freeze`, { reason: 'Gelé via test' })}
+                                                                                    disabled={actionLoading !== null}
+                                                                                    className="px-2.5 py-1 bg-indigo-400 hover:bg-indigo-500 text-white text-[10px] font-bold rounded-lg transition-colors disabled:opacity-50">
+                                                                                    <Snowflake size={10} className="inline" />
+                                                                                </button>
                                                                             </div>
                                                                         )}
                                                                         {/* Status History */}
@@ -688,7 +748,8 @@ function OrderDetailView({ order, onBack, onAction, onFormAction, actionLoading,
                                                             })}
                                                         </div>
                                                     </motion.div>
-                                                )}
+                                                )
+                                                }
                                             </AnimatePresence>
                                         </div>
                                     );

@@ -10,6 +10,8 @@ interface HeaderContextType {
     setHeaderHidden: (hidden: boolean) => void;
     autoHideEnabled: boolean;
     setAutoHideEnabled: (enabled: boolean) => void;
+    isHeaderSuppressed: boolean;
+    setHeaderSuppressed: (suppressed: boolean) => void;
     headerHeight: number;
     setHeaderHeight: (height: number) => void;
 }
@@ -20,6 +22,7 @@ export function HeaderProvider({ children }: { children: ReactNode }) {
     const [headerContent, setHeaderContent] = useState<ReactNode>(null);
     const [isHeaderHidden, setHeaderHidden] = useState(false);
     const [autoHideEnabled, setAutoHideEnabled] = useState(false);
+    const [isHeaderSuppressed, setHeaderSuppressed] = useState(false);
     const [headerHeight, setHeaderHeight] = useState(80);
 
     const clearHeaderContent = () => setHeaderContent(null);
@@ -33,6 +36,8 @@ export function HeaderProvider({ children }: { children: ReactNode }) {
             setHeaderHidden,
             autoHideEnabled,
             setAutoHideEnabled,
+            isHeaderSuppressed,
+            setHeaderSuppressed,
             headerHeight,
             setHeaderHeight
         }}>

@@ -78,7 +78,7 @@ const TransitItemDetailView: React.FC<TransitItemDetailViewProps> = ({
                         <ChevronLeft size={20} />
                     </button>
                     <div className="flex flex-col">
-                        <span className="text-[10px] text-blue-600 dark:text-blue-400 uppercase tracking-[0.2em] mb-0.5">
+                        <span className="text-[10px] text-emerald-600 dark:text-emerald-400 uppercase tracking-[0.2em] mb-0.5">
                             {isEditing ? 'Edit Transit Item' : 'New Transit Item'}
                         </span>
                         <h2 className="text-xl tracking-tight font-bold text-gray-900 dark:text-slate-100">
@@ -93,7 +93,7 @@ const TransitItemDetailView: React.FC<TransitItemDetailViewProps> = ({
                 {/* Product Name */}
                 <section>
                     <div className="flex items-center gap-2 mb-4">
-                        <div className="p-2 bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-lg">
+                        <div className="p-2 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-lg">
                             <Package size={16} />
                         </div>
                         <h3 className="text-[12px] uppercase tracking-widest text-gray-400 dark:text-slate-500 font-bold">Product Name</h3>
@@ -139,7 +139,7 @@ const TransitItemDetailView: React.FC<TransitItemDetailViewProps> = ({
                                 <button
                                     onClick={() => onFieldChange('packaging_type', 'box')}
                                     className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-xl border transition-all ${newItemForm.packaging_type === 'box'
-                                        ? 'bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/30 text-blue-600 dark:text-blue-400'
+                                        ? 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
                                         : 'bg-white dark:bg-slate-900 border-gray-100 dark:border-slate-800 text-gray-400 dark:text-slate-500 hover:border-gray-200 dark:hover:border-slate-700'
                                         }`}
                                 >
@@ -149,7 +149,7 @@ const TransitItemDetailView: React.FC<TransitItemDetailViewProps> = ({
                                 <button
                                     onClick={() => onFieldChange('packaging_type', 'fluid')}
                                     className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-xl border transition-all ${newItemForm.packaging_type === 'fluid'
-                                        ? 'bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/30 text-blue-600 dark:text-blue-400'
+                                        ? 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
                                         : 'bg-white dark:bg-slate-900 border-gray-100 dark:border-slate-800 text-gray-400 dark:text-slate-500 hover:border-gray-200 dark:hover:border-slate-700'
                                         }`}
                                 >
@@ -209,7 +209,7 @@ const TransitItemDetailView: React.FC<TransitItemDetailViewProps> = ({
                     </div>
                     <div className="grid grid-cols-2 gap-3 pb-8">
                         {[
-                            { id: 'froid', label: 'Cold Chain', icon: ThermometerSnowflake, activeClass: 'border-blue-500 bg-blue-50/50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400', iconColor: 'text-blue-600 dark:text-blue-400' },
+                            { id: 'froid', label: 'Cold Chain', icon: ThermometerSnowflake, activeClass: 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400', iconColor: 'text-emerald-600 dark:text-emerald-400' },
                             { id: 'fragile', label: 'Fragile', icon: AlertCircle, activeClass: 'border-rose-500 bg-rose-50/50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-400', iconColor: 'text-rose-600 dark:text-rose-400' },
                             { id: 'dangerous', label: 'Dangerous', icon: AlertTriangle, activeClass: 'border-orange-500 bg-orange-50/50 dark:bg-orange-500/10 text-orange-700 dark:text-orange-400', iconColor: 'text-orange-600 dark:text-orange-400' },
                             { id: 'sec', label: 'Dry / Ambient', icon: Package, activeClass: 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400', iconColor: 'text-emerald-600 dark:text-emerald-400' },
@@ -241,7 +241,7 @@ const TransitItemDetailView: React.FC<TransitItemDetailViewProps> = ({
                             setDirection(-1);
                             setView('product');
                         }}
-                        className="w-full py-4 rounded-2xl text-[11px] font-black uppercase tracking-widest bg-blue-600 text-white hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 dark:shadow-blue-500/20"
+                        className="w-full py-4 rounded-2xl text-[11px] font-black uppercase tracking-widest bg-emerald-600 text-white hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200 dark:shadow-emerald-500/20"
                     >
                         Save & Back
                     </button>
@@ -251,7 +251,7 @@ const TransitItemDetailView: React.FC<TransitItemDetailViewProps> = ({
                         disabled={isCreatingTransitItem || !newItemForm.name.trim()}
                         className={`w-full py-4 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${isCreatingTransitItem || !newItemForm.name.trim()
                             ? 'bg-gray-100 dark:bg-slate-800 text-gray-400 dark:text-slate-500 cursor-not-allowed'
-                            : 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-200 dark:shadow-blue-500/20'
+                            : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-lg shadow-emerald-200 dark:shadow-emerald-500/20'
                             }`}
                     >
                         {isCreatingTransitItem ? (

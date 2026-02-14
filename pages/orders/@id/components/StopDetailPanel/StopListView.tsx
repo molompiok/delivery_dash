@@ -53,7 +53,7 @@ const StopListView: React.FC<StopListViewProps> = ({
         className="absolute inset-0 flex flex-col bg-[#f8fafc] dark:bg-slate-950"
     >
         {/* Header */}
-        <div className={`flex items-center justify-between p-4 border-b shrink-0 transition-colors ${stop.isPendingChange ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-100 dark:border-blue-800' : 'bg-white dark:bg-slate-900 border-gray-100 dark:border-slate-800'}`}>
+        <div className={`flex items-center justify-between p-4 border-b shrink-0 transition-colors ${stop.isPendingChange ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-100 dark:border-emerald-800' : 'bg-white dark:bg-slate-900 border-gray-100 dark:border-slate-800'}`}>
             <div className="flex items-center gap-3">
                 <button
                     onClick={onClose}
@@ -62,7 +62,7 @@ const StopListView: React.FC<StopListViewProps> = ({
                     <ChevronRight size={22} />
                 </button>
                 <div className="flex flex-col">
-                    <span className="text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-[0.2em] mb-0.5">
+                    <span className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-[0.2em] mb-0.5">
                         Stop Details
                     </span>
                     <h2 className="text-xl tracking-tight line-clamp-1 break-all font-bold text-gray-900 dark:text-slate-100">
@@ -86,7 +86,7 @@ const StopListView: React.FC<StopListViewProps> = ({
             <section>
                 <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
-                        <div className="p-2 bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-lg">
+                        <div className="p-2 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-lg">
                             <MapPin size={16} />
                         </div>
                         <div className="flex flex-col">
@@ -104,7 +104,7 @@ const StopListView: React.FC<StopListViewProps> = ({
                         disabled={!!stop.address?.addressId}
                         className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl transition-all text-[9px] font-black uppercase tracking-widest ${stop.address?.addressId
                             ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-500/20'
-                            : 'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-500/20 border border-blue-100 dark:border-blue-500/20'
+                            : 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 border border-emerald-100 dark:border-emerald-500/20'
                             }`}
                     >
                         {stop.address?.addressId ? (
@@ -152,7 +152,7 @@ const StopListView: React.FC<StopListViewProps> = ({
                                         }
                                     }}
                                     wrapperClassName={`bg-white dark:bg-slate-900 border rounded-xl px-1 py-0.5 transition-all ${isEditingAddress
-                                        ? 'border-blue-500 dark:border-blue-400 shadow-lg shadow-blue-500/10'
+                                        ? 'border-emerald-500 dark:border-emerald-400 shadow-lg shadow-emerald-500/10'
                                         : 'border-gray-100 dark:border-slate-800'}`}
                                     inputClassName="text-sm font-bold text-gray-900 dark:text-slate-100"
                                 />
@@ -178,7 +178,7 @@ const StopListView: React.FC<StopListViewProps> = ({
                                 setDirection(1);
                                 setView('map');
                             }}
-                            className="mt-6 w-[50px] flex items-center justify-center bg-gray-50 dark:bg-slate-800/50 hover:bg-blue-50 dark:hover:bg-blue-500/10 hover:text-blue-600 dark:hover:text-blue-400 text-gray-400 dark:text-slate-500 rounded-2xl border border-gray-100 dark:border-slate-800 hover:border-blue-100 dark:hover:border-blue-500/30 transition-all group"
+                            className="mt-6 w-[50px] flex items-center justify-center bg-gray-50 dark:bg-slate-800/50 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 hover:text-emerald-600 dark:hover:text-emerald-400 text-gray-400 dark:text-slate-500 rounded-2xl border border-gray-100 dark:border-slate-800 hover:border-emerald-100 dark:hover:border-emerald-500/30 transition-all group"
                             title="Select on Map"
                         >
                             <MapIcon size={20} className="group-hover:scale-110 transition-transform" />
@@ -327,14 +327,14 @@ const StopListView: React.FC<StopListViewProps> = ({
                             value={stop.client?.opening_hours?.start}
                             onChange={(iso: string) => handleFieldChange('client.opening_hours.start', iso)}
                             icon={Calendar}
-                            color="blue"
+                            color="emerald"
                         />
                         <SequentialDatePicker
                             label="End Window"
                             value={stop.client?.opening_hours?.end}
                             onChange={(iso: string) => handleFieldChange('client.opening_hours.end', iso)}
                             icon={Calendar}
-                            color="blue"
+                            color="emerald"
                         />
                     </div>
                 </div>
@@ -356,7 +356,7 @@ const StopListView: React.FC<StopListViewProps> = ({
                             const type = stop.type === 'Pick-Up' ? 'pickup' : 'service';
                             performAddAction(type);
                         }}
-                        className="p-1.5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors border border-transparent hover:border-blue-100 dark:hover:border-blue-500/30"
+                        className="p-1.5 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 rounded-lg transition-colors border border-transparent hover:border-emerald-100 dark:hover:border-emerald-500/30"
                         title="Add Product"
                     >
                         <Plus size={18} />
@@ -428,7 +428,7 @@ const StopListView: React.FC<StopListViewProps> = ({
                                             <ActionIcon size={18} />
                                         </div>
                                         <div className="flex flex-col min-w-0">
-                                            <span className="text-sm font-bold text-gray-900 dark:text-slate-100 truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                                            <span className="text-sm font-bold text-gray-900 dark:text-slate-100 truncate group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
                                                 {(['pickup', 'delivery'].includes(action.type?.toLowerCase()) && action.transitItem?.name)
                                                     ? action.transitItem.name
                                                     : (action.productName || action.product?.name || 'New Product')}

@@ -51,7 +51,7 @@ export const StopEditModal: React.FC<StopEditModalProps> = ({
                         {/* Header */}
                         <div className="p-6 border-b border-gray-50 dark:border-slate-800 flex items-center justify-between bg-white dark:bg-slate-900 sticky top-0 z-10">
                             <div className="flex items-center gap-4">
-                                <div className="p-3 bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-2xl">
+                                <div className="p-3 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-2xl">
                                     <MapPin size={24} />
                                 </div>
                                 <div>
@@ -81,7 +81,7 @@ export const StopEditModal: React.FC<StopEditModalProps> = ({
                                             type="text"
                                             value={editedStop.address.street}
                                             onChange={(e) => setEditedStop({ ...editedStop, address: { ...editedStop.address, street: e.target.value } })}
-                                            className="w-full px-4 py-3 bg-gray-50 dark:bg-slate-800/50 border border-gray-100 dark:border-slate-800 rounded-2xl text-sm font-bold text-gray-900 dark:text-slate-100 outline-none focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-900/50 transition-all"
+                                            className="w-full px-4 py-3 bg-gray-50 dark:bg-slate-800/50 border border-gray-100 dark:border-slate-800 rounded-2xl text-sm font-bold text-gray-900 dark:text-slate-100 outline-none focus:ring-2 focus:ring-emerald-100 dark:focus:ring-emerald-900/50 transition-all"
                                         />
                                     </div>
                                     <div>
@@ -90,7 +90,7 @@ export const StopEditModal: React.FC<StopEditModalProps> = ({
                                             type="text"
                                             value={editedStop.address.city}
                                             onChange={(e) => setEditedStop({ ...editedStop, address: { ...editedStop.address, city: e.target.value } })}
-                                            className="w-full px-4 py-3 bg-gray-50 dark:bg-slate-800/50 border border-gray-100 dark:border-slate-800 rounded-2xl text-sm font-bold text-gray-900 dark:text-slate-100 outline-none focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-900/50 transition-all"
+                                            className="w-full px-4 py-3 bg-gray-50 dark:bg-slate-800/50 border border-gray-100 dark:border-slate-800 rounded-2xl text-sm font-bold text-gray-900 dark:text-slate-100 outline-none focus:ring-2 focus:ring-emerald-100 dark:focus:ring-emerald-900/50 transition-all"
                                         />
                                     </div>
                                     <div>
@@ -99,7 +99,7 @@ export const StopEditModal: React.FC<StopEditModalProps> = ({
                                             type="text"
                                             value={editedStop.address.state}
                                             onChange={(e) => setEditedStop({ ...editedStop, address: { ...editedStop.address, state: e.target.value } })}
-                                            className="w-full px-4 py-3 bg-gray-50 dark:bg-slate-800/50 border border-gray-100 dark:border-slate-800 rounded-2xl text-sm font-bold text-gray-900 dark:text-slate-100 outline-none focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-900/50 transition-all"
+                                            className="w-full px-4 py-3 bg-gray-50 dark:bg-slate-800/50 border border-gray-100 dark:border-slate-800 rounded-2xl text-sm font-bold text-gray-900 dark:text-slate-100 outline-none focus:ring-2 focus:ring-emerald-100 dark:focus:ring-emerald-900/50 transition-all"
                                         />
                                     </div>
                                 </div>
@@ -114,7 +114,7 @@ export const StopEditModal: React.FC<StopEditModalProps> = ({
                                     {editedStop.actions.map((action: any, idx: number) => (
                                         <div key={action.id} className="p-4 bg-gray-50 dark:bg-slate-800/50 rounded-2xl border border-gray-100 dark:border-slate-800 flex items-start justify-between">
                                             <div className="flex gap-4">
-                                                <div className={`p-2.5 rounded-xl ${action.type === 'Collect' ? 'bg-orange-100 dark:bg-orange-500/20 text-orange-600 dark:text-orange-400' : 'bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400'}`}>
+                                                <div className={`p-2.5 rounded-xl ${action.type === 'Collect' ? 'bg-orange-100 dark:bg-orange-500/20 text-orange-600 dark:text-orange-400' : 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400'}`}>
                                                     <Package size={18} />
                                                 </div>
                                                 <div>
@@ -131,7 +131,7 @@ export const StopEditModal: React.FC<StopEditModalProps> = ({
                                             </div>
                                         </div>
                                     ))}
-                                    <button className="w-full py-3 border-2 border-dashed border-gray-200 dark:border-slate-800 rounded-2xl text-[11px] font-black text-gray-400 dark:text-slate-500 uppercase tracking-widest hover:border-blue-200 dark:hover:border-blue-900 hover:text-blue-500 dark:hover:text-blue-400 hover:bg-blue-50/50 dark:hover:bg-blue-900/10 transition-all">
+                                    <button className="w-full py-3 border-2 border-dashed border-gray-200 dark:border-slate-800 rounded-2xl text-[11px] font-black text-gray-400 dark:text-slate-500 uppercase tracking-widest hover:border-emerald-200 dark:hover:border-emerald-900 hover:text-emerald-500 dark:hover:text-emerald-400 hover:bg-emerald-50/50 dark:hover:bg-emerald-900/10 transition-all">
                                         + Ajouter une action
                                     </button>
                                 </div>
@@ -142,17 +142,17 @@ export const StopEditModal: React.FC<StopEditModalProps> = ({
                                 <h4 className="text-[11px] font-black text-gray-400 dark:text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-2">
                                     <User size={12} /> Informations Client
                                 </h4>
-                                <div className="bg-blue-50/30 dark:bg-blue-500/5 p-4 rounded-3xl border border-blue-50 dark:border-blue-900/20 flex items-center justify-between">
+                                <div className="bg-emerald-50/30 dark:bg-emerald-500/5 p-4 rounded-3xl border border-emerald-50 dark:border-emerald-900/20 flex items-center justify-between">
                                     <div className="flex items-center gap-4">
                                         <img src={editedStop.client.avatar} alt={editedStop.client.name} className="w-12 h-12 rounded-full border-2 border-white dark:border-slate-800 shadow-sm" />
                                         <div>
                                             <div className="text-base font-black text-gray-900 dark:text-slate-100">{editedStop.client.name}</div>
-                                            <div className="flex items-center gap-2 text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-tighter">
+                                            <div className="flex items-center gap-2 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-tighter">
                                                 <Clock size={12} /> Ouverture: {editedStop.opening?.start && new Date(editedStop.opening.start).toLocaleDateString('fr-FR', { hour: 'numeric', minute: 'numeric' })} - {editedStop.opening?.end && new Date(editedStop.opening.end).toLocaleDateString('fr-FR', { hour: 'numeric', minute: 'numeric' })}
                                             </div>
                                         </div>
                                     </div>
-                                    <button className="px-4 py-2 bg-blue-600 text-white rounded-xl text-[11px] font-black uppercase tracking-widest shadow-lg shadow-blue-100 dark:shadow-none hover:bg-blue-700 transition-all">
+                                    <button className="px-4 py-2 bg-emerald-600 text-white rounded-xl text-[11px] font-black uppercase tracking-widest shadow-lg shadow-emerald-100 dark:shadow-none hover:bg-emerald-700 transition-all">
                                         Message
                                     </button>
                                 </div>
@@ -169,7 +169,7 @@ export const StopEditModal: React.FC<StopEditModalProps> = ({
                             </button>
                             <button
                                 onClick={handleSave}
-                                className="flex-[2] px-6 py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-xl shadow-blue-100 dark:shadow-none flex items-center justify-center gap-2"
+                                className="flex-[2] px-6 py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-xl shadow-emerald-100 dark:shadow-none flex items-center justify-center gap-2"
                             >
                                 <CheckCircle2 size={18} />
                                 Enregistrer les modifications

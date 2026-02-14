@@ -10,9 +10,11 @@ interface MapSelectorViewProps {
     direction: number;
     stop: any;
     mapCenter: LatLng;
+    selectedLocation: LatLng | null;
     setDirection: (dir: number) => void;
     setView: (view: ViewType) => void;
     setMapCenter: (center: LatLng) => void;
+    setSelectedLocation: (loc: LatLng | null) => void;
     handleFieldChange: (fieldPath: string, value: any) => void;
 }
 
@@ -20,12 +22,13 @@ const MapSelectorView: React.FC<MapSelectorViewProps> = ({
     direction,
     stop,
     mapCenter,
+    selectedLocation,
     setDirection,
     setView,
     setMapCenter,
+    setSelectedLocation,
     handleFieldChange
 }) => {
-    const [selectedLocation, setSelectedLocation] = useState<{ lat: number, lng: number, address?: string } | null>(null);
     const [isGeocoding, setIsGeocoding] = useState(false);
 
     return (
@@ -58,7 +61,7 @@ const MapSelectorView: React.FC<MapSelectorViewProps> = ({
                             placeholder="Search address..."
                             onLocationSelect={(loc: { lat: number; lng: number; address: string }) => {
                                 setMapCenter({ lat: loc.lat, lng: loc.lng });
-                                setSelectedLocation({ lat: loc.lat, lng: loc.lng, address: loc.address });
+                                setSelectedLocation({ lat: loc.lat, lng: loc.lng });
                             }}
                         />
                     </div>
@@ -90,10 +93,10 @@ const MapSelectorView: React.FC<MapSelectorViewProps> = ({
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none z-10 flex flex-col items-center">
                     {isGeocoding && (
                         <div className="mb-2 p-2 bg-white/80 dark:bg-slate-900/80 backdrop-blur rounded-full shadow-lg animate-spin">
-                            <Loader2 size={16} className="text-blue-500" />
+                            <Loader2 size={16} className="text-emerald-500" />
                         </div>
                     )}
-                    <MapPin size={40} className="text-blue-600 drop-shadow-[0_10px_10px_rgba(0,0,0,0.3)] animate-bounce" />
+                    <MapPin size={40} className="text-emerald-600 drop-shadow-[0_10px_10px_rgba(0,0,0,0.3)] animate-bounce" />
                     <div className="w-2 h-2 bg-black/20 dark:bg-white/20 rounded-full blur-[2px] mt-[-4px]"></div>
                 </div>
             </div>
@@ -137,7 +140,7 @@ const MapSelectorView: React.FC<MapSelectorViewProps> = ({
                     }}
                     disabled={!selectedLocation || isGeocoding}
                     className={`flex-[2] px-6 py-3 text-[11px] font-black text-white rounded-2xl uppercase tracking-widest shadow-lg transition-all ${selectedLocation && !isGeocoding
-                        ? 'bg-blue-600 hover:bg-blue-700 shadow-blue-200 dark:shadow-blue-500/20'
+                        ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-200 dark:shadow-emerald-500/20'
                         : 'bg-gray-300 dark:bg-slate-800 cursor-not-allowed shadow-none'
                         }`}
                 >

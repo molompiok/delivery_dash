@@ -70,8 +70,8 @@ const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                 transition={transition}
                 className="absolute inset-0 flex flex-col items-center justify-center bg-white p-12 text-center"
             >
-                <div className="w-16 h-16 rounded-3xl bg-blue-50 flex items-center justify-center mb-6">
-                    <Loader2 size={32} className="text-blue-600 animate-spin" />
+                <div className="w-16 h-16 rounded-3xl bg-emerald-50 flex items-center justify-center mb-6">
+                    <Loader2 size={32} className="text-emerald-600 animate-spin" />
                 </div>
                 <h3 className="text-sm font-bold text-gray-900 mb-2">Création du produit...</h3>
                 <p className="text-xs text-gray-500">Un instant, nous préparons la fiche produit sur le serveur.</p>
@@ -99,7 +99,7 @@ const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                 <div className="flex flex-col gap-3 w-full">
                     <button
                         onClick={() => performAddAction(pendingActionType!)}
-                        className="w-full py-4 bg-blue-600 text-white rounded-2xl text-[11px] font-black uppercase tracking-widest hover:bg-blue-700 transition-all shadow-lg shadow-blue-200"
+                        className="w-full py-4 bg-emerald-600 text-white rounded-2xl text-[11px] font-black uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200"
                     >
                         Réessayer
                     </button>
@@ -140,7 +140,7 @@ const ProductDetailView: React.FC<ProductDetailViewProps> = ({
             transition={transition}
             className="absolute inset-0 flex flex-col bg-[#f8fafc] dark:bg-slate-950"
         >
-            <div className={`flex items-center justify-between p-6 border-b transition-colors ${stop.isPendingChange ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-100 dark:border-blue-800' : 'bg-white dark:bg-slate-900 border-gray-100 dark:border-slate-800'}`}>
+            <div className={`flex items-center justify-between p-6 border-b transition-colors ${stop.isPendingChange ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-100 dark:border-emerald-800' : 'bg-white dark:bg-slate-900 border-gray-100 dark:border-slate-800'}`}>
                 <div className="flex items-center gap-4">
                     <button
                         onClick={() => {
@@ -152,7 +152,7 @@ const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                         <ChevronLeft size={20} />
                     </button>
                     <div className="flex flex-col">
-                        <span className="text-[10px] text-blue-600 dark:text-blue-400 uppercase tracking-[0.2em] mb-0.5">
+                        <span className="text-[10px] text-emerald-600 dark:text-emerald-400 uppercase tracking-[0.2em] mb-0.5">
                             Product Details
                         </span>
                         <div className="flex flex-col">
@@ -195,7 +195,7 @@ const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                             onClick={() => handleProductChange(editingProductIdx, 'type', 'service')}
                             title="Service"
                             className={`flex items-center justify-center w-[36px] rounded-lg transition-all text-sm font-black ${product.type === 'service'
-                                ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-sm shadow-blue-100 dark:shadow-none'
+                                ? 'bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 shadow-sm shadow-emerald-100 dark:shadow-none'
                                 : 'text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300'
                                 }`}
                         >
@@ -210,7 +210,7 @@ const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                 <section>
                     <div className="flex items-center justify-between mb-4">
                         <div className="flex items-center gap-2">
-                            <div className="p-2 bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-lg">
+                            <div className="p-2 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-lg">
                                 {product.type === 'service' ? <Wrench size={16} /> : <Package size={16} />}
                             </div>
                             <h3 className="text-[12px] uppercase tracking-widest text-gray-400 dark:text-slate-500 font-bold">
@@ -228,7 +228,7 @@ const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                                             <label className="text-[10px] uppercase tracking-widest px-1 text-gray-400 dark:text-slate-500 font-bold">Nom du Service</label>
                                             <input
                                                 type="text"
-                                                className="w-full bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-xl px-4 py-3 text-sm font-bold text-gray-900 dark:text-slate-100 outline-none focus:border-blue-500 dark:focus:border-blue-400 transition-all"
+                                                className="w-full bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-xl px-4 py-3 text-sm font-bold text-gray-900 dark:text-slate-100 outline-none focus:border-emerald-500 dark:focus:border-emerald-400 transition-all"
                                                 placeholder="Installation, Réparation, Maintenance..."
                                                 value={product.productName || ''}
                                                 onChange={(e) => handleProductChange(editingProductIdx, 'productName', e.target.value)}
@@ -241,7 +241,7 @@ const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                                                     <input
                                                         type="number"
                                                         min="1"
-                                                        className="w-full bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-xl px-4 py-3 text-sm font-bold text-gray-900 dark:text-slate-100 outline-none focus:border-blue-500 dark:focus:border-blue-400 transition-all pl-10"
+                                                        className="w-full bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-xl px-4 py-3 text-sm font-bold text-gray-900 dark:text-slate-100 outline-none focus:border-emerald-500 dark:focus:border-emerald-400 transition-all pl-10"
                                                         placeholder="15"
                                                         value={Math.round((product.service_time || 900) / 60)}
                                                         onChange={(e) => handleProductChange(editingProductIdx, 'service_time', parseInt(e.target.value || '15', 10) * 60)}
@@ -258,7 +258,7 @@ const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                                             <div className="relative">
                                                 <input
                                                     type="text"
-                                                    className="w-full bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-xl px-4 py-3 text-sm font-bold text-gray-900 dark:text-slate-100 outline-none focus:border-blue-500 dark:focus:border-blue-400 transition-all pl-10"
+                                                    className="w-full bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-xl px-4 py-3 text-sm font-bold text-gray-900 dark:text-slate-100 outline-none focus:border-emerald-500 dark:focus:border-emerald-400 transition-all pl-10"
                                                     placeholder="ID ou Nom du produit..."
                                                     value={transitItemSearch}
                                                     onChange={(e) => setTransitItemSearch(e.target.value)}
@@ -303,7 +303,7 @@ const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                                                                     </div>
                                                                     <div className="flex flex-col min-w-0">
                                                                         <span className="text-sm font-bold text-gray-900 truncate">{item.name}</span>
-                                                                        <span className="text-[9px] font-black text-blue-600 uppercase tracking-widest">{formatId(item.id)}</span>
+                                                                        <span className="text-[9px] font-black text-emerald-600 uppercase tracking-widest">{formatId(item.id)}</span>
                                                                     </div>
                                                                 </button>
                                                             ))}
@@ -320,7 +320,7 @@ const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                                                 <button
                                                     onClick={handleCreateTransitItem}
                                                     disabled={isCreatingTransitItem}
-                                                    className="px-6 py-2 bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-all flex items-center gap-2"
+                                                    className="px-6 py-2 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-100 dark:hover:bg-emerald-500/20 transition-all flex items-center gap-2"
                                                 >
                                                     {isCreatingTransitItem ? (
                                                         <Loader2 size={14} className="animate-spin" />
@@ -339,7 +339,7 @@ const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                             <>
                                 <div
                                     onClick={() => (handleOpenEditItemForm as any)(product.transitItem)}
-                                    className="flex items-center justify-between p-4 bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-[22px] mb-4 group cursor-pointer hover:border-blue-200 dark:hover:border-blue-500/30 hover:shadow-md transition-all gap-4"
+                                    className="flex items-center justify-between p-4 bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-[22px] mb-4 group cursor-pointer hover:border-emerald-200 dark:hover:border-emerald-500/30 hover:shadow-md transition-all gap-4"
                                 >
                                     {/* Name & ID */}
                                     <div className="flex flex-col min-w-0 flex-1">
@@ -354,15 +354,15 @@ const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                                     </div>
 
                                     {/* Packaging Type */}
-                                    <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 dark:bg-slate-800 rounded-full shrink-0 group-hover:bg-blue-50 dark:group-hover:bg-blue-500/10 transition-colors">
+                                    <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 dark:bg-slate-800 rounded-full shrink-0 group-hover:bg-emerald-50 dark:group-hover:bg-emerald-500/10 transition-colors">
                                         {product.transitItem?.packaging_type === 'pallet' ? (
-                                            <Layers size={14} className="text-gray-400 dark:text-slate-500 group-hover:text-blue-500 dark:group-hover:text-blue-400" />
+                                            <Layers size={14} className="text-gray-400 dark:text-slate-500 group-hover:text-emerald-500 dark:group-hover:text-emerald-400" />
                                         ) : product.transitItem?.packaging_type === 'envelope' ? (
-                                            <Inbox size={14} className="text-gray-400 dark:text-slate-500 group-hover:text-blue-500 dark:group-hover:text-blue-400" />
+                                            <Inbox size={14} className="text-gray-400 dark:text-slate-500 group-hover:text-emerald-500 dark:group-hover:text-emerald-400" />
                                         ) : (
-                                            <Package size={14} className="text-gray-400 dark:text-slate-500 group-hover:text-blue-500 dark:group-hover:text-blue-400" />
+                                            <Package size={14} className="text-gray-400 dark:text-slate-500 group-hover:text-emerald-500 dark:group-hover:text-emerald-400" />
                                         )}
-                                        <span className="text-[10px] font-bold text-gray-500 dark:text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 uppercase tracking-wider">
+                                        <span className="text-[10px] font-bold text-gray-500 dark:text-slate-400 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 uppercase tracking-wider">
                                             {product.transitItem?.packaging_type || 'unite'}
                                         </span>
                                     </div>
@@ -383,7 +383,7 @@ const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                                         >
                                             <X size={16} />
                                         </button>
-                                        <ChevronRight size={18} className="text-gray-300 dark:text-slate-600 group-hover:text-blue-500 dark:group-hover:text-blue-400 group-hover:translate-x-0.5 transition-all" />
+                                        <ChevronRight size={18} className="text-gray-300 dark:text-slate-600 group-hover:text-emerald-500 dark:group-hover:text-emerald-400 group-hover:translate-x-0.5 transition-all" />
                                     </div>
                                 </div>
                                 {product.type === 'service' && (
@@ -404,7 +404,7 @@ const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                                 {product.type === 'service' ? (
                                     <>
                                         <div className="flex items-center gap-3 p-3 bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm">
-                                            <div className="p-1.5 bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400 rounded-lg">
+                                            <div className="p-1.5 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-lg">
                                                 <Timer size={14} />
                                             </div>
                                             <div className="flex-1">
@@ -434,7 +434,7 @@ const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                                         />
                                     </>
                                 ) : (
-                                    <div className="bg-blue-50/30 dark:bg-blue-500/5 p-4 rounded-3xl border border-blue-50/50 dark:border-blue-900/10">
+                                    <div className="bg-emerald-50/30 dark:bg-emerald-500/5 p-4 rounded-3xl border border-emerald-50/50 dark:border-emerald-900/10">
                                         <EditableField
                                             label="Quantity"
                                             value={product.quantity || 1}
@@ -453,7 +453,7 @@ const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                     <section className="pb-10">
                         <div className="flex items-center justify-between mb-4">
                             <div className="flex items-center gap-2">
-                                <div className="p-2 bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400 rounded-lg">
+                                <div className="p-2 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-lg">
                                     <PenTool size={16} />
                                 </div>
                                 <h3 className="text-[12px] uppercase tracking-widest text-gray-400 dark:text-slate-500 font-bold">Validation Rules</h3>
@@ -465,7 +465,7 @@ const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                                     setEditingValidationIdx(null);
                                     setSelectedValidationType(null);
                                 }}
-                                className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-500/20 transition-all text-[11px] font-black uppercase tracking-wider"
+                                className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-purple-100 dark:hover:bg-purple-500/20 transition-all text-[11px] font-black uppercase tracking-wider"
                             >
                                 <Plus size={14} /> Add
                             </button>
@@ -524,7 +524,7 @@ const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                                                     <TypeIcon size={18} />
                                                 </div>
                                                 <div className="flex flex-col min-w-0">
-                                                    <span className="text-sm font-bold text-gray-900 dark:text-slate-100 truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                                                    <span className="text-sm font-bold text-gray-900 dark:text-slate-100 truncate group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
                                                         {v.name}
                                                     </span>
                                                     <div className="flex gap-2 mt-1">
@@ -571,7 +571,7 @@ const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                         setDirection(-1);
                         setView('stop');
                     }}
-                    className="flex-1 px-6 py-3 text-[11px] font-black text-white bg-blue-600 hover:bg-blue-700 rounded-2xl uppercase tracking-widest shadow-lg shadow-blue-200 transition-all"
+                    className="flex-1 px-6 py-3 text-[11px] font-black text-white bg-emerald-600 hover:bg-emerald-700 rounded-2xl uppercase tracking-widest shadow-lg shadow-emerald-200 transition-all"
                 >
                     Back to Stop
                 </button>
