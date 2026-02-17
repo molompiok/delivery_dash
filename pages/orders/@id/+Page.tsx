@@ -35,12 +35,13 @@ import {
     Wrench,
     Package,
     Flag,
-    List
+    List,
+    Bike
 } from 'lucide-react';
 import { arrayMove } from '@dnd-kit/sortable';
 import ListOptions from './components/ListOptions';
 import StopListWrapper from './components/StopListWrapper';
-import { MapLibre as GoogleMap, Marker, Polyline, MarkerPopup, MarkerClusterer, useMap } from '../../../components/MapLibre';
+import { MapLibre as GoogleMap, Marker, Polyline, MarkerPopup, MarkerClusterer, useMap, MapMarker, MarkerContent } from '../../../components/MapLibre';
 import { useHeader } from '../../../context/HeaderContext';
 import { useTheme } from '../../../context/ThemeContext';
 import { ConfirmModal } from '../../../components/ConfirmModal';
@@ -227,6 +228,8 @@ export default function Page() {
     });
     const [hoveredStopId, setHoveredStopId] = useState<string | null>(null);
     const [hoveredMarkerId, setHoveredMarkerId] = useState<string | null>(null);
+    const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const isLayersInitialized = useRef(false);
 
     const activeStepRef = useRef(activeStep);
     useEffect(() => { activeStepRef.current = activeStep; }, [activeStep]);
@@ -270,10 +273,14 @@ export default function Page() {
     // --- SOCKET.IO REAL-TIME UPDATES (Debounced) ---
     const lastRefreshTime = useRef(0);
     const refreshTimeout = useRef<NodeJS.Timeout | null>(null);
+    const pendingRefreshes = useRef({ order: false, route: false });
 
     const debouncedRefresh = (data: any, type: 'order' | 'route') => {
         console.log(`[SOCKET] Received ${type} update event:`, data);
         if (data.orderId !== id) return;
+
+        // Mark this type as needing refresh
+        pendingRefreshes.current[type] = true;
 
         // Clear existing timeout
         if (refreshTimeout.current) clearTimeout(refreshTimeout.current);
@@ -285,9 +292,21 @@ export default function Page() {
         const delay = Math.max(0, 500 - timeSinceLast);
 
         refreshTimeout.current = setTimeout(() => {
-            console.log(`[SOCKET] Executing debounced refresh for ${type}`);
-            if (type === 'order') fetchOrder(false);
-            else fetchRoute({ silent: true });
+            const needsOrder = pendingRefreshes.current.order;
+            const needsRoute = pendingRefreshes.current.route;
+
+            // Reset flags
+            pendingRefreshes.current = { order: false, route: false };
+
+            console.log(`[SOCKET] Executing debounced refresh (Order: ${needsOrder}, Route: ${needsRoute})`);
+
+            if (needsOrder) {
+                // fetchOrder already triggers fetchRoute at the end
+                fetchOrder(false);
+            } else if (needsRoute) {
+                fetchRoute({ silent: true });
+            }
+
             lastRefreshTime.current = Date.now();
         }, delay);
     };
@@ -303,11 +322,15 @@ export default function Page() {
 
         socket.on('order_updated', handleUpdate);
         socket.on('route_updated', handleRouteUpdate);
+        socket.on('stop_status_updated', handleUpdate);
+        socket.on('action_status_updated', handleUpdate);
 
         return () => {
             if (refreshTimeout.current) clearTimeout(refreshTimeout.current);
             socket.off('order_updated', handleUpdate);
             socket.off('route_updated', handleRouteUpdate);
+            socket.off('stop_status_updated', handleUpdate);
+            socket.off('action_status_updated', handleUpdate);
         };
     }, [id, socketClient]);
 
@@ -322,25 +345,29 @@ export default function Page() {
         return () => clearTimeout(timer);
     }, [id, mapViewport]);
 
-    // Save map layers to localStorage when it changes
+    // Save map layers to localStorage (Global Preference)
     useEffect(() => {
-        if (!id) return;
-        localStorage.setItem('map_layers_auto', JSON.stringify(visibleLayers.auto));
-    }, [id, visibleLayers.auto]);
+        if (!isLayersInitialized.current) return;
+        localStorage.setItem('map_layers_global', JSON.stringify(visibleLayers));
+    }, [visibleLayers]);
 
     // Load saved settings
     useEffect(() => {
-        if (!id) return;
-
-        const savedAuto = localStorage.getItem('map_layers_auto');
-        if (savedAuto !== null) {
+        const savedLayers = localStorage.getItem('map_layers_global');
+        if (savedLayers !== null) {
             try {
-                const autoValue = JSON.parse(savedAuto);
-                setVisibleLayers(prev => ({ ...prev, auto: autoValue }));
+                const parsed = JSON.parse(savedLayers);
+                setVisibleLayers(prev => ({ ...prev, ...parsed }));
             } catch (e) {
-                console.error("Failed to parse saved map auto mode", e);
+                console.error("Failed to parse saved map layers", e);
             }
         }
+        isLayersInitialized.current = true;
+    }, []);
+
+    // Load saved map view (Per Order)
+    useEffect(() => {
+        if (!id) return;
 
         const saved = localStorage.getItem(`map_view_${id}`);
         if (saved) {
@@ -564,7 +591,19 @@ export default function Page() {
 
         pollLocation(); // Immediate first fetch
         const interval = setInterval(pollLocation, 5000); // 5s interval matching mobile app
-        return () => clearInterval(interval);
+
+        // Periodic Route refresh to see the TRACE grow
+        let routeInterval: NodeJS.Timeout | null = null;
+        if (order?.status === 'ACCEPTED') {
+            routeInterval = setInterval(() => {
+                fetchRoute({ silent: true });
+            }, 10000); // Every 10s is enough for the trace line
+        }
+
+        return () => {
+            clearInterval(interval);
+            if (routeInterval) clearInterval(routeInterval);
+        };
     }, [id, order?.driverId]);
 
     // This function is now only used for logging/debugging purposes
@@ -777,6 +816,13 @@ export default function Page() {
             const result = await ordersApi.addAction(stopId, payload);
             const action = result.action;
 
+            // Ritual: update stop minimally to trigger shadow creation/visual feedback
+            if (action?.id) {
+                await ordersApi.updateStop(stopId, {
+                    metadata: { _last_created_action: action.id }
+                });
+            }
+
             // Re-fetch or update local state to get the new action ID
             await fetchOrder(false);
             setOrder(prev => prev ? { ...prev, hasPendingChanges: true } : null);
@@ -785,6 +831,50 @@ export default function Page() {
             console.error("Failed to add action", error);
             showAlert("Erreur", "Impossible d'ajouter le produit/service.");
             return null;
+        }
+    };
+
+    const handleDeleteAction = async (actionId: string) => {
+        try {
+            // Optimistic update
+            if (selectedStop) {
+                const newActions = (selectedStop.actions || []).filter((a: any) => a.id !== actionId);
+                const updatedStop = { ...selectedStop, actions: newActions };
+                setSelectedStop(updatedStop);
+
+                if (selectedStopMeta) {
+                    const { stepIdx, stopIdx } = selectedStopMeta;
+                    setSteps(prev => prev.map((s, sIdx) =>
+                        sIdx === stepIdx
+                            ? {
+                                ...s,
+                                stops: s.stops.map((st, stIdx) =>
+                                    stIdx === stopIdx ? updatedStop : st
+                                )
+                            }
+                            : s
+                    ));
+                }
+            }
+
+            await ordersApi.removeAction(actionId);
+
+            // Ritual: update stop minimally to trigger shadow creation/visual feedback (mark as modified)
+            if (selectedStop?.id) {
+                await ordersApi.updateStop(selectedStop.id, {
+                    metadata: { ...(selectedStop.metadata || {}), _last_deleted_action: actionId }
+                });
+            }
+
+            // Final sync to confirm server state
+            await fetchOrder(false);
+            setOrder(prev => prev ? { ...prev, hasPendingChanges: true } : null);
+            console.log(`[SYNC] Action ${actionId} deleted successfully`);
+        } catch (error: any) {
+            console.error("Failed to delete action", error);
+            showAlert("Erreur", "Impossible de supprimer le produit/service.");
+            // Revert on error
+            await fetchOrder(true);
         }
     };
 
@@ -1385,8 +1475,16 @@ export default function Page() {
                                             key={m.stop.id}
                                             position={{ lat: m.lat, lng: m.lng }}
                                             isBouncing={hoveredStopId === m.stop.id || hoveredMarkerId === m.stop.id}
-                                            onMouseEnter={() => setHoveredMarkerId(m.stop.id)}
-                                            onMouseLeave={() => setHoveredMarkerId(null)}
+                                            onMouseEnter={() => {
+                                                if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+                                                hoverTimeoutRef.current = setTimeout(() => {
+                                                    setHoveredMarkerId(m.stop.id);
+                                                }, 1000);
+                                            }}
+                                            onMouseLeave={() => {
+                                                if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+                                                setHoveredMarkerId(null);
+                                            }}
                                             label={
                                                 <div className={`flex flex-col items-center group/marker transition-all duration-500 animate-in fade-in zoom-in slide-in-from-bottom-2`}>
                                                     {/* Badge for quantities */}
@@ -1413,19 +1511,21 @@ export default function Page() {
                                                         </div>
                                                     )}
                                                     {/* Stop Marker Body */}
-                                                    <div className={`relative px-3 py-1.5 flex items-center gap-2.5 rounded-b-2xl border-b border-x border-white/40 dark:border-slate-800 shadow-[0_8px_24px_rgba(0,0,0,0.12)] transition-all group-hover/marker:shadow-[0_12px_32px_rgba(0,0,0,0.2)] group-hover/marker:scale-105
-                                                        ${m.isStart ? 'bg-gradient-to-r from-emerald-600 to-emerald-500 text-white min-w-[45px] justify-center rounded-2xl border-0 ring-4 ring-emerald-500/20' :
-                                                            m.isEnd ? 'bg-gradient-to-r from-rose-600 to-rose-500 text-white min-w-[45px] justify-center rounded-2xl border-0 ring-4 ring-rose-500/20' :
-                                                                'bg-white/95 dark:bg-slate-900/95 backdrop-blur-md'}`}>
+                                                    <div className={`relative px-3 py-1.5 flex items-center gap-2.5 rounded-2xl border transition-all group-hover/marker:shadow-xl group-hover/marker:scale-105 ring-4
+                                                        ${m.stop.status === 'COMPLETED' ? 'bg-emerald-500 text-white border-emerald-400 ring-emerald-500/20 shadow-emerald-500/20' :
+                                                            m.stop.status === 'PARTIAL' ? 'bg-blue-600 text-white border-blue-500 ring-blue-600/20 shadow-blue-600/20' :
+                                                                m.stop.status === 'FAILED' ? 'bg-rose-500 text-white border-rose-400 ring-rose-500/20 shadow-rose-500/20' :
+                                                                    m.stop.status === 'ARRIVED' ? 'bg-amber-500 text-white border-amber-400 ring-amber-500/20 shadow-amber-500/20' :
+                                                                        'bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-white/40 dark:border-slate-800 ring-gray-400/20'}`}>
 
                                                         {/* Sequence Number */}
-                                                        <span className={`text-xs font-black ${m.isStart || m.isEnd ? 'text-white' : 'text-emerald-600 shadow-sm'}`}>
+                                                        <span className={`text-xs font-black ${['COMPLETED', 'PARTIAL', 'FAILED', 'ARRIVED'].includes(m.stop.status) ? 'text-white' : 'text-emerald-600 shadow-sm'}`}>
                                                             {m.label}
                                                         </span>
 
                                                         {/* Address Snippet */}
-                                                        <span className={`text-[10px] font-black uppercase tracking-widest whitespace-nowrap border-l border-gray-100 dark:border-slate-800 pl-2.5
-                                                            ${m.isStart || m.isEnd ? 'text-white/90 border-white/20' : 'text-gray-500 dark:text-slate-400'}`}>
+                                                        <span className={`text-[10px] font-black uppercase tracking-widest whitespace-nowrap border-l pl-2.5
+                                                            ${['COMPLETED', 'PARTIAL', 'FAILED', 'ARRIVED'].includes(m.stop.status) ? 'text-white border-white/20' : 'text-gray-500 dark:text-slate-400 border-gray-100 dark:border-slate-800'}`}>
                                                             {m.addressSnippet}
                                                         </span>
 
@@ -1492,23 +1592,23 @@ export default function Page() {
                                     );
                                 })}
                             </MarkerClusterer>
-                            {/* Live Route in Blue */}
+                            {/* Live Route in Green (Bottom) */}
                             {visibleLayers.live && (
-                                <Polyline path={livePath} strokeColor="#059669" strokeWeight={6} strokeOpacity={0.8} />
+                                <Polyline path={livePath} strokeColor="#16a34a" strokeWeight={6} strokeOpacity={0.6} />
                             )}
 
-                            {/* Pending Route in Emerald */}
+                            {/* Pending Route in Blue (Middle) */}
                             {visibleLayers.pending && order?.hasPendingChanges && (
-                                <Polyline path={pendingPath} strokeColor="#10b981" strokeWeight={4} strokeOpacity={0.9} />
+                                <Polyline path={pendingPath} strokeColor="#2563eb" strokeWeight={4} strokeOpacity={0.8} />
                             )}
 
-                            {/* Actual Trace in Green Dashed */}
+                            {/* Actual Trace in Orange Dashed (Top) */}
                             {visibleLayers.actual && tracePath.length > 0 && (
                                 <Polyline
                                     path={tracePath}
-                                    strokeColor="#10b981"
+                                    strokeColor="#f59e0b"
                                     strokeWeight={3}
-                                    strokeOpacity={0.6}
+                                    strokeOpacity={1}
                                     // @ts-ignore
                                     icons={[{
                                         icon: { path: 'M 0,-1 0,1', strokeOpacity: 1, scale: 2 },
@@ -1518,22 +1618,34 @@ export default function Page() {
                                 />
                             )}
 
-                            {/* Real-time Driver Marker */}
-                            {driverLocation && (
-                                <Marker
-                                    position={{ lat: driverLocation.lat, lng: driverLocation.lng }}
-                                    icon={{
-                                        path: typeof window !== 'undefined' ? (window as any).google?.maps?.SymbolPath?.FORWARD_CLOSED_ARROW : undefined,
-                                        scale: 6,
-                                        fillColor: '#2563eb',
-                                        fillOpacity: 1,
-                                        strokeWeight: 2,
-                                        strokeColor: '#ffffff',
-                                        rotation: driverLocation.heading || 0
-                                    }}
+                            {/* Real-time Driver Marker (Only when mission is in progress) */}
+                            {driverLocation && order?.status === 'ACCEPTED' && (
+                                <MapMarker
+                                    longitude={driverLocation.lng}
+                                    latitude={driverLocation.lat}
+                                    rotation={driverLocation.heading || 0}
                                     // @ts-ignore
                                     title={`Chauffeur en direct - Mis à jour à ${new Date(driverLocation.updated_at).toLocaleTimeString()}`}
-                                />
+                                >
+                                    <MarkerContent>
+                                        <div className="relative flex items-center justify-center">
+                                            {/* Pulsing Halo */}
+                                            <div className="absolute inset-0 rounded-full bg-blue-500/40 animate-ping scale-[2.5]" />
+                                            <div className="absolute inset-0 rounded-full bg-blue-400/20 animate-pulse scale-[2]" />
+
+                                            {/* Moto Icon Container */}
+                                            <div
+                                                className="relative z-10 w-9 h-9 bg-blue-600 rounded-2xl flex items-center justify-center border-2 border-white shadow-[0_4px_12px_rgba(37,99,235,0.4)] text-white transition-transform duration-300"
+                                                style={{ transform: `rotate(${-(driverLocation.heading || 0)}deg)` }}
+                                            >
+                                                <Bike size={20} strokeWidth={2.5} />
+
+                                                {/* Direction Arrow */}
+                                                {/* <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-blue-600 rotate-45 border-t-2 border-l-2 border-white rounded-tl-[2px]" /> */}
+                                            </div>
+                                        </div>
+                                    </MarkerContent>
+                                </MapMarker>
                             )}
                         </GoogleMap>
 
@@ -1589,26 +1701,26 @@ export default function Page() {
 
                                         <button
                                             onClick={() => setVisibleLayers(prev => ({ ...prev, live: !prev.live, auto: false }))}
-                                            className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition-colors ${visibleLayers.live ? 'bg-emerald-50 text-emerald-700' : 'text-gray-500 hover:bg-gray-50'}`}
+                                            className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition-colors ${visibleLayers.live ? 'bg-green-50 text-green-700' : 'text-gray-500 hover:bg-gray-50'}`}
                                         >
                                             <span className="text-[11px] font-bold">Route Planifiée</span>
-                                            <div className={`w-2 h-2 rounded-full ${visibleLayers.live ? 'bg-emerald-600' : 'bg-gray-200'}`} />
+                                            <div className={`w-2 h-2 rounded-full ${visibleLayers.live ? 'bg-green-600' : 'bg-gray-200'}`} />
                                         </button>
 
                                         <button
                                             onClick={() => setVisibleLayers(prev => ({ ...prev, pending: !prev.pending, auto: false }))}
-                                            className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition-colors ${visibleLayers.pending ? 'bg-emerald-50 text-emerald-700' : 'text-gray-500 hover:bg-gray-50'}`}
+                                            className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition-colors ${visibleLayers.pending ? 'bg-blue-50 text-blue-700' : 'text-gray-500 hover:bg-gray-50'}`}
                                         >
                                             <span className="text-[11px] font-bold">Modifications</span>
-                                            <div className={`w-2 h-2 rounded-full ${visibleLayers.pending ? 'bg-emerald-500' : 'bg-gray-200'}`} />
+                                            <div className={`w-2 h-2 rounded-full ${visibleLayers.pending ? 'bg-blue-600' : 'bg-gray-200'}`} />
                                         </button>
 
                                         <button
                                             onClick={() => setVisibleLayers(prev => ({ ...prev, actual: !prev.actual, auto: false }))}
-                                            className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition-colors ${visibleLayers.actual ? 'bg-green-50 text-green-700' : 'text-gray-500 hover:bg-gray-50'}`}
+                                            className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition-colors ${visibleLayers.actual ? 'bg-amber-50 text-amber-700' : 'text-gray-500 hover:bg-gray-50'}`}
                                         >
                                             <span className="text-[11px] font-bold">Tracé Réel</span>
-                                            <div className={`w-2 h-2 rounded-full ${visibleLayers.actual ? 'bg-green-500' : 'bg-gray-200'}`} />
+                                            <div className={`w-2 h-2 rounded-full ${visibleLayers.actual ? 'bg-amber-500' : 'bg-gray-200'}`} />
                                         </button>
 
                                         {/* Sources Tooltip */}
@@ -2342,6 +2454,7 @@ export default function Page() {
                     };
                     return await handleAddAction(stopId, payload);
                 }}
+                onDeleteAction={handleDeleteAction}
                 onDelete={() => {
                     if (selectedStopMeta) {
                         handleDeleteStopInStep(selectedStopMeta.stepIdx, selectedStopMeta.stopIdx);

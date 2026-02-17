@@ -26,6 +26,7 @@ const StopDetailPanel: React.FC<StopDetailPanelProps> = ({
     onUpdate,
     onUpdateAction,
     onAddAction,
+    onDeleteAction,
     onDelete,
     orderId
 }) => {
@@ -288,6 +289,7 @@ const StopDetailPanel: React.FC<StopDetailPanelProps> = ({
                         setIsConfirmingStopDelete={setIsConfirmingStopDelete}
                         handleFieldChange={handleFieldChange}
                         performAddAction={performAddAction}
+                        onDeleteAction={onDeleteAction}
                         onClose={onClose}
                     />
                 );

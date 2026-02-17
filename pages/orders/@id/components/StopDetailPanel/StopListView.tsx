@@ -22,6 +22,7 @@ interface StopListViewProps {
     setIsConfirmingStopDelete: (val: boolean) => void;
     handleFieldChange: (fieldPath: string, value: any) => void;
     performAddAction: (type: string) => Promise<void>;
+    onDeleteAction: (actionId: string) => void | Promise<void>;
     onClose: () => void;
 }
 
@@ -40,6 +41,7 @@ const StopListView: React.FC<StopListViewProps> = ({
     setIsConfirmingStopDelete,
     handleFieldChange,
     performAddAction,
+    onDeleteAction,
     onClose
 }) => (
     <motion.div
@@ -400,9 +402,8 @@ const StopListView: React.FC<StopListViewProps> = ({
                                                         requirements: []
                                                     };
                                                     handleFieldChange('actions', [resetAction]);
-                                                } else {
-                                                    const newActions = stop.actions.filter((_: any, i: number) => i !== idx);
-                                                    handleFieldChange('actions', newActions);
+                                                } else if (action.id) {
+                                                    onDeleteAction(action.id);
                                                 }
                                                 setConfirmDeleteKey(null);
                                             }}

@@ -158,7 +158,7 @@ const MapClickInterceptor: React.FC<{ onClick?: (e: { latLng: LatLng }) => void 
     return null;
 };
 
-export { MarkerPopup };
+export { MarkerPopup, MapMarker, MarkerContent };
 
 // --- Marker ---
 

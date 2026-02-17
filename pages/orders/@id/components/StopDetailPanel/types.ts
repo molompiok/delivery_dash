@@ -36,6 +36,7 @@ export interface StopDetailPanelProps {
     onUpdate: (updatedStop: any, fieldPath?: string, value?: any) => void | Promise<void>;
     onUpdateAction: (actionId: string, updatedAction: any) => void | Promise<void>;
     onAddAction: (stopId: string, type: string) => Promise<any>;
+    onDeleteAction: (actionId: string) => void | Promise<void>;
     onDelete: () => void;
     orderId: string;
 }

@@ -82,13 +82,14 @@ const ListOptions = ({
                         {step.isLinked ? <Lock size={18} /> : <Unlock size={18} />}
                     </button>
                 )}
-                <button
+                
+                {/* <button
                     onClick={onAdd}
                     className="flex items-center justify-center p-2.5 bg-[#d1fae5] dark:bg-emerald-500/20 text-[#059669] dark:text-emerald-400 rounded-2xl font-bold hover:bg-[#a7f3d0] dark:hover:bg-emerald-500/30 transition-colors shadow-sm"
                     title="Add Stop"
                 >
                     <Plus size={18} />
-                </button>
+                </button> */}
             </div>
         </div>
     );
