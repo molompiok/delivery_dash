@@ -1359,7 +1359,7 @@ export default function Page() {
                     serviceQty,
                     isStart,
                     isEnd,
-                    addressSnippet: (stop.address.city || stop.address.street || stop.address.name || '...').slice(0, 15)
+                    addressSnippet: (stop.address.street || stop.address.city || stop.address.name || '...').slice(0, 15)
                 };
             });
     }, [steps]);
