@@ -129,7 +129,7 @@ export const ZoneDetail: React.FC<ZoneDetailProps> = ({
                                 ) : (
                                     <h1
                                         onClick={() => setIsEditingName(true)}
-                                        className="text-2xl font-black text-gray-900 leading-none cursor-pointer hover:text-emerald-600 transition-colors"
+                                        className="text-2xl font-black text-gray-900 dark:text-slate-100 leading-none cursor-pointer hover:text-emerald-600 transition-colors"
                                         title="Cliquer pour modifier"
                                     >
                                         {zone.name}
@@ -191,7 +191,7 @@ export const ZoneDetail: React.FC<ZoneDetailProps> = ({
                             </div>
 
                             {showColorPicker && (
-                                <div className="absolute bottom-full left-0 mb-2 p-3 bg-white rounded-xl shadow-xl border border-gray-100 z-50 w-48 grid grid-cols-4 gap-2 animate-in fade-in zoom-in duration-200">
+                                <div className="absolute left-0 p-3 bg-white rounded-xl shadow-xl border border-gray-100 z-50 w-48 grid grid-cols-4 gap-2 animate-in fade-in zoom-in duration-200">
                                     {extendedColors.map(c => (
                                         <button
                                             key={c}

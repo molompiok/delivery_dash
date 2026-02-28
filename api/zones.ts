@@ -1,9 +1,9 @@
 import client from './client';
-import { Zone } from './mock'; // Temporarily importing from mock until moved to types
+import { Zone } from './types';
 
 export const zoneService = {
-    async list() {
-        const { data } = await client.get<Zone[]>('/zones');
+    async list(params?: Record<string, any>) {
+        const { data } = await client.get<Zone[]>('/zones', { params });
         return data;
     },
 

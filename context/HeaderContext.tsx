@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
 
 interface HeaderContextType {
     headerContent: ReactNode;
@@ -25,7 +25,7 @@ export function HeaderProvider({ children }: { children: ReactNode }) {
     const [isHeaderSuppressed, setHeaderSuppressed] = useState(false);
     const [headerHeight, setHeaderHeight] = useState(80);
 
-    const clearHeaderContent = () => setHeaderContent(null);
+    const clearHeaderContent = useCallback(() => setHeaderContent(null), []);
 
     return (
         <HeaderContext.Provider value={{

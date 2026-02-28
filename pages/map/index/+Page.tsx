@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Loader2, ChevronLeft, ChevronRight, Package, Truck, Maximize, Minimize, Menu } from 'lucide-react';
-import { mockService, DriverPosition, Zone, Driver } from '../../../api/mock';
+import { MapLibre as GoogleMap, Marker, Circle, Polygon, DrawingManager, Rectangle, HexagonDrawer, LatLng } from '../../../components/MapLibre';
+import { mockService, DriverPosition, Driver, Zone } from '../../../api/mock';
 import { zoneService } from '../../../api/zones';
-import { MapLibre as GoogleMap, Marker, Circle, Polygon, DrawingManager, Rectangle, HexagonDrawer } from '../../../components/MapLibre';
 import { AnimatePresence } from 'framer-motion';
 import { usePageContext } from 'vike-react/usePageContext';
 import { useTheme } from '../../../context/ThemeContext';
@@ -32,6 +32,7 @@ export default function Page() {
     const zoneIdParam = pageContext.urlParsed.search.zone_id;
     const driverIdParam = pageContext.urlParsed.search.driver_id;
     const vehicleIdParam = pageContext.urlParsed.search.vehicle_id;
+    const tabParam = pageContext.urlParsed.search.tab;
 
     const [drivers, setDrivers] = useState<Driver[]>([]);
     const [positions, setPositions] = useState<DriverPosition[]>([]);
@@ -51,7 +52,7 @@ export default function Page() {
 
     // Zone Edition States
     const [isEditing, setIsEditing] = useState(false);
-    const [drawingMode, setDrawingMode] = useState<google.maps.drawing.OverlayType | 'hexagon' | null>(null);
+    const [drawingMode, setDrawingMode] = useState<'circle' | 'rectangle' | 'polygon' | 'hexagon' | null>(null);
     const [newZone, setNewZone] = useState<Zone | null>(null);
     const [modifiedZoneData, setModifiedZoneData] = useState<Partial<Zone> | null>(null);
 
@@ -165,17 +166,24 @@ export default function Page() {
             setVehicleDetailId(vehicleIdParam as string);
             setActiveTab('VEHICLES');
             setIsFollowing(true);
+        } else if (tabParam) {
+            const requestedTab = (tabParam as string).toUpperCase();
+            const validTabs: MapTab[] = ['DRIVERS', 'ZONES', 'ORDERS', 'VEHICLES'];
+            if (validTabs.includes(requestedTab as MapTab)) {
+                setActiveTab(requestedTab as MapTab);
+            }
         }
 
         // Clean up URL parameters after processing
-        if (zoneIdParam || driverIdParam || vehicleIdParam) {
+        if (zoneIdParam || driverIdParam || vehicleIdParam || tabParam) {
             const url = new URL(window.location.href);
             url.searchParams.delete('zone_id');
             url.searchParams.delete('driver_id');
             url.searchParams.delete('vehicle_id');
+            url.searchParams.delete('tab');
             window.history.replaceState({}, '', url.pathname + url.search);
         }
-    }, [zoneIdParam, driverIdParam, vehicleIdParam]);
+    }, [zoneIdParam, driverIdParam, vehicleIdParam, tabParam]);
 
     // Separate effect for "Initial positioning" once positions are loaded after deep link
     useEffect(() => {
@@ -209,7 +217,7 @@ export default function Page() {
             };
         }));
 
-        setModifiedZoneData(prev => ({
+        setModifiedZoneData((prev: any) => ({
             ...prev,
             ...data,
             geometry: { ...(prev?.geometry || {}), ...geom }
@@ -291,7 +299,7 @@ export default function Page() {
                 }
                 else if (zone.type === 'polygon' && geom.paths && geom.paths.length > 0) {
                     let lat = 0, lng = 0;
-                    geom.paths.forEach(p => { lat += p.lat; lng += p.lng; });
+                    geom.paths.forEach((p: any) => { lat += p.lat; lng += p.lng; });
                     setMapCenter({ lat: lat / geom.paths.length, lng: lng / geom.paths.length });
                     setMapZoom(14);
                 }
@@ -305,59 +313,48 @@ export default function Page() {
         }
     }, [isFollowing, activeDriver, activeZone, positions, zones]);
 
-    const handleCircleComplete = (circle: google.maps.Circle) => {
-        const center = circle.getCenter();
-        const radius = circle.getRadius();
-        if (center) {
-            const tempZone: Partial<Zone> = {
-                id: `custom-circle-${Date.now()}`,
-                name: `Zone ${zones.filter(z => z.id.startsWith('custom')).length + 1}`,
-                color: '#10b981',
-                type: 'circle',
-                geometry: {
-                    radiusKm: radius / 1000,
-                    center: { lat: center.lat(), lng: center.lng() }
-                },
-                isActive: true
-            };
-            saveNewZone(tempZone as Zone, false);
-        }
-        circle.setMap(null);
+    const handleCircleComplete = (data: { center: LatLng; radius: number }) => {
+        const { center, radius } = data;
+        const tempZone: Partial<Zone> = {
+            id: `custom-circle-${Date.now()}`,
+            name: `Zone ${zones.filter(z => z.id.startsWith('custom')).length + 1}`,
+            color: '#10b981',
+            type: 'circle',
+            geometry: {
+                radiusKm: radius / 1000,
+                center: { lat: center.lat, lng: center.lng }
+            },
+            isActive: true
+        };
+        saveNewZone(tempZone as Zone, false);
         setDrawingMode(null);
     };
 
-    const handlePolygonComplete = (polygon: google.maps.Polygon) => {
-        const paths = polygon.getPath().getArray().map(p => ({ lat: p.lat(), lng: p.lng() }));
+    const handlePolygonComplete = (data: { paths: LatLng[] }) => {
+        const { paths } = data;
         const tempZone: Partial<Zone> = {
             id: `custom-poly-${Date.now()}`,
             name: `Zone ${zones.filter(z => z.id.startsWith('custom')).length + 1}`,
             color: '#3b82f6',
             type: 'polygon',
-            geometry: { paths: paths as { lat: number, lng: number }[] },
+            geometry: { paths },
             isActive: true
         };
         saveNewZone(tempZone as Zone, false);
-        polygon.setMap(null);
         setDrawingMode(null);
     };
 
-    const handleRectangleComplete = (rectangle: google.maps.Rectangle) => {
-        const bounds = rectangle.getBounds();
-        if (bounds) {
-            const b = bounds.toJSON();
-            const tempZone: Partial<Zone> = {
-                id: `custom-rect-${Date.now()}`,
-                name: `Zone ${zones.filter(z => z.id.startsWith('custom')).length + 1}`,
-                color: '#8b5cf6',
-                type: 'rectangle',
-                geometry: {
-                    bounds: { north: b.north, south: b.south, east: b.east, west: b.west }
-                },
-                isActive: true
-            };
-            saveNewZone(tempZone as Zone, false);
-        }
-        rectangle.setMap(null);
+    const handleRectangleComplete = (data: { bounds: { north: number; south: number; east: number; west: number } }) => {
+        const { bounds } = data;
+        const tempZone: Partial<Zone> = {
+            id: `custom-rect-${Date.now()}`,
+            name: `Zone ${zones.filter(z => z.id.startsWith('custom')).length + 1}`,
+            color: '#8b5cf6',
+            type: 'rectangle',
+            geometry: { bounds },
+            isActive: true
+        };
+        saveNewZone(tempZone as Zone, false);
         setDrawingMode(null);
     };
 
@@ -381,7 +378,11 @@ export default function Page() {
     const saveNewZone = async (zone: Zone, deselect = true) => {
         try {
             const { id, ...payload } = zone;
-            const createdZone = await zoneService.create(payload);
+            // Explicitly set ownerType to Company for dashboard-created zones
+            const createdZone = await zoneService.create({
+                ...payload,
+                ownerType: 'Company'
+            });
             setZones(prev => [...prev.filter(z => z.id !== id), createdZone]);
             if (deselect) {
                 setNewZone(null);
@@ -502,7 +503,7 @@ export default function Page() {
     };
 
     const toggleDriverAssignment = async (zoneId: string, driverId: string) => {
-        const zone = zones.find(z => z.id === zoneId);
+        const zone = zones.find((z: Zone) => z.id === zoneId);
         if (!zone) return;
         const isAssigned = (zone.assignedDriverIds || []).includes(driverId);
 
@@ -599,9 +600,15 @@ export default function Page() {
                     </React.Fragment>
                 )}
 
-                {isEditing && <DrawingManager drawingMode={drawingMode === 'hexagon' ? null : drawingMode} onCircleComplete={handleCircleComplete} onPolygonComplete={handlePolygonComplete} onRectangleComplete={handleRectangleComplete} />}
-
-                {isEditing && <HexagonDrawer active={drawingMode === 'hexagon'} onComplete={handleHexagonComplete} />}
+                {isEditing && (
+                    <DrawingManager
+                        drawingMode={drawingMode}
+                        onCircleComplete={handleCircleComplete}
+                        onPolygonComplete={handlePolygonComplete}
+                        onRectangleComplete={handleRectangleComplete}
+                        onHexagonComplete={handleHexagonComplete}
+                    />
+                )}
 
                 {positions.map((pos) => {
                     const g = typeof window !== 'undefined' ? (window as any).google : null;
@@ -622,7 +629,7 @@ export default function Page() {
                 <div className={`bg-white/40 dark:bg-slate-900/40 backdrop-blur-2xl rounded-[24px] md:rounded-[32px] shadow-2xl border border-white/20 dark:border-slate-800 pointer-events-auto overflow-hidden flex flex-col h-full transition-all duration-500`}
                     style={{ width: windowWidth < 650 ? '100%' : '400px' }}
                 >
-                    <SidebarHeader isFollowing={isFollowing} onToggleFollow={() => setIsFollowing(!isFollowing)} onClose={() => setPanelCollapsed(!panelCollapsed)}/>
+                    <SidebarHeader isFollowing={isFollowing} onToggleFollow={() => setIsFollowing(!isFollowing)} onClose={() => setPanelCollapsed(!panelCollapsed)} />
                     <TabNavigation activeTab={activeTab} onTabChange={setActiveTab} />
 
                     <div className="flex-1 overflow-y-auto p-4 content-scrollbar">
@@ -774,7 +781,7 @@ export default function Page() {
                     </div>
                 </div>
 
-                
+
             </div>
 
             {/* Floating Mobile Toggle (when sidebar is hidden) */}

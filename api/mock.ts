@@ -1,50 +1,9 @@
-import { User, Vehicle } from './types';
+import { User, Vehicle, Zone, CompanyDriverSetting } from './types';
+export type { Zone };
+import { Order } from './orders';
+import { PricingRule } from './payments';
 
-export interface Order {
-    id: string;
-    refId?: string;
-    customerName: string;
-    pickupAddress: { formattedAddress: string };
-    deliveryAddress: { formattedAddress: string };
-    status: string;
-    pricingData: { finalPrice: number };
-    createdAt: string;
-    driverId?: string;
-    assignmentMode: string;
-}
 
-export interface Zone {
-    id: string;
-    ownerType: 'Company' | 'User' | 'Sublymus';
-    ownerId: string | null;
-    sourceZoneId?: string | null;  // ID de la zone Sublymus source si importée
-    name: string;
-    color: string;
-    type: 'circle' | 'polygon' | 'rectangle';
-    geometry: {
-        radiusKm?: number;
-        center?: { lat: number, lng: number };
-        paths?: { lat: number, lng: number }[];
-        bounds?: {
-            north: number;
-            south: number;
-            east: number;
-            west: number;
-        };
-    };
-    sector?: string;
-    assignedDriverIds?: string[];
-    drivers?: Array<{ id: string }>;
-    isActive: boolean;
-}
-
-export interface PricingRule {
-    id: string;
-    name: string;
-    basePrice: number;
-    perKmSurcharge: number;
-    active: boolean;
-}
 
 export interface DriverPosition {
     driverId: string;
@@ -68,7 +27,7 @@ export interface Driver {
     mileage: number; // km today
 }
 
-const mockOrders: Order[] = Array.from({ length: 15 }).map((_, i) => ({
+const mockOrders: any[] = Array.from({ length: 15 }).map((_, i) => ({
     id: `ord_${2023000 + i}`,
     refId: `REF-${2023000 + i}`,
     customerName: ['Alice Traoré', 'Moussa Koné', 'Restaurant Le Délice', 'Boutique Zara', 'Jean Kouassi'][Math.floor(Math.random() * 5)],
@@ -90,10 +49,81 @@ const mockZones: Zone[] = [
     { id: 'Z6', ownerType: 'Company', ownerId: 'C1', name: 'Centre Ville', color: '#ec4899', type: 'circle', geometry: { radiusKm: 3, center: { lat: 6.820, lng: -5.276 } }, sector: 'YAMOUSSOUKRO', assignedDriverIds: ['driver-6'], isActive: false },
 ];
 
-const mockPricing: PricingRule[] = [
-    { id: 'P1', name: 'Standard Delivery', basePrice: 1000, perKmSurcharge: 100, active: true },
-    { id: 'P2', name: 'Express', basePrice: 2500, perKmSurcharge: 150, active: true },
-    { id: 'P3', name: 'Night Shift', basePrice: 5000, perKmSurcharge: 200, active: false },
+import { PricingFilter } from './types';
+
+const mockPricing: PricingFilter[] = [
+    {
+        id: 'P1',
+        name: 'Tarif Standard - Mission',
+        template: 'MISSION',
+        baseFee: 1000,
+        perKmRate: 150,
+        minDistance: 2,
+        maxDistance: null,
+        perKgRate: 50,
+        freeWeightKg: 5,
+        perM3Rate: 200,
+        fragileMultiplier: 1.2,
+        urgentMultiplier: 1.5,
+        nightMultiplier: 1.3,
+        proximityDiscountPercent: 10,
+        proximityThresholdKm: 2,
+        heavyLoadSurchargeThresholdKg: 50,
+        heavyLoadSurchargePercent: 15,
+        lightLoadDiscountThresholdKg: 1,
+        lightLoadDiscountPercent: 5,
+        isActive: true,
+        companyId: 'C1',
+        driverId: null
+    },
+    {
+        id: 'P2',
+        name: 'Transport Voyage Longue Dist.',
+        template: 'VOYAGE',
+        baseFee: 5000,
+        perKmRate: 120,
+        minDistance: 50,
+        maxDistance: null,
+        perKgRate: 40,
+        freeWeightKg: 20,
+        perM3Rate: 150,
+        fragileMultiplier: 1.1,
+        urgentMultiplier: 1.2,
+        nightMultiplier: 1.2,
+        proximityDiscountPercent: 5,
+        proximityThresholdKm: 5,
+        heavyLoadSurchargeThresholdKg: 100,
+        heavyLoadSurchargePercent: 10,
+        lightLoadDiscountThresholdKg: 0,
+        lightLoadDiscountPercent: 0,
+        isActive: true,
+        companyId: 'C1',
+        driverId: null
+    },
+    {
+        id: 'P3',
+        name: 'Livraison Urbaine Express',
+        template: 'DELIVERY',
+        baseFee: 1500,
+        perKmRate: 100,
+        minDistance: 1,
+        maxDistance: 20,
+        perKgRate: 30,
+        freeWeightKg: 2,
+        perM3Rate: 100,
+        fragileMultiplier: 1.3,
+        urgentMultiplier: 1.8,
+        nightMultiplier: 1.5,
+        proximityDiscountPercent: 15,
+        proximityThresholdKm: 1,
+        heavyLoadSurchargeThresholdKg: 30,
+        heavyLoadSurchargePercent: 20,
+        lightLoadDiscountThresholdKg: 0.5,
+        lightLoadDiscountPercent: 10,
+        isActive: false,
+        companyId: 'C1',
+        driverId: null
+    }
 ];
 
 import { driverService } from './drivers';
@@ -107,11 +137,28 @@ export const mockService = {
 
     async getZones() {
         try {
+            // First get the zones
             const zones = await zoneService.list();
+
+            // Then get the drivers to see who is assigned to what
+            // we use the driverService.listDrivers which returns CompanyDriverSetting[]
+            // and each setting has an activeZoneId
+            let assignedDriversMap: Record<string, string[]> = {};
+            try {
+                const { data: driversSettings } = await driverService.listDrivers();
+                driversSettings.forEach(cds => {
+                    if (cds.activeZoneId) {
+                        if (!assignedDriversMap[cds.activeZoneId]) assignedDriversMap[cds.activeZoneId] = [];
+                        assignedDriversMap[cds.activeZoneId].push(cds.driverId);
+                    }
+                });
+            } catch (e) {
+                console.warn('Failed to fetch assigned drivers map:', e);
+            }
+
             return zones.map((z: any) => ({
                 ...z,
-                // Ensure assignedDriverIds is populated from the preloaded 'drivers' relation if missing
-                assignedDriverIds: z.assignedDriverIds || z.drivers?.map((d: any) => d.id) || []
+                assignedDriverIds: assignedDriversMap[z.id] || z.assignedDriverIds || z.drivers?.map((d: any) => d.id) || []
             }));
         } catch (error) {
             console.error('Failed to fetch real zones, falling back to mock:', error);

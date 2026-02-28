@@ -1,0 +1,37 @@
+{
+    "vehicleId": "TEMPLATE",
+    "timestamp": "2024-03-20T10:00:00Z",
+    "telemetry": {
+        "speed": 0,
+        "rpm": 0,
+        "fuelLevel": 100,
+        "batteryVoltage": 24,
+        "coolantTemp": 20,
+        "odometer": 0,
+        "isEngineRunning": false,
+        "isBraking": false,
+        "lights": {
+            "front": false,
+            "blinkerLeft": false,
+            "blinkerRight": false,
+            "hazard": false
+        }
+    },
+    "gps": {
+        "lat": 5.345,
+        "lng": -4.020,
+        "heading": 0,
+        "altitude": 0
+    },
+    "cargo": {
+        "totalWeight": 0,
+        "totalVolume": 0,
+        "compartments": []
+    },
+    "uiState": {
+        "isHudCollapsed": false,
+        "activeCamera": "orbit",
+        "viewMode": "external",
+        "doors": {}
+    }
+}

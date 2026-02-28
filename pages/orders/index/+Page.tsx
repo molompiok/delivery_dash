@@ -21,27 +21,32 @@ import {
     MoreHorizontal,
     Star,
     Copy,
-    Check
+    Check,
+    Bike,
+    PackagePlus,
+    PackageCheck,
+    Hammer
 } from 'lucide-react';
 import { Order } from '../../../api/orders';
 
 // Mocked Orders for the Premium Demo
 import { ordersApi, OrderSummary } from '../../../api/orders';
-import { mockService, Order as MockOrder } from '../../../api/mock';
 import { socketClient } from '../../../api/socket';
 import { formatId } from '../../../api/utils';
 import { useHeaderAutoHide } from '../../../hooks/useHeaderAutoHide';
-import { useHeader } from '../../../context/HeaderContext';
-import LocationSearchBar from '../../../components/LocationSearchBar';
 
 export default function Page() {
     useHeaderAutoHide();
     const [orders, setOrders] = useState<OrderSummary[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
+    const [searchDebounced, setSearchDebounced] = useState('');
     const [activeFilter, setActiveFilter] = useState('ALL');
     const [showFilters, setShowFilters] = useState(false);
-    const { setHeaderContent, clearHeaderContent } = useHeader();
+    const [currentPage, setCurrentPage] = useState(1);
+    const [paginationMeta, setPaginationMeta] = useState({ total: 0, perPage: 12, currentPage: 1, lastPage: 1 });
+    const [footerCounts, setFooterCounts] = useState<any>(null);
+    const ITEMS_PER_PAGE = 12;
 
     const handleNewOrder = async () => {
         try {
@@ -53,23 +58,6 @@ export default function Page() {
         }
     };
 
-    useEffect(() => {
-        setHeaderContent(
-            <div className="flex items-center justify-between gap-4 w-full">
-                <span className="text-lg font-black text-slate-900 dark:text-slate-100 tracking-tight ">Missions</span>
-                <div className="flex items-center gap-2">
-                    <button
-                        onClick={handleNewOrder}
-                        className="flex items-center gap-2 bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600 text-white px-4 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest shadow-lg shadow-emerald-200/50 dark:shadow-none transition-all hover:scale-[1.02] active:scale-[0.98]"
-                    >
-                        <Plus size={16} />
-                        <span className="hidden sm:inline">Nouvelle Mission</span>
-                    </button>
-                </div>
-            </div>
-        );
-        return () => clearHeaderContent();
-    }, [setHeaderContent, clearHeaderContent]);
 
     // Filter advanced states
     const [filters, setFilters] = useState({
@@ -82,24 +70,70 @@ export default function Page() {
     });
 
     const [error, setError] = useState<string | null>(null);
+    const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    const fetchOrders = async () => {
-        setIsLoading(true);
+    const fetchOrders = async (silent = false, overrides: { page?: number, search?: string, status?: string } = {}) => {
+        if (!silent) setIsLoading(true);
         setError(null);
         try {
-            const data = await ordersApi.list({ view: 'summary' });
-            setOrders(data);
+            const result = await ordersApi.list({
+                view: 'summary',
+                page: overrides.page ?? currentPage,
+                perPage: ITEMS_PER_PAGE,
+                search: overrides.search ?? (searchDebounced || undefined),
+                status: (overrides.status ?? activeFilter) !== 'ALL' ? (overrides.status ?? activeFilter) : undefined,
+            });
+            const ordersData = Array.isArray(result) ? result : (result?.data || []);
+            const metaData = Array.isArray(result) ? { total: result.length, perPage: 12, currentPage: 1, lastPage: 1 } : (result?.meta || { total: 0, perPage: 12, currentPage: 1, lastPage: 1 });
+
+            setOrders(ordersData);
+            setPaginationMeta(metaData);
+            if (result?.meta?.counts) {
+                setFooterCounts(result.meta.counts);
+            }
         } catch (error: any) {
             console.error("Failed to fetch orders:", error);
-            setError("Impossible de charger le flux de commandes. Veuillez vérifier votre connexion au serveur.");
+            if (!silent) setError("Impossible de charger le flux de commandes. Veuillez vérifier votre connexion au serveur.");
         } finally {
-            setIsLoading(false);
+            if (!silent) setIsLoading(false);
         }
     };
 
-    useEffect(() => {
-        fetchOrders();
+    // Debounced silent refresh for socket events
+    const debouncedRefresh = () => {
+        if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+        refreshTimerRef.current = setTimeout(() => fetchOrders(true), 3000);
+    };
 
+    // Debounce search input (400ms)
+    useEffect(() => {
+        if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+        searchTimerRef.current = setTimeout(() => {
+            setSearchDebounced(searchTerm);
+        }, 400);
+        return () => { if (searchTimerRef.current) clearTimeout(searchTimerRef.current); };
+    }, [searchTerm]);
+
+    // Fetch when page, debounced search, or status filter changes
+    useEffect(() => {
+        fetchOrders(false, { page: currentPage, search: searchDebounced, status: activeFilter });
+    }, [currentPage, searchDebounced, activeFilter]);
+
+    // Silent refresh every 10s for live position updates
+    useEffect(() => {
+        const interval = setInterval(() => {
+            fetchOrders(true);
+        }, 10000);
+        return () => clearInterval(interval);
+    }, [currentPage, searchDebounced, activeFilter]);
+
+    // Reset page when search/filter changes
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchDebounced, activeFilter]);
+
+    useEffect(() => {
         // Socket integration
         const socket = socketClient.connect();
         const userStr = localStorage.getItem('delivery_user');
@@ -118,27 +152,24 @@ export default function Page() {
 
         socket.on('order_status_updated', (payload: any) => {
             console.log('Order update received:', payload);
-            setOrders(prev => prev.map(ord =>
-                ord.id === payload.orderId
-                    ? { ...ord, status: payload.status }
-                    : ord
-            ));
+            debouncedRefresh();
         });
 
         socket.on('route_updated', (payload: any) => {
-            console.log('Route update received, refreshing list:', payload);
-            fetchOrders();
+            console.log('Route update received, debounced refresh:', payload);
+            debouncedRefresh();
         });
 
         socket.on('orders:new', (payload: any) => {
             console.log('New order received:', payload);
-            fetchOrders(); // Refresh list on new order
+            fetchOrders(true);
         });
 
         return () => {
             socket.off('order_status_updated');
             socket.off('route_updated');
             socket.off('orders:new');
+            if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
         };
     }, []);
 
@@ -163,6 +194,8 @@ export default function Page() {
             case 'COLLECTED':
                 return 'bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 border-indigo-100 dark:border-indigo-500/20';
             case 'AT_DELIVERY':
+                return 'bg-cyan-50 dark:bg-cyan-500/10 text-cyan-700 dark:text-cyan-400 border-cyan-100 dark:border-cyan-500/20';
+            case 'FAILED':
                 return 'bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-100 dark:border-rose-500/20';
             default:
                 return 'bg-gray-50 dark:bg-slate-800 text-gray-700 dark:text-gray-400 border-gray-100 dark:border-slate-700';
@@ -193,23 +226,8 @@ export default function Page() {
         });
     };
 
-    const filteredOrders = orders.filter(order => {
-        // Search Term: ID or Phone
-        if (searchTerm) {
-            const matchesId = order.id.toLowerCase().includes(searchTerm.toLowerCase());
-            const matchesPhone = order.attribution?.driver?.phone?.includes(searchTerm) || order.itinerary.display.from.includes(searchTerm) || order.itinerary.display.to.includes(searchTerm);
-            if (!matchesId && !matchesPhone) return false;
-        }
-
-        // Status Filter
-        if (activeFilter !== 'ALL') {
-            if (activeFilter === 'IN_PROGRESS' && !['IN_TRANSIT', 'PICKING_UP', 'ACCEPTED', 'AT_PICKUP', 'COLLECTED', 'AT_DELIVERY'].includes(order.status)) return false;
-            if (activeFilter === 'PENDING' && order.status !== 'PENDING') return false;
-            if (activeFilter === 'DELIVERED' && order.status !== 'DELIVERED') return false;
-            // INCIDENTS could be matched by a specific field or status if available
-        }
-
-        // Advanced: Dates
+    // Advanced client-side filters (dates, amounts, modes — not handled by server)
+    const filteredOrders = (orders || []).filter(order => {
         if (filters.startDate) {
             if (new Date(order.timestamps.createdAt) < new Date(filters.startDate)) return false;
         }
@@ -218,20 +236,52 @@ export default function Page() {
             end.setHours(23, 59, 59);
             if (new Date(order.timestamps.createdAt) > end) return false;
         }
-
-        // Advanced: Amount
-        if (filters.minAmount && (order.pricing.amount || 0) < Number(filters.minAmount)) return false;
-        if (filters.maxAmount && (order.pricing.amount || 0) > Number(filters.maxAmount)) return false;
-
-        // Advanced: Mode
-        if (!filters.modes.includes(order.assignment.mode)) return false;
-
-        // Advanced: Type (Simulation: Received if target, Emitted if internal/global by default for this ETP)
-        if (filters.type === 'RECEIVED' && order.assignment.mode !== 'TARGET') return false;
-        if (filters.type === 'EMITTED' && order.assignment.mode === 'TARGET') return false;
-
+        if (filters.minAmount && (order.pricing?.amount || 0) < Number(filters.minAmount)) return false;
+        if (filters.maxAmount && (order.pricing?.amount || 0) > Number(filters.maxAmount)) return false;
+        if (order.assignment?.mode && !filters.modes.includes(order.assignment.mode)) return false;
+        if (filters.type === 'RECEIVED' && order.assignment?.mode !== 'TARGET') return false;
+        if (filters.type === 'EMITTED' && order.assignment?.mode === 'TARGET') return false;
         return true;
     });
+
+    // Pagination from server meta
+    const totalPages = paginationMeta.lastPage;
+    const safePage = paginationMeta.currentPage;
+
+    // --- Helpers ---
+    const getDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+        const R = 6371e3; // metres
+        const φ1 = lat1 * Math.PI / 180;
+        const φ2 = lat2 * Math.PI / 180;
+        const Δφ = (lat2 - lat1) * Math.PI / 180;
+        const Δλ = (lon2 - lon1) * Math.PI / 180;
+
+        const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+            Math.cos(φ1) * Math.cos(φ2) *
+            Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+        return R * c; // in metres
+    };
+
+    const calculateProximityRatio = (order: OrderSummary) => {
+        const driverPos = order.attribution?.driver.position;
+        const lastStop = order.itinerary.stops.last;
+        const nextStop = order.itinerary.stops.next;
+
+        if (!driverPos?.lat || !driverPos?.lng || !lastStop?.lat || !lastStop?.lng || !nextStop?.lat || !nextStop?.lng) {
+            return 0;
+        }
+
+        const totalDist = getDistance(lastStop.lat, lastStop.lng, nextStop.lat, nextStop.lng);
+        const distToNext = getDistance(driverPos.lat, driverPos.lng, nextStop.lat, nextStop.lng);
+
+        if (totalDist <= 0) return 0;
+        let ratio = 1 - (distToNext / totalDist);
+
+        return Math.min(Math.max(ratio, 0), 1);
+    };
+
 
     // --- UI Components ---
     const OrderCard = ({ order }: { order: OrderSummary }) => {
@@ -249,7 +299,7 @@ export default function Page() {
         return (
             <div
                 onClick={() => window.location.href = `/orders/${order.id}`}
-                className="group relative bg-white/60 dark:bg-slate-900/40 backdrop-blur-2xl rounded-[32px] border border-white dark:border-slate-800/50 p-6 shadow-sm hover:shadow-[0_32px_64px_-12px_rgba(0,0,0,0.1)] dark:hover:shadow-[0_32px_64px_-12px_rgba(0,0,0,0.3)] hover:-translate-y-1 transition-all duration-500 cursor-pointer overflow-hidden flex flex-col gap-5 animate-in fade-in slide-in-from-bottom-4"
+                className="group relative bg-white/60 dark:bg-slate-900/40 backdrop-blur-2xl rounded-[32px] border border-white dark:border-slate-800/50 p-6 shadow-sm hover:shadow-[0_32px_64px_-12px_rgba(0,0,0,0.1)] dark:hover:shadow-[0_32px_64px_-12px_rgba(0,0,0,0.3)] hover:-translate-y-1 transition-all duration-500 cursor-pointer overflow-hidden flex flex-col gap-5"
             >
                 {/* Visual Accent Gradient */}
                 <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-indigo-500/10 to-transparent blur-3xl group-hover:from-indigo-500/20 transition-all duration-500" />
@@ -302,56 +352,105 @@ export default function Page() {
                     )}
                 </div>
 
-                {/* Itinerary with Action Details */}
-                <div className="flex flex-col gap-5 relative z-10 py-1">
-                    <div className="flex items-start gap-3">
-                        <div className="flex flex-col items-center gap-1 mt-1.5">
-                            <div className="w-2 h-2 rounded-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900" />
-                            <div className="w-px h-8 bg-slate-200 dark:bg-slate-800" />
-                        </div>
-                        <div className="flex flex-col min-w-0">
-                            <span className="text-sm font-bold text-slate-800 dark:text-slate-200 truncate leading-tight mb-2">{order.itinerary.display.from}</span>
-                            <div className="flex items-center gap-4">
-                                <div className="flex items-center gap-1.5 text-emerald-500">
-                                    <ArrowDown size={14} className="stroke-[3]" />
-                                    <span className="text-xs font-black">{order.itinerary.stops.last?.actions?.pickup || 0}</span>
-                                </div>
-                                <div className="flex items-center gap-1.5 text-rose-500">
-                                    <ArrowUp size={14} className="stroke-[3]" />
-                                    <span className="text-xs font-black">{order.itinerary.stops.last?.actions?.drop || 0}</span>
-                                </div>
-                                {(order.itinerary.stops.last?.actions?.service || 0) > 0 && (
-                                    <div className="flex items-center gap-1.5 text-indigo-500">
-                                        <Settings size={14} className="stroke-[3]" />
-                                        <span className="text-xs font-black">{order.itinerary.stops.last?.actions?.service}</span>
+                {/* Itinerary Timeline - Match App Style */}
+                <div className="flex flex-col gap-2 relative z-10 py-1">
+                    {/* Last Visited Stop - Always show dot to preserve spacing */}
+                    <div className="flex items-center gap-3">
+                        <div className={`w-3 h-3 rounded-full border-2 flex-shrink-0 ${order.itinerary.stops.last ? 'bg-emerald-500 border-emerald-300 shadow-[0_0_8px_rgba(16,185,129,0.3)]' : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700'}`} />
+                        {order.itinerary.stops.last && (
+                            <div className="flex flex-col min-w-0">
+                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter leading-none mb-0.5">Dernier visité</span>
+                                <span className="text-sm font-bold text-slate-700 dark:text-slate-300 truncate">
+                                    {order.itinerary.stops.last?.address || order.itinerary.display.from}
+                                </span>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* The LIVE Road + Moto (Horizontal continuous line) */}
+                    <div className="flex items-center h-8 relative px-[6px]">
+                        {/* Background Road Line */}
+                        <div className="absolute left-[6px] right-[6px] h-0.5 border-t-2 border-dashed border-slate-200 dark:border-slate-800/80 z-0" />
+
+                        {!isFinished && (
+                            <>
+                                {/* Active Road Progress */}
+                                <div
+                                    className="absolute left-[6px] h-0.5 border-t-2 border-dashed border-emerald-400 z-10 transition-all duration-1000"
+                                    style={{ width: `${calculateProximityRatio(order) * 100}%` }}
+                                />
+
+                                {/* Moto sliding on the road - Only if assigned */}
+                                {order.attribution && (
+                                    <div
+                                        className="relative z-20 transition-all duration-1000 ease-in-out"
+                                        style={{ left: `calc(${calculateProximityRatio(order) * 100}% - 14px)` }}
+                                    >
+                                        <div className={`w-7 h-7 rounded-full ${order.attribution.driver.position?.lat ? 'bg-indigo-500 shadow-[0_0_12px_rgba(99,102,241,0.5)]' : 'bg-slate-400 dark:bg-slate-600'} flex items-center justify-center flex-shrink-0`}>
+                                            <Bike size={14} className="text-white" />
+                                        </div>
                                     </div>
                                 )}
-                            </div>
+                            </>
+                        )}
+
+                        {isFinished && (
+                            <div className="absolute left-[6px] right-[6px] h-0.5 border-t-2 border-dashed border-emerald-500 z-10" />
+                        )}
+                    </div>
+
+                    {/* Next Stop - Aligned to the Right */}
+                    <div className="flex items-center justify-end gap-3 text-right">
+                        <div className="flex flex-col min-w-0 items-end">
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter leading-none mb-0.5">Prochaine étape</span>
+                            <span className="text-sm font-black text-slate-900 dark:text-slate-100 truncate max-w-full">
+                                {order.itinerary.stops.next?.address || order.itinerary.display.to}
+                            </span>
+                        </div>
+                        <div className={`w-3 h-3 rounded-full border-2 flex-shrink-0 ${!isFinished && order.itinerary.progressPercent > 0 ? 'bg-indigo-100 dark:bg-indigo-900 border-indigo-400 animate-pulse' : 'bg-slate-200 dark:bg-slate-700 border-slate-300 dark:border-slate-600'}`} />
+                    </div>
+                </div>
+
+                {/* Progress Bar - Bilan Style */}
+                <div className="relative z-10">
+                    <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Bilan Mission</span>
+                        <div className="flex items-center gap-2">
+                            <span className={`text-[11px] font-black ${isFinished ? 'text-emerald-500' : 'text-indigo-500'}`}>
+                                {isFinished ? '100%' : `${Math.round(order.itinerary.progressPercent)}%`}
+                            </span>
+                            <span className="text-[10px] font-bold text-slate-400 flex items-center gap-0.5">
+                                <MapPin size={10} />{order.itinerary.visitedCount}/{order.itinerary.totalStops}
+                            </span>
                         </div>
                     </div>
-                    <div className="flex items-start gap-3 -mt-3">
-                        <div className="flex flex-col items-center gap-1 mt-1.5">
-                            <MapPin size={12} className="text-rose-500" />
-                        </div>
-                        <div className="flex flex-col min-w-0">
-                            <span className="text-sm font-black text-slate-900 dark:text-slate-100 truncate leading-tight mb-2">{order.itinerary.display.to}</span>
-                            <div className="flex items-center gap-4">
-                                <div className="flex items-center gap-1.5 text-emerald-500">
-                                    <ArrowDown size={14} className="stroke-[3]" />
-                                    <span className="text-xs font-black">{order.itinerary.stops.next?.actions?.pickup || 0}</span>
-                                </div>
-                                <div className="flex items-center gap-1.5 text-rose-500">
-                                    <ArrowUp size={14} className="stroke-[3]" />
-                                    <span className="text-xs font-black">{order.itinerary.stops.next?.actions?.drop || 0}</span>
-                                </div>
-                                {(order.itinerary.stops.next?.actions?.service || 0) > 0 && (
-                                    <div className="flex items-center gap-1.5 text-indigo-500">
-                                        <Settings size={14} className="stroke-[3]" />
-                                        <span className="text-xs font-black">{order.itinerary.stops.next?.actions?.service}</span>
-                                    </div>
-                                )}
+                    <div className="flex-1 h-3 bg-slate-100 dark:bg-slate-800/50 rounded-full overflow-hidden p-0.5 shadow-inner">
+                        <div
+                            className={`h-full rounded-full transition-all duration-1000 ${isFinished ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.3)]' : 'bg-gradient-to-r from-indigo-500 to-cyan-400 shadow-[0_0_8px_rgba(99,102,241,0.4)]'}`}
+                            style={{ width: `${isFinished ? 100 : order.itinerary.progressPercent}%` }}
+                        />
+                    </div>
+
+                    {/* Action Quantities Summary - Based on Next Stop Actions */}
+                    <div className="flex items-center justify-end gap-3 mt-2">
+                        {(order.itinerary.stops.next?.actions?.pickup ?? 0) > 0 && (
+                            <div className="flex items-center gap-1.5 px-2 py-0.5 bg-emerald-50 dark:bg-emerald-500/10 rounded-md border border-emerald-100 dark:border-emerald-500/20 text-emerald-600 dark:text-emerald-400">
+                                <PackagePlus size={10} strokeWidth={3} />
+                                <span className="text-[10px] font-black">{order.itinerary.stops.next?.actions?.pickup}</span>
                             </div>
-                        </div>
+                        )}
+                        {(order.itinerary.stops.next?.actions?.drop ?? 0) > 0 && (
+                            <div className="flex items-center gap-1.5 px-2 py-0.5 bg-blue-50 dark:bg-blue-500/10 rounded-md border border-blue-100 dark:border-blue-500/20 text-blue-600 dark:text-blue-400">
+                                <PackageCheck size={10} strokeWidth={3} />
+                                <span className="text-[10px] font-black">{order.itinerary.stops.next?.actions?.drop}</span>
+                            </div>
+                        )}
+                        {(order.itinerary.stops.next?.actions?.service ?? 0) > 0 && (
+                            <div className="flex items-center gap-1.5 px-2 py-0.5 bg-amber-50 dark:bg-amber-500/10 rounded-md border border-amber-100 dark:border-amber-500/20 text-amber-600 dark:text-amber-400">
+                                <Hammer size={10} strokeWidth={3} />
+                                <span className="text-[10px] font-black">{order.itinerary.stops.next?.actions?.service}</span>
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -378,55 +477,41 @@ export default function Page() {
                         </div>
                     </div>
 
-                    {/* Prominent Progress Section */}
-                    <div className="space-y-2">
-                        <div className="flex justify-between items-end">
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Progression Itinéraire</span>
-                            <span className="text-[10px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-tighter">
-                                {Math.round(order.itinerary.progressPercent)}%
-                            </span>
-                        </div>
-                        <div className="h-2 bg-slate-100 dark:bg-slate-800/50 rounded-full overflow-hidden p-0.5">
-                            <div
-                                className="h-full bg-gradient-to-r from-indigo-500 to-cyan-400 rounded-full transition-all duration-1000 shadow-[0_0_12px_rgba(99,102,241,0.4)]"
-                                style={{ width: `${order.itinerary.progressPercent}%` }}
-                            />
-                        </div>
-                    </div>
                 </div>
             </div>
         );
     };
 
     const statusFilters = [
-        { id: 'ALL', label: 'Tout', icon: <Layers size={14} />, count: orders.length },
-        { id: 'PENDING', label: 'En attente', icon: <Clock size={14} />, count: orders.filter(o => o.status === 'PENDING').length },
-        { id: 'IN_PROGRESS', label: 'En cours', icon: <Truck size={14} />, count: orders.filter(o => ['ACCEPTED', 'AT_PICKUP', 'COLLECTED', 'AT_DELIVERY', 'IN_TRANSIT'].includes(o.status)).length },
-        { id: 'DELIVERED', label: 'Livrées', icon: <CheckCircle2 size={14} />, count: orders.filter(o => o.status === 'DELIVERED').length },
-        { id: 'INCIDENTS', label: 'Incidents', icon: <AlertCircle size={14} />, count: orders.filter(o => o.status === 'FAILED').length }
+        { id: 'ALL', label: 'Tout', icon: <Layers size={14} />, count: footerCounts?.ALL ?? orders.length },
+        { id: 'PENDING', label: 'En attente', icon: <Clock size={14} />, count: footerCounts?.PENDING ?? orders.filter(o => o.status === 'PENDING').length },
+        { id: 'IN_PROGRESS', label: 'En cours', icon: <Truck size={14} />, count: footerCounts?.IN_PROGRESS ?? orders.filter(o => ['ACCEPTED', 'AT_PICKUP', 'PICKING_UP', 'COLLECTED', 'AT_DELIVERY', 'IN_TRANSIT'].includes(o.status)).length },
+        { id: 'DELIVERED', label: 'Livrées', icon: <CheckCircle2 size={14} />, count: footerCounts?.DELIVERED ?? orders.filter(o => o.status === 'DELIVERED').length },
+        { id: 'INCIDENTS', label: 'Incidents', icon: <AlertCircle size={14} />, count: footerCounts?.INCIDENTS ?? orders.filter(o => o.status === 'FAILED').length }
     ];
 
     return (
-        <div className="space-y-6 pt-2">
+        <div className="space-y-6 pt-2 max-w-[1600px] mx-auto px-4 pb-40">
 
             <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-xl shadow-slate-200/50 dark:shadow-none border border-slate-100 dark:border-slate-800 relative">
                 {error && (
                     <div className="m-4 p-4 bg-rose-50 dark:bg-rose-500/10 border border-rose-100 dark:border-rose-500/20 rounded-2xl flex items-center gap-3 text-rose-700 dark:text-rose-400 font-bold text-sm animate-in slide-in-from-top-4">
                         <AlertCircle size={18} />
                         {error}
-                        <button onClick={fetchOrders} className="ml-auto px-3 py-1 bg-white dark:bg-slate-800 border border-rose-200 dark:border-rose-500/30 rounded-lg text-xs hover:bg-rose-50 dark:hover:bg-rose-500/20 transition-all dark:text-rose-400">
+                        <button onClick={() => fetchOrders()} className="ml-auto px-3 py-1 bg-white dark:bg-slate-800 border border-rose-200 dark:border-rose-500/30 rounded-lg text-xs hover:bg-rose-50 dark:hover:bg-rose-500/20 transition-all dark:text-rose-400">
                             Réessayer
                         </button>
                     </div>
                 )}
-                <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50 flex flex-col xl:flex-row gap-4 justify-between items-center relative z-20 rounded-t-3xl">
-                    <div className="flex items-center gap-4 w-full md:max-w-2xl">
-                        <div className="relative flex-1 group">
+                <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50 flex flex-col gap-3 relative z-20 rounded-t-3xl">
+                    {/* Row 1: Search + New Mission button */}
+                    <div className="flex items-center justify-between gap-2 w-full">
+                        <div className="relative group min-w-0 max-w-md w-full">
                             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" size={16} />
                             <input
                                 type="text"
                                 placeholder="Réf. ou téléphone client..."
-                                className="w-full pl-10 pr-10 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all shadow-sm text-sm dark:text-slate-200"
+                                className="w-full pl-10 pr-10 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all shadow-sm text-sm dark:text-slate-200"
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                             />
@@ -438,23 +523,24 @@ export default function Page() {
                             </button>
                         </div>
 
-                        <div className="w-64 hidden md:block">
-                            <LocationSearchBar
-                                onLocationSelect={(loc) => {
-                                    console.log("Location selected in orders list:", loc);
-                                    // Potential toggle for map view or distance filtering here
-                                }}
-                                placeholder="Rechercher un lieu..."
-                            />
-                        </div>
+                        <button
+                            onClick={handleNewOrder}
+                            className="flex items-center gap-2 bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600 text-white px-3 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest shadow-lg shadow-emerald-200/50 dark:shadow-none transition-all hover:scale-[1.02] active:scale-95 flex-shrink-0"
+                            title="Nouvelle Mission"
+                        >
+                            <Plus size={16} />
+                            <span className="hidden lg:inline">Nouvelle Mission</span>
+                            <span className="hidden md:inline lg:hidden">Ajouter</span>
+                        </button>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-1.5 p-1 bg-slate-200/50 dark:bg-slate-800 rounded-2xl border border-slate-200/50 dark:border-slate-700">
+                    {/* Row 2: Status filter tabs (horizontal scroll on mobile) */}
+                    <div className="flex items-center gap-1.5 p-1 bg-slate-200/50 dark:bg-slate-800 rounded-2xl border border-slate-200/50 dark:border-slate-700 overflow-x-auto scrollbar-hide">
                         {statusFilters.map((filter) => (
                             <button
                                 key={filter.id}
                                 onClick={() => setActiveFilter(filter.id)}
-                                className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${activeFilter === filter.id
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap flex-shrink-0 ${activeFilter === filter.id
                                     ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm'
                                     : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
                                     }`}
@@ -636,11 +722,49 @@ export default function Page() {
                     </div>
                 </div>
 
-                <div className="p-4 bg-slate-50/30 dark:bg-slate-800/30 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center text-sm text-slate-500 dark:text-slate-400 rounded-b-3xl">
-                    <p>Affichage de <b>{filteredOrders.length}</b> commandes sur <b>28</b> au total</p>
-                    <div className="flex gap-2">
-                        <button className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors font-medium text-slate-600 dark:text-slate-300 disabled:opacity-50">Précédent</button>
-                        <button className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors font-medium text-slate-600 dark:text-slate-300">Suivant</button>
+                <div className="p-4 bg-slate-50/30 dark:bg-slate-800/30 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row justify-between items-center gap-3 text-sm text-slate-500 dark:text-slate-400 rounded-b-3xl">
+                    <p className="text-xs">
+                        <b>{(safePage - 1) * ITEMS_PER_PAGE + 1}</b>–<b>{Math.min(safePage * ITEMS_PER_PAGE, paginationMeta.total)}</b> sur <b>{paginationMeta.total}</b> missions
+                    </p>
+                    <div className="flex items-center gap-1">
+                        <button
+                            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                            disabled={safePage <= 1}
+                            className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors font-bold text-xs text-slate-600 dark:text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                            ← <span className="hidden sm:inline">Préc.</span>
+                        </button>
+                        {Array.from({ length: totalPages }, (_, i) => i + 1)
+                            .filter(p => p === 1 || p === totalPages || Math.abs(p - safePage) <= 1)
+                            .reduce<(number | string)[]>((acc, p, idx, arr) => {
+                                if (idx > 0 && p - (arr[idx - 1] as number) > 1) acc.push('...');
+                                acc.push(p);
+                                return acc;
+                            }, [])
+                            .map((p, i) =>
+                                typeof p === 'string' ? (
+                                    <span key={`dots-${i}`} className="px-1 text-slate-300 dark:text-slate-600 text-xs">…</span>
+                                ) : (
+                                    <button
+                                        key={p}
+                                        onClick={() => setCurrentPage(p)}
+                                        className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${p === safePage
+                                            ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200 dark:shadow-none'
+                                            : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
+                                            }`}
+                                    >
+                                        {p}
+                                    </button>
+                                )
+                            )
+                        }
+                        <button
+                            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                            disabled={safePage >= totalPages}
+                            className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors font-bold text-xs text-slate-600 dark:text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                            <span className="hidden sm:inline">Suiv.</span> →
+                        </button>
                     </div>
                 </div>
             </div>

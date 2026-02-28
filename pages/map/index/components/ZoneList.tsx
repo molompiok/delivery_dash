@@ -14,8 +14,8 @@ interface ZoneListProps {
     setShowZones: (val: boolean) => void;
     isEditing: boolean;
     setIsEditing: (val: boolean) => void;
-    drawingMode: google.maps.drawing.OverlayType | 'hexagon' | null;
-    setDrawingMode: (mode: google.maps.drawing.OverlayType | 'hexagon' | null) => void;
+    drawingMode: 'circle' | 'rectangle' | 'polygon' | 'hexagon' | null;
+    setDrawingMode: (mode: 'circle' | 'rectangle' | 'polygon' | 'hexagon' | null) => void;
     addHexagonPreset: () => void;
     cancelEditing: () => void;
     collapsedSectors: string[];
@@ -100,7 +100,7 @@ export const ZoneList: React.FC<ZoneListProps> = ({
                 animate={{ x: 0, opacity: 1 }}
                 exit={{ x: 300, opacity: 0 }}
                 transition={{ type: "spring", stiffness: 400, damping: 25 }}
-                className="space-y-4 h-full overflow-y-auto pr-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
+                className="space-y-4 h-full overflow-y-auto pr-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] pb-20"
             >
                 <div className="flex items-center gap-2 sticky top-0 bg-white/80 backdrop-blur pb-2 pt-1 z-10 border-b border-gray-100">
                     <button
@@ -201,7 +201,7 @@ export const ZoneList: React.FC<ZoneListProps> = ({
             animate={{ x: 0, opacity: 1 }}
             exit={{ x: -300, opacity: 0 }}
             transition={{ type: "spring", stiffness: 400, damping: 25 }}
-            className="space-y-4 h-full overflow-y-auto pr-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
+            className="space-y-4 h-full overflow-y-auto pr-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] pb-20"
         >
             <div className="flex items-center justify-between sticky top-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur pb-2 pt-1 z-10 border-b border-gray-100 dark:border-slate-800">
                 <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Liste des Zones</p>
@@ -210,7 +210,7 @@ export const ZoneList: React.FC<ZoneListProps> = ({
                         <MapIcon size={14} />
                     </button>
                     {!isEditing ? (
-                        <button onClick={() => { setIsEditing(true); setDrawingMode(google.maps.drawing.OverlayType.CIRCLE); }} className="flex items-center gap-1 px-2 py-1 bg-blue-600 text-white rounded-lg text-[10px] font-bold uppercase hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200">
+                        <button onClick={() => { setIsEditing(true); setDrawingMode('circle'); }} className="flex items-center gap-1 px-2 py-1 bg-blue-600 text-white rounded-lg text-[10px] font-bold uppercase hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200">
                             <Plus size={12} /> Nouvelle
                         </button>
                     ) : (
@@ -225,9 +225,9 @@ export const ZoneList: React.FC<ZoneListProps> = ({
                 <div className="bg-blue-50 dark:bg-blue-500/10 p-3 rounded-xl border border-blue-100 dark:border-blue-500/20 animate-in fade-in zoom-in duration-200">
                     <p className="text-xs text-blue-800 dark:text-blue-300 font-medium mb-2">Mode édition actif : <br /><span className="text-[10px] opacity-70">Choisissez un outil et dessinez sur la carte.</span></p>
                     <div className="flex gap-2 mb-3">
-                        <button onClick={() => setDrawingMode(google.maps.drawing.OverlayType.CIRCLE)} className={`flex-1 flex flex-col items-center justify-center gap-1 p-2 rounded-lg border transition-all ${drawingMode === google.maps.drawing.OverlayType.CIRCLE ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white dark:bg-slate-800 text-gray-600 dark:text-slate-300 border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700'}`}><CircleIcon size={14} /> <span className="text-[9px] font-bold uppercase">Cercle</span></button>
-                        <button onClick={() => setDrawingMode(google.maps.drawing.OverlayType.RECTANGLE)} className={`flex-1 flex flex-col items-center justify-center gap-1 p-2 rounded-lg border transition-all ${drawingMode === google.maps.drawing.OverlayType.RECTANGLE ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white dark:bg-slate-800 text-gray-600 dark:text-slate-300 border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700'}`}><Square size={14} /> <span className="text-[9px] font-bold uppercase">Carré</span></button>
-                        <button onClick={() => setDrawingMode(google.maps.drawing.OverlayType.POLYGON)} className={`flex-1 flex flex-col items-center justify-center gap-1 p-2 rounded-lg border transition-all ${drawingMode === google.maps.drawing.OverlayType.POLYGON ? 'bg-blue-600 text-white border-blue-600' : 'bg-white dark:bg-slate-800 text-gray-600 dark:text-slate-300 border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700'}`}><Activity size={14} /> <span className="text-[9px] font-bold uppercase">Points</span></button>
+                        <button onClick={() => setDrawingMode('circle')} className={`flex-1 flex flex-col items-center justify-center gap-1 p-2 rounded-lg border transition-all ${drawingMode === 'circle' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white dark:bg-slate-800 text-gray-600 dark:text-slate-300 border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700'}`}><CircleIcon size={14} /> <span className="text-[9px] font-bold uppercase">Cercle</span></button>
+                        <button onClick={() => setDrawingMode('rectangle')} className={`flex-1 flex flex-col items-center justify-center gap-1 p-2 rounded-lg border transition-all ${drawingMode === 'rectangle' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white dark:bg-slate-800 text-gray-600 dark:text-slate-300 border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700'}`}><Square size={14} /> <span className="text-[9px] font-bold uppercase">Carré</span></button>
+                        <button onClick={() => setDrawingMode('polygon')} className={`flex-1 flex flex-col items-center justify-center gap-1 p-2 rounded-lg border transition-all ${drawingMode === 'polygon' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white dark:bg-slate-800 text-gray-600 dark:text-slate-300 border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700'}`}><Activity size={14} /> <span className="text-[9px] font-bold uppercase">Points</span></button>
                         <button onClick={addHexagonPreset} className={`flex-1 flex flex-col items-center justify-center gap-1 p-2 rounded-lg border transition-all ${drawingMode === 'hexagon' ? 'bg-amber-600 text-white border-amber-600' : 'bg-white dark:bg-slate-800 text-gray-600 dark:text-slate-300 border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700'}`}><Layers size={14} /> <span className="text-[9px] font-bold uppercase">Hexa</span></button>
                     </div>
 

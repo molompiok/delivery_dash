@@ -225,9 +225,7 @@ const Map = forwardRef<MapRef, MapProps>(function Map(
             container: containerRef.current,
             style: initialStyle,
             renderWorldCopies: true,
-            attributionControl: {
-                compact: true,
-            },
+            attributionControl: false,
             ...props,
             ...viewport,
         });

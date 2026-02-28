@@ -250,6 +250,7 @@ export interface OrderSummary {
             name: string;
             phone: string;
             avatar: string | null;
+            position: { lat: number | null; lng: number | null } | null;
         };
         vehicle: {
             id: string;
@@ -271,13 +272,22 @@ export interface OrderSummary {
             last: {
                 id: string;
                 address: string;
+                lat?: number;
+                lng?: number;
                 actions?: { pickup: number; drop: number; service: number }
             } | null;
             next: {
                 id: string;
                 address: string;
+                lat?: number;
+                lng?: number;
                 actions?: { pickup: number; drop: number; service: number }
             } | null;
+        };
+        actionTotals: {
+            pickup: number;
+            drop: number;
+            service: number;
         };
     };
     nextStopActions: {
@@ -312,9 +322,16 @@ export const ordersApi = {
         return response.data;
     },
 
-    list: async (options: { view?: 'summary' } = {}) => {
-        const url = options.view ? `/orders?view=${options.view}` : '/orders';
-        const response = await client.get<any[]>(url);
+    list: async (options: { view?: 'summary', page?: number, perPage?: number, search?: string, status?: string } = {}) => {
+        const params = new URLSearchParams();
+        if (options.view) params.set('view', options.view);
+        if (options.page) params.set('page', String(options.page));
+        if (options.perPage) params.set('perPage', String(options.perPage));
+        if (options.search) params.set('search', options.search);
+        if (options.status) params.set('status', options.status);
+        const qs = params.toString();
+        const url = qs ? `/orders?${qs}` : '/orders';
+        const response = await client.get<any>(url);
         return response.data;
     },
 

@@ -74,15 +74,21 @@ export default function Page() {
     const [loading, setLoading] = useState(true);
     const [orders, setOrders] = useState<any[]>([]);
     const [isUploading, setIsUploading] = useState(false);
+    const [leftPanelCollapsed, setLeftPanelCollapsed] = useState(false);
+    const [rightPanelCollapsed, setRightPanelCollapsed] = useState(false);
+    const [bottomPanelCollapsed, setBottomPanelCollapsed] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Mapping backend types to 3D models
     const getModelType = (vt: string) => {
         const t = vt?.toUpperCase();
-        if (t === 'VAN' || t === 'TRUCK') return 'conteneur';
-        if (t === 'BUS') return 'bus';
-        if (t === 'TANKER') return 'citerne';
-        return 'conteneur'; // Default
+        if (t === 'CONTAINER_12M' || t === 'TRUCK_12M') return 'CONTAINER_12M';
+        if (t === 'TANKER_12M' || t === 'CITERNE_12M') return 'TANKER_12M';
+        if (t === 'BUS_DOUBLE' || t === 'BUS_90') return 'BUS_DOUBLE';
+        if (t === 'VAN' || t === 'TRUCK' || t === 'CONTENEUR') return 'CONTAINER_12M';
+        if (t === 'BUS' || t === 'SHUTTLE') return 'BUS_90';
+        if (t === 'TANKER' || t === 'CITERNE') return 'TANKER_12M';
+        return 'CONTAINER_12M'; // Default
     };
 
     // Transform backend vehicle to HUD format
@@ -230,16 +236,27 @@ export default function Page() {
                 </div>
 
                 {/* HUD Overlay Layer */}
-                <div className="absolute inset-0 z-10 flex gap-3 p-2 pointer-events-none">
+                <div className="absolute inset-0 z-10 flex gap-3 p-2 pointer-events-none overflow-hidden">
                     {/* Left & Center Section (HUD Rows) */}
-                    <div className="flex-1 flex flex-col gap-4 min-w-0">
+                    <div className="flex-1 flex flex-col gap-4 min-w-0 h-full">
                         {/* Top Row: Details */}
-                        <div className="flex-1 flex gap-4 min-h-0">
+                        <div className="flex-1 flex gap-4 min-h-0 relative">
                             {/* Left HUD Panel */}
-                            <div
-                                className="w-[400px] flex flex-col gap-4 pointer-events-none h-full ml-4 pb-2 transition-all duration-300"
+                            <motion.div
+                                animate={{ x: leftPanelCollapsed ? -420 : 0, opacity: leftPanelCollapsed ? 0.5 : 1 }}
+                                transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                                className="w-[400px] flex flex-col gap-4 pointer-events-none h-full ml-4 pb-2 shrink-0 relative"
                                 style={{ marginTop: `${headerHeight}px` }}
                             >
+                                {/* Collapse Toggle Left */}
+                                <div className="absolute -right-6 top-1/2 -translate-y-1/2 pointer-events-auto">
+                                    <button
+                                        onClick={() => setLeftPanelCollapsed(!leftPanelCollapsed)}
+                                        className="w-8 h-12 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border border-slate-200 dark:border-slate-800 rounded-r-xl flex items-center justify-center text-slate-400 hover:text-blue-600 transition-colors shadow-lg"
+                                    >
+                                        {leftPanelCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+                                    </button>
+                                </div>
                                 {/* Tab Switcher */}
                                 <div className="bg-white/90 dark:bg-slate-900/90 backdrop-blur-md rounded-[24px] p-2 shadow-xl border border-white dark:border-slate-800 flex gap-1 pointer-events-auto shrink-0 overflow-x-auto scrollbar-none">
                                     {[
@@ -471,11 +488,24 @@ export default function Page() {
                                         )}
                                     </AnimatePresence>
                                 </div>
-                            </div>
+                            </motion.div>
                         </div>
 
                         {/* Bottom Row: Map, Stats & Camera */}
-                        <div className="h-[300px] flex gap-4 shrink-0">
+                        <motion.div
+                            animate={{ y: bottomPanelCollapsed ? 280 : 0 }}
+                            transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                            className="h-[300px] flex gap-4 shrink-0 relative"
+                        >
+                            {/* Collapse Toggle Bottom */}
+                            <div className="absolute -top-6 left-1/2 -translate-x-1/2 pointer-events-auto">
+                                <button
+                                    onClick={() => setBottomPanelCollapsed(!bottomPanelCollapsed)}
+                                    className="w-12 h-8 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border border-slate-200 dark:border-slate-800 rounded-t-xl flex items-center justify-center text-slate-400 hover:text-blue-600 transition-colors shadow-lg"
+                                >
+                                    <ChevronLeft size={16} className={bottomPanelCollapsed ? "rotate-90" : "-rotate-90"} />
+                                </button>
+                            </div>
                             {/* Route Map Card */}
                             <div className="w-80 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md rounded-[16px] shadow-xl border border-white dark:border-slate-800 shrink-0 flex flex-col pointer-events-auto">
 
@@ -580,14 +610,25 @@ export default function Page() {
                                     <div className="absolute bottom-2 right-2 text-[8px] font-mono text-white/50 tracking-widest">04:39:16</div>
                                 </div>
                             </div>
-                        </div>
+                        </motion.div>
                     </div>
 
                     {/* Right Panel: Truck List HUD */}
-                    <div
-                        className="w-80 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-[32px] shadow-2xl border border-white dark:border-slate-800 flex flex-col p-5 shrink-0 overflow-hidden pointer-events-auto transition-all duration-300"
+                    <motion.div
+                        animate={{ x: rightPanelCollapsed ? 340 : 0 }}
+                        transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                        className="w-80 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-[32px] shadow-2xl border border-white dark:border-slate-800 flex flex-col p-5 shrink-0 overflow-visible pointer-events-auto relative"
                         style={{ marginTop: `${headerHeight}px`, marginBottom: '16px', marginRight: '16px' }}
                     >
+                        {/* Collapse Toggle Right */}
+                        <div className="absolute -left-6 top-1/2 -translate-y-1/2 pointer-events-auto">
+                            <button
+                                onClick={() => setRightPanelCollapsed(!rightPanelCollapsed)}
+                                className="w-8 h-12 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border border-slate-200 dark:border-slate-800 rounded-l-xl flex items-center justify-center text-slate-400 hover:text-blue-600 transition-colors shadow-lg"
+                            >
+                                {rightPanelCollapsed ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
+                            </button>
+                        </div>
                         <div className="flex items-center justify-between mb-5 shrink-0">
                             <h2 className="text-xl font-black text-slate-800 dark:text-slate-100 leading-none">Truck list</h2>
                             <IconButton icon={Settings} small />
@@ -639,7 +680,7 @@ export default function Page() {
                                 );
                             })}
                         </div>
-                    </div>
+                    </motion.div>
                 </div>
             </div>
         </div>

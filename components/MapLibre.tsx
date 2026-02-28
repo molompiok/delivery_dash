@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Map as MapCN,
@@ -13,8 +13,6 @@ import {
 
 export { useMap };
 import MapLibreGL from 'maplibre-gl';
-import MapboxDraw from '@mapbox/mapbox-gl-draw';
-import '@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css';
 import Supercluster from 'supercluster';
 
 // Types to match Google Maps API as used in the project
@@ -267,27 +265,13 @@ export const Circle: React.FC<CircleProps> = ({
     useEffect(() => {
         if (!isLoaded || !map) return;
 
-        const points = 64;
-        const km = radius / 1000;
-        const ret = [];
-        const distanceX = km / (111.32 * Math.cos(center.lat * Math.PI / 180));
-        const distanceY = km / 110.574;
-
-        for (let i = 0; i < points; i++) {
-            const theta = (i / points) * (2 * Math.PI);
-            const x = distanceX * Math.cos(theta);
-            const y = distanceY * Math.sin(theta);
-            ret.push([center.lng + x, center.lat + y]);
-        }
-        ret.push(ret[0]);
-
         map.addSource(sourceId, {
             type: 'geojson',
             data: {
                 type: 'Feature',
                 geometry: {
                     type: 'Polygon',
-                    coordinates: [ret as [number, number][]]
+                    coordinates: [[]]
                 },
                 properties: {}
             }
@@ -323,7 +307,6 @@ export const Circle: React.FC<CircleProps> = ({
             try {
                 if (map) {
                     map.off('click', layerId, handleClick);
-                    // Defensive check: only remove if style is loaded and map is still valid
                     if (map.getStyle()) {
                         if (map.getLayer(layerId)) map.removeLayer(layerId);
                         if (map.getLayer(strokeLayerId)) map.removeLayer(strokeLayerId);
@@ -334,7 +317,43 @@ export const Circle: React.FC<CircleProps> = ({
                 console.warn('Error during Circle cleanup:', err);
             }
         };
-    }, [map, isLoaded, center, radius, fillColor, fillOpacity, strokeColor, strokeWeight]);
+    }, [map, isLoaded, sourceId, layerId]);
+
+    useEffect(() => {
+        if (!isLoaded || !map || !map.getSource(sourceId)) return;
+
+        const pointsCount = 64;
+        const km = radius / 1000;
+        const ret = [];
+        const distanceX = km / (111.32 * Math.cos(center.lat * Math.PI / 180));
+        const distanceY = km / 110.574;
+
+        for (let i = 0; i < pointsCount; i++) {
+            const theta = (i / pointsCount) * (2 * Math.PI);
+            const x = distanceX * Math.cos(theta);
+            const y = distanceY * Math.sin(theta);
+            ret.push([center.lng + x, center.lat + y]);
+        }
+        ret.push(ret[0]);
+
+        const source = map.getSource(sourceId) as MapLibreGL.GeoJSONSource;
+        source.setData({
+            type: 'Feature',
+            geometry: {
+                type: 'Polygon',
+                coordinates: [ret as [number, number][]]
+            },
+            properties: {}
+        });
+    }, [map, isLoaded, center, radius, sourceId]);
+
+    useEffect(() => {
+        if (!isLoaded || !map || !map.getLayer(layerId)) return;
+        map.setPaintProperty(layerId, 'fill-color', fillColor);
+        map.setPaintProperty(layerId, 'fill-opacity', fillOpacity);
+        map.setPaintProperty(strokeLayerId, 'line-color', strokeColor);
+        map.setPaintProperty(strokeLayerId, 'line-width', strokeWeight);
+    }, [map, isLoaded, layerId, strokeLayerId, fillColor, fillOpacity, strokeColor, strokeWeight]);
 
     return null;
 };
@@ -370,10 +389,7 @@ export const Polygon: React.FC<PolygonProps> = ({
     const strokeLayerId = `poly-stroke-${id}`;
 
     useEffect(() => {
-        if (!isLoaded || !map || !paths || !Array.isArray(paths) || paths.length < 3) return;
-
-        const coordinates = paths.map(p => [p.lng, p.lat]);
-        coordinates.push(coordinates[0]);
+        if (!isLoaded || !map) return;
 
         map.addSource(sourceId, {
             type: 'geojson',
@@ -381,7 +397,7 @@ export const Polygon: React.FC<PolygonProps> = ({
                 type: 'Feature',
                 geometry: {
                     type: 'Polygon',
-                    coordinates: [coordinates as [number, number][]]
+                    coordinates: [[]]
                 },
                 properties: {}
             }
@@ -417,7 +433,6 @@ export const Polygon: React.FC<PolygonProps> = ({
             try {
                 if (map) {
                     map.off('click', layerId, handleClick);
-                    // Defensive check: only remove if style is loaded and map is still valid
                     if (map.getStyle()) {
                         if (map.getLayer(layerId)) map.removeLayer(layerId);
                         if (map.getLayer(strokeLayerId)) map.removeLayer(strokeLayerId);
@@ -428,7 +443,32 @@ export const Polygon: React.FC<PolygonProps> = ({
                 console.warn('Error during Polygon cleanup:', err);
             }
         };
-    }, [map, isLoaded, paths, fillColor, fillOpacity, strokeColor, strokeWeight]);
+    }, [map, isLoaded, sourceId, layerId]);
+
+    useEffect(() => {
+        if (!isLoaded || !map || !map.getSource(sourceId) || !paths || paths.length < 3) return;
+
+        const coordinates = paths.map(p => [p.lng, p.lat]);
+        coordinates.push(coordinates[0]);
+
+        const source = map.getSource(sourceId) as MapLibreGL.GeoJSONSource;
+        source.setData({
+            type: 'Feature',
+            geometry: {
+                type: 'Polygon',
+                coordinates: [coordinates as [number, number][]]
+            },
+            properties: {}
+        });
+    }, [map, isLoaded, paths, sourceId]);
+
+    useEffect(() => {
+        if (!isLoaded || !map || !map.getLayer(layerId)) return;
+        map.setPaintProperty(layerId, 'fill-color', fillColor);
+        map.setPaintProperty(layerId, 'fill-opacity', fillOpacity);
+        map.setPaintProperty(strokeLayerId, 'line-color', strokeColor);
+        map.setPaintProperty(strokeLayerId, 'line-width', strokeWeight);
+    }, [map, isLoaded, layerId, strokeLayerId, fillColor, fillOpacity, strokeColor, strokeWeight]);
 
     return null;
 };
@@ -482,83 +522,187 @@ export const Polyline: React.FC<{
     if (!actualPath || !Array.isArray(actualPath)) return null;
 
     const coords = actualPath.map(p => [p.lng, p.lat] as [number, number]);
-    return <MapRoute coordinates={coords} color={color || strokeColor} width={width || strokeWeight || 3} />;
+    return <MapRoute coordinates={coords} color={color || strokeColor} width={width || strokeWeight || 3} interactive={false} />;
 };
 
 // --- Drawing Manager ---
 
 export const DrawingManager: React.FC<{
-    drawingMode: string | null;
-    onCircleComplete?: (circle: any) => void;
-    onPolygonComplete?: (polygon: any) => void;
-    onRectangleComplete?: (rectangle: any) => void;
-}> = ({ drawingMode, onCircleComplete, onPolygonComplete, onRectangleComplete }) => {
+    drawingMode: 'circle' | 'rectangle' | 'polygon' | 'hexagon' | null;
+    onCircleComplete?: (data: { center: LatLng; radius: number }) => void;
+    onPolygonComplete?: (data: { paths: LatLng[] }) => void;
+    onRectangleComplete?: (data: { bounds: { north: number; south: number; east: number; west: number } }) => void;
+    onHexagonComplete?: (paths: LatLng[]) => void;
+}> = ({ drawingMode, onCircleComplete, onPolygonComplete, onRectangleComplete, onHexagonComplete }) => {
     const { map, isLoaded } = useMap();
-    const drawRef = useRef<MapboxDraw | null>(null);
+    const [points, setPoints] = useState<LatLng[]>([]);
+    const [mousePos, setMousePos] = useState<LatLng | null>(null);
+    const [center, setCenter] = useState<LatLng | null>(null);
 
+    // Cleanup when mode changes
     useEffect(() => {
-        if (!isLoaded || !map) return;
-
-        const draw = new MapboxDraw({
-            displayControlsDefault: false,
-            controls: {
-                polygon: true,
-                trash: true
-            },
-            defaultMode: 'simple_select'
-        });
-
-        map.addControl(draw as any);
-        drawRef.current = draw;
-
-        const handleCreate = (e: any) => {
-            const feature = e.features[0];
-            if (feature.geometry.type === 'Polygon') {
-                const paths = feature.geometry.coordinates[0].map((coord: any) => ({
-                    lat: coord[1],
-                    lng: coord[0]
-                }));
-
-                if (onPolygonComplete) {
-                    onPolygonComplete({
-                        getPath: () => ({
-                            getArray: () => paths.map((p: any) => ({ lat: () => p.lat, lng: () => p.lng }))
-                        }),
-                        setMap: () => { }
-                    });
-                }
-            }
-        };
-
-        map.on('draw.create', handleCreate);
-
-        return () => {
-            try {
-                if (map) {
-                    map.off('draw.create', handleCreate);
-                    // Only remove control if map is still valid and has style
-                    if (map.getStyle()) {
-                        map.removeControl(draw as any);
-                    }
-                }
-            } catch (err) {
-                console.warn('Error during DrawingManager cleanup:', err);
-            }
-        };
-    }, [map, isLoaded]);
-
-    useEffect(() => {
-        if (drawRef.current) {
-            if (drawingMode === 'polygon') {
-                drawRef.current.changeMode('draw_polygon');
-            } else if (drawingMode === null) {
-                drawRef.current.changeMode('simple_select');
-            }
-        }
+        setPoints([]);
+        setMousePos(null);
+        setCenter(null);
     }, [drawingMode]);
 
-    return null;
+    useEffect(() => {
+        if (!isLoaded || !map || !drawingMode) return;
+
+        const canvas = map.getCanvas();
+        const originalCursor = canvas.style.cursor;
+        canvas.style.cursor = 'crosshair';
+
+        const handleClick = (e: any) => {
+            const latLng = { lat: e.lngLat.lat, lng: e.lngLat.lng };
+
+            if (drawingMode === 'polygon') {
+                setPoints(prev => [...prev, latLng]);
+            } else if (drawingMode === 'circle') {
+                if (!center) {
+                    setCenter(latLng);
+                } else {
+                    const radiusMeters = getDistance(center, latLng);
+                    onCircleComplete?.({ center, radius: radiusMeters });
+                    setCenter(null);
+                }
+            } else if (drawingMode === 'rectangle') {
+                if (!center) {
+                    setCenter(latLng);
+                } else {
+                    onRectangleComplete?.({
+                        bounds: {
+                            north: Math.max(center.lat, latLng.lat),
+                            south: Math.min(center.lat, latLng.lat),
+                            east: Math.max(center.lng, latLng.lng),
+                            west: Math.min(center.lng, latLng.lng)
+                        }
+                    });
+                    setCenter(null);
+                }
+            } else if (drawingMode === 'hexagon') {
+                if (!center) {
+                    setCenter(latLng);
+                } else {
+                    const radiusMeters = getDistance(center, latLng);
+                    const hexPoints = calculateHexagonPoints(center, radiusMeters);
+                    onHexagonComplete?.(hexPoints);
+                    setCenter(null);
+                }
+            }
+        };
+
+        const handleMouseMove = (e: any) => {
+            setMousePos({ lat: e.lngLat.lat, lng: e.lngLat.lng });
+        };
+
+        const handleDblClick = (e: any) => {
+            if (drawingMode === 'polygon' && points.length >= 2) {
+                e.preventDefault();
+                onPolygonComplete?.({ paths: [...points] });
+                setPoints([]);
+            }
+        };
+
+        map.on('click', handleClick);
+        map.on('mousemove', handleMouseMove);
+        map.on('dblclick', handleDblClick);
+
+        return () => {
+            canvas.style.cursor = originalCursor;
+            map.off('click', handleClick);
+            map.off('mousemove', handleMouseMove);
+            map.off('dblclick', handleDblClick);
+        };
+    }, [map, isLoaded, drawingMode, points, center]);
+
+    if (!isLoaded || !map || !drawingMode) return null;
+
+    return (
+        <>
+            {/* Polygon Preview */}
+            {drawingMode === 'polygon' && points.length > 0 && (
+                <Polyline
+                    paths={mousePos ? [...points, mousePos] : points}
+                    color="#3b82f6"
+                    width={2}
+                />
+            )}
+            {drawingMode === 'polygon' && points.length >= 2 && (
+                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-blue-600 text-white px-3 py-1 rounded-full text-[10px] font-bold uppercase shadow-lg z-50 animate-bounce">
+                    Double-cliquez pour terminer
+                </div>
+            )}
+
+            {/* Circle Preview */}
+            {drawingMode === 'circle' && center && mousePos && (
+                <Circle
+                    center={center}
+                    radius={getDistance(center, mousePos)}
+                    fillColor="#10b981"
+                    fillOpacity={0.2}
+                    strokeColor="#10b981"
+                />
+            )}
+
+            {/* Rectangle Preview */}
+            {drawingMode === 'rectangle' && center && mousePos && (
+                <Rectangle
+                    bounds={{
+                        north: Math.max(center.lat, mousePos.lat),
+                        south: Math.min(center.lat, mousePos.lat),
+                        east: Math.max(center.lng, mousePos.lng),
+                        west: Math.min(center.lng, mousePos.lng)
+                    }}
+                    fillColor="#8b5cf6"
+                    fillOpacity={0.2}
+                    strokeColor="#8b5cf6"
+                />
+            )}
+
+            {/* Hexagon Preview */}
+            {drawingMode === 'hexagon' && center && mousePos && (
+                <Polygon
+                    paths={calculateHexagonPoints(center, getDistance(center, mousePos))}
+                    fillColor="#f59e0b"
+                    fillOpacity={0.2}
+                    strokeColor="#f59e0b"
+                />
+            )}
+        </>
+    );
 };
+
+// --- Helper Functions ---
+
+function getDistance(p1: LatLng, p2: LatLng): number {
+    const R = 6371e3; // metres
+    const φ1 = p1.lat * Math.PI / 180;
+    const φ2 = p2.lat * Math.PI / 180;
+    const Δφ = (p2.lat - p1.lat) * Math.PI / 180;
+    const Δλ = (p2.lng - p1.lng) * Math.PI / 180;
+
+    const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+        Math.cos(φ1) * Math.cos(φ2) *
+        Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+    return R * c;
+}
+
+function calculateHexagonPoints(center: LatLng, radiusMeters: number): LatLng[] {
+    const points: LatLng[] = [];
+    const radiusKm = radiusMeters / 1000;
+
+    for (let i = 0; i < 6; i++) {
+        const angle = (i * 60) * (Math.PI / 180);
+        const lat = center.lat + (radiusKm / 111) * Math.sin(angle);
+        const lng = center.lng + (radiusKm / (111 * Math.cos(center.lat * Math.PI / 180))) * Math.cos(angle);
+        points.push({ lat, lng });
+    }
+
+    return points;
+}
 
 export const HexagonDrawer: React.FC<any> = () => {
     return null;

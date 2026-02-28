@@ -33,7 +33,7 @@ export interface Schedule {
     recurrenceType: 'WEEKLY' | 'DATE_RANGE' | 'SPECIFIC_DATE' | 'MANUAL_OVERRIDE';
 
     // Recurrence
-    dayOfWeek?: number; // 1-7 (Monday-Sunday)
+    daysOfWeek?: number[]; // 0-6 (Sunday-Saturday)
     startDate?: string; // YYYY-MM-DD
     endDate?: string;
     specificDate?: string;
@@ -54,6 +54,7 @@ export interface Schedule {
     isPublic?: boolean;
     isActive?: boolean;
     capacity?: number;
+    priority?: number;
 
     // Assigned users
     assignedUsers?: User[];
@@ -140,6 +141,62 @@ export interface CompanyDriverSetting {
     id: string;
     companyId: string;
     driverId: string;
-    status: 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'REMOVED';
+    status: 'ACCESS_ACCEPTED' | 'ACCEPTED' | 'PENDING' | 'REJECTED' | 'REMOVED';
+    activeZoneId?: string | null;
+    activeVehicleId?: string | null;
     driver: User;
+}
+
+export type OrderTemplate = 'MISSION' | 'VOYAGE' | 'COMMANDE';
+
+export interface PricingFilter {
+    id: string;
+    companyId: string | null;
+    driverId: string | null;
+    name: string;
+    template: OrderTemplate | null;
+    baseFee: number;
+    perKmRate: number;
+    minDistance: number;
+    maxDistance: number | null;
+    perKgRate: number;
+    freeWeightKg: number;
+    perM3Rate: number;
+    fragileMultiplier: number;
+    urgentMultiplier: number;
+    nightMultiplier: number;
+    proximityDiscountPercent: number;
+    proximityThresholdKm: number;
+    heavyLoadSurchargeThresholdKg: number;
+    heavyLoadSurchargePercent: number;
+    lightLoadDiscountThresholdKg: number;
+    lightLoadDiscountPercent: number;
+    isActive: boolean;
+    createdAt?: string;
+    updatedAt?: string;
+}
+
+export interface Zone {
+    id: string;
+    ownerType: 'Company' | 'User' | 'Sublymus';
+    ownerId: string | null;
+    sourceZoneId?: string | null;
+    name: string;
+    color: string;
+    type: 'circle' | 'polygon' | 'rectangle';
+    geometry: {
+        radiusKm?: number;
+        center?: { lat: number, lng: number };
+        paths?: { lat: number, lng: number }[];
+        bounds?: {
+            north: number;
+            south: number;
+            east: number;
+            west: number;
+        };
+    };
+    sector?: string;
+    assignedDriverIds?: string[];
+    drivers?: Array<{ id: string }>;
+    isActive: boolean;
 }
