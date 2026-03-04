@@ -372,8 +372,8 @@ export const ordersApi = {
     },
 
     // --- Order Lifecycle ---
-    initiate: async () => {
-        const response = await client.post<{ order: Order; message: string }>('/orders/initiate');
+    initiate: async (payload?: { template: string }) => {
+        const response = await client.post<{ order: Order; message: string }>('/orders/initiate', payload || {});
         return response.data;
     },
 

@@ -173,7 +173,7 @@ export default function Page() {
         {/* 6. Info Blocks (Pricing, Schedules, Docs) - 4x2 total or separate */}
         <div className="col-span-12 md:col-span-12 lg:col-span-4 row-span-2 grid grid-cols-2 grid-rows-2 gap-4">
           {/* Pricing */}
-          <a href="/pricing" className="col-span-2 row-span-1 bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800 p-5 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
+          <a href="/finance" className="col-span-2 row-span-1 bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800 p-5 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
             <div className="flex justify-between items-start mb-2">
               <div className="p-2 bg-rose-50 dark:bg-rose-500/10 rounded-xl">
                 <DollarSign size={20} className="text-rose-500" />
@@ -182,7 +182,7 @@ export default function Page() {
                 <ArrowRight className='dark:text-white/80' size={20} />
               </div>
             </div>
-            <p className="text-[10px] uppercase font-black text-slate-400 tracking-widest leading-none mb-2">Tarification Active</p>
+            <p className="text-[10px] uppercase font-black text-slate-400 tracking-widest leading-none mb-2">Finance & Tarification</p>
             <div className="flex items-center justify-between">
               <h3 className="text-2xl font-black text-slate-900 dark:text-white">
                 {stats.activePricingCount} <span className="text-slate-300 dark:text-slate-600">/</span> {stats.totalPricingCount}

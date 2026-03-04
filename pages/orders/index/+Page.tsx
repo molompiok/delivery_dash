@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
     ShoppingBag,
     Search,
@@ -25,7 +26,12 @@ import {
     Bike,
     PackagePlus,
     PackageCheck,
-    Hammer
+    Hammer,
+    Briefcase,
+    Box,
+    Bus,
+    ArrowRight,
+    ShieldCheck
 } from 'lucide-react';
 import { Order } from '../../../api/orders';
 
@@ -43,18 +49,24 @@ export default function Page() {
     const [searchDebounced, setSearchDebounced] = useState('');
     const [activeFilter, setActiveFilter] = useState('ALL');
     const [showFilters, setShowFilters] = useState(false);
+    const [showNewOrderModal, setShowNewOrderModal] = useState(false);
     const [currentPage, setCurrentPage] = useState(1);
     const [paginationMeta, setPaginationMeta] = useState({ total: 0, perPage: 12, currentPage: 1, lastPage: 1 });
     const [footerCounts, setFooterCounts] = useState<any>(null);
     const ITEMS_PER_PAGE = 12;
 
-    const handleNewOrder = async () => {
+    const handleNewOrder = () => {
+        setShowNewOrderModal(true);
+    };
+
+    const handleCreateTemplate = async (template: string) => {
         try {
-            const { order } = await ordersApi.initiate();
+            const { order } = await ordersApi.initiate({ template });
             window.location.href = `/orders/${order.id}`;
         } catch (err) {
             console.error("Failed to initiate order:", err);
-            setError("Erreur lors de la création de la commande.");
+            setError("Erreur lors de la création.");
+            setShowNewOrderModal(false);
         }
     };
 
@@ -492,7 +504,114 @@ export default function Page() {
 
     return (
         <div className="space-y-6 pt-2 max-w-[1600px] mx-auto px-4 pb-40">
+            <div className="bg-gradient-to-br from-indigo-600 to-cyan-600 rounded-[3rem] p-6 md:p-10 text-white shadow-2xl shadow-indigo-500/30 relative overflow-hidden group">
+                {/* 3D Asset Background */}
+                <div className="absolute top-0 right-0 w-[100%] h-[120%] -translate-y-[10%] group-hover:scale-105 transition-all duration-1000 pointer-events-none opacity-90">
+                    <div className='relative w-full h-full'>
+                        <div className="absolute inset-y-0 left-0 w-full bg-gradient-to-r from-gray-900 to-transparent z-10"></div>
+                        <img
+                            src="/assets/green_blue_glass_shape.png"
+                            className="w-full h-full object-cover object-right"
+                            alt="3D glass shape"
+                        />
+                    </div>
+                </div>
+                <div className="relative z-10 grid grid-cols-1 md:grid-cols-2 gap-10">
+                    <div className="space-y-6">
+                        <div className="flex items-center gap-3">
+                            <div className="p-3 bg-white/20 rounded-2xl backdrop-blur-md border border-white/20">
+                                <ShoppingBag size={28} />
+                            </div>
+                            <div>
+                                <span className="text-[10px] font-black uppercase tracking-widest opacity-70">Opérations</span>
+                                <h2 className="text-4xl font-black">Centre de Contrôle</h2>
+                            </div>
+                        </div>
+                        <p className="text-indigo-50 leading-relaxed font-medium">
+                            Supervisez vos expéditions, gérez les interventions techniques et suivez votre flotte.
+                        </p>
+                        <div className="flex flex-wrap gap-3">
+                            <span className="px-3 py-1 bg-white/20 rounded-lg text-[10px] font-black uppercase border border-white/20">Dispatch Auto</span>
+                            <span className="px-3 py-1 bg-white/20 rounded-lg text-[10px] font-black uppercase border border-white/20">Suivi Live</span>
+                            <span className="px-3 py-1 bg-white/20 rounded-lg text-[10px] font-black uppercase border border-white/20">Optimisation IA</span>
+                        </div>
+                    </div>
 
+                    <div className="bg-white/10 rounded-[2.5rem] p-6 md:p-8 backdrop-blur-md border border-white/10 flex flex-col justify-between hidden md:flex">
+                        <div className="flex justify-between items-start">
+                            <div>
+                                <p className="text-indigo-100 text-[10px] font-black uppercase tracking-widest">Opérations en cours</p>
+                                <div className="flex items-end mt-1">
+                                    <p className="text-3xl font-black leading-none">142 <span className="text-xs opacity-60 font-medium">actives</span></p>
+
+                                    {/* Mini Trend Graph (SVG) */}
+                                    <div className="w-[120px] h-[40px] ml-4 relative overflow-visible opacity-90 drop-shadow-md hidden lg:block">
+                                        <svg viewBox="0 0 120 40" className="w-full h-full overflow-visible" preserveAspectRatio="none">
+                                            <defs>
+                                                <linearGradient id="trend-gradient" x1="0" y1="0" x2="0" y2="1">
+                                                    <stop offset="0%" stopColor="#34d399" stopOpacity="0.4" />
+                                                    <stop offset="100%" stopColor="#34d399" stopOpacity="0" />
+                                                </linearGradient>
+                                            </defs>
+
+                                            {/* Area under the curve */}
+                                            <path
+                                                d="M0,30 Q15,10 30,20 T60,5 T90,20 T120,0 L120,40 L0,40 Z"
+                                                fill="url(#trend-gradient)"
+                                            />
+
+                                            {/* Stroke Line */}
+                                            <path
+                                                d="M0,30 Q15,10 30,20 T60,5 T90,20 T120,0"
+                                                fill="none"
+                                                stroke="#34d399"
+                                                strokeWidth="2.5"
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                className="drop-shadow-[0_2px_4px_rgba(52,211,153,0.5)]"
+                                            />
+
+                                            {/* Last Dot indicating current state */}
+                                            <circle cx="120" cy="0" r="3" fill="#ffffff" stroke="#34d399" strokeWidth="2" />
+                                        </svg>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="text-right">
+                                <p className="text-indigo-100 text-[10px] font-black uppercase tracking-widest">Taux Complétion</p>
+                                <p className="text-sm font-black uppercase tracking-widest text-emerald-300">
+                                    98.5%
+                                </p>
+                            </div>
+                        </div>
+                        <div className="h-px bg-white/20 my-4"></div>
+                        <div className="flex justify-between items-end">
+                            <div>
+                                <p className="text-indigo-100 text-[10px] font-black uppercase tracking-widest">Ressources Engagées</p>
+                                <p className="text-xl font-bold truncate max-w-[150px]">34 Chauffeurs</p>
+                            </div>
+                            <button
+                                onClick={handleNewOrder}
+                                className="relative z-10 bg-white text-indigo-600 px-6 py-3 rounded-2xl font-black uppercase text-xs shadow-xl shadow-black/10 hover:shadow-cyan-500/20 active:scale-95 transition-all flex items-center justify-center gap-2 whitespace-nowrap overflow-hidden"
+                            >
+                                <span className="relative z-10">Créer une opération</span>
+                                <ArrowRight size={16} className="relative z-10 hidden sm:block" />
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Mobile button variant inside Hero */}
+                    <div className="md:hidden">
+                        <button
+                            onClick={handleNewOrder}
+                            className="w-full relative z-10 bg-white text-indigo-600 px-6 py-4 rounded-2xl font-black uppercase text-xs shadow-xl shadow-black/10 hover:shadow-cyan-500/20 active:scale-95 transition-all flex items-center justify-center gap-2"
+                        >
+                            <span className="relative z-10">Nouvelle Opération</span>
+                            <ArrowRight size={16} className="relative z-10" />
+                        </button>
+                    </div>
+                </div>
+            </div>
             <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-xl shadow-slate-200/50 dark:shadow-none border border-slate-100 dark:border-slate-800 relative">
                 {error && (
                     <div className="m-4 p-4 bg-rose-50 dark:bg-rose-500/10 border border-rose-100 dark:border-rose-500/20 rounded-2xl flex items-center gap-3 text-rose-700 dark:text-rose-400 font-bold text-sm animate-in slide-in-from-top-4">
@@ -504,8 +623,8 @@ export default function Page() {
                     </div>
                 )}
                 <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50 flex flex-col gap-3 relative z-20 rounded-t-3xl">
-                    {/* Row 1: Search + New Mission button */}
-                    <div className="flex items-center justify-between gap-2 w-full">
+                    {/* Row 1: Search */}
+                    <div className="flex justify-between sm:justify-start items-center gap-2 w-full">
                         <div className="relative group min-w-0 max-w-md w-full">
                             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" size={16} />
                             <input
@@ -517,20 +636,18 @@ export default function Page() {
                             />
                             <button
                                 onClick={() => setShowFilters(!showFilters)}
-                                className={`absolute right-3 top-1/2 -translate-y-1/2 transition-colors p-1.5 rounded-lg ${showFilters ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-indigo-500 hover:bg-slate-50'}`}
+                                className={`absolute right-3 top-1/2 -translate-y-1/2 transition-colors p-1.5 rounded-lg ${showFilters ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-indigo-500 hover:bg-slate-50 dark:hover:bg-slate-700'}`}
                             >
                                 <Filter size={14} />
                             </button>
                         </div>
-
+                        {/* New Order Mobile Button - Only shown if Hero isn't used or we want a quick access */}
                         <button
                             onClick={handleNewOrder}
-                            className="flex items-center gap-2 bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600 text-white px-3 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest shadow-lg shadow-emerald-200/50 dark:shadow-none transition-all hover:scale-[1.02] active:scale-95 flex-shrink-0"
+                            className="flex items-center justify-center gap-2 bg-indigo-600 text-white p-2.5 rounded-xl text-[11px] font-black shadow-lg shadow-indigo-500/20 transition-all active:scale-95 flex-shrink-0 md:hidden"
                             title="Nouvelle Mission"
                         >
                             <Plus size={16} />
-                            <span className="hidden lg:inline">Nouvelle Mission</span>
-                            <span className="hidden md:inline lg:hidden">Ajouter</span>
                         </button>
                     </div>
 
@@ -768,6 +885,135 @@ export default function Page() {
                     </div>
                 </div>
             </div>
+
+            {/* New Order Template Modal */}
+            <AnimatePresence>
+                {showNewOrderModal && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm"
+                        onClick={() => setShowNewOrderModal(false)}
+                    >
+                        <motion.div
+                            initial={{ scale: 0.95, opacity: 0, y: 20 }}
+                            animate={{ scale: 1, opacity: 1, y: 0 }}
+                            exit={{ scale: 0.95, opacity: 0, y: 20 }}
+                            onClick={(e) => e.stopPropagation()}
+                            className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 w-full max-w-3xl overflow-hidden flex flex-col"
+                        >
+                            <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-800/50">
+                                <div>
+                                    <h2 className="text-xl font-black text-slate-900 dark:text-white">Créer une nouvelle opération</h2>
+                                    <p className="text-slate-500 text-sm mt-1">Sélectionnez le modèle métier adapté à votre besoin.</p>
+                                </div>
+                                <button
+                                    onClick={() => setShowNewOrderModal(false)}
+                                    className="p-2 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full text-slate-400 transition-colors bg-white dark:bg-slate-800 shadow-sm border border-slate-100 dark:border-slate-700"
+                                >
+                                    <X size={20} />
+                                </button>
+                            </div>
+
+                            <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-6 bg-slate-50/50 dark:bg-slate-900/10">
+                                {/* COMMANDE */}
+                                <button
+                                    onClick={() => handleCreateTemplate('COMMANDE')}
+                                    className="relative flex flex-col overflow-hidden rounded-[2.5rem] p-6 text-white shadow-xl transition-all duration-500 group bg-gradient-to-br from-indigo-500 to-blue-700 hover:shadow-2xl hover:shadow-indigo-500/20 hover:-translate-y-1 text-left"
+                                >
+                                    {/* 3D Asset Background */}
+                                    <div className="absolute -bottom-5 -right-10 w-full h-[70%] group-hover:scale-105 transition-transform duration-1000 pointer-events-none opacity-90">
+                                        <div className="relative w-full h-full">
+                                            {/* <div className="absolute inset-y-0 left-0 w-full bg-gradient-to-r from-gray-900/40 to-gray-500/40 z-10"></div> */}
+                                            <img
+                                                src="/assets/commande_bg.png"
+                                                className="w-full h-full object-contain object-right mix-blend-screen"
+                                                alt="Livraison"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="relative z-20 flex-1 flex flex-col">
+                                        {/* <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md border border-white/20 flex items-center justify-center text-white mb-5 shadow-sm">
+                                            <Box size={24} />
+                                        </div> */}
+                                        <h3 className="text-xl font-black mb-2 tracking-tight">COMMANDE</h3>
+                                        <p className="text-sm font-medium leading-relaxed opacity-90 mb-6 flex-1">
+                                            Livraison de colis d'un point A à un point B. (Intègre la gestion financière)
+                                        </p>
+                                        <div className="flex items-center text-white text-xs font-black uppercase tracking-widest mt-auto group-hover:gap-2 transition-all">
+                                            Démarrer <ArrowRight size={14} className="ml-1.5" />
+                                        </div>
+                                    </div>
+                                </button>
+
+                                {/* MISSION */}
+                                <button
+                                    onClick={() => handleCreateTemplate('MISSION')}
+                                    className="relative flex flex-col overflow-hidden rounded-[2.5rem] p-6 text-white shadow-xl transition-all duration-500 group bg-gradient-to-br from-emerald-500 to-emerald-700 hover:shadow-2xl hover:shadow-emerald-500/20 hover:-translate-y-1 text-left"
+                                >
+                                    {/* 3D Asset Background */}
+                                    <div className="absolute -bottom-5 -right-10 w-full h-[70%] group-hover:scale-105 transition-transform duration-1000 pointer-events-none opacity-90">
+                                        <div className="relative w-full h-full">
+                                            {/* <div className="absolute inset-y-0 left-0 w-full bg-gradient-to-r from-gray-900/40 to-gray-500/40 z-10"></div> */}
+                                            <img
+                                                src="/assets/mission_bg.png"
+                                                className="w-full h-full object-contain object-right mix-blend-screen"
+                                                alt="Missions"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="relative z-20 flex-1 flex flex-col">
+                                        {/* <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md border border-white/20 flex items-center justify-center text-white mb-5 shadow-sm">
+                                            <Briefcase size={24} />
+                                        </div> */}
+                                        <h3 className="text-xl font-black mb-2 tracking-tight">MISSION</h3>
+                                        <p className="text-sm font-medium leading-relaxed opacity-90 mb-6 flex-1">
+                                            Tournées et interventions techniques. Assignation sans blocage de fonds.
+                                        </p>
+                                        <div className="flex items-center text-white text-xs font-black uppercase tracking-widest mt-auto group-hover:gap-2 transition-all">
+                                            Démarrer <ArrowRight size={14} className="ml-1.5" />
+                                        </div>
+                                    </div>
+                                </button>
+
+                                {/* VOYAGE */}
+                                <button
+                                    onClick={() => handleCreateTemplate('VOYAGE')}
+                                    className="relative flex flex-col overflow-hidden rounded-[2.5rem] p-6 text-white shadow-xl transition-all duration-500 group bg-gradient-to-br from-purple-500 to-violet-700 hover:shadow-2xl hover:shadow-amber-500/20 hover:-translate-y-1 text-left"
+                                >
+                                    {/* 3D Asset Background */}
+                                    {/* <div className="absolute inset-y-0 left-0 w-full bg-gradient-to-r from-gray-900/40 to-gray-500/40 z-10"></div> */}
+                                    <div className="absolute -bottom-5 -right-10 w-full h-[70%]  group-hover:scale-105 transition-transform duration-1000 pointer-events-none opacity-90">
+                                        <div className="relative w-full h-full">
+                                            <img
+                                                src="/assets/voyage_bg.png"
+                                                className="w-full h-full object-contain object-right mix-blend-screen"
+                                                alt="Voyage"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="relative z-20 flex-1 flex flex-col">
+                                        {/* <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md border border-white/20 flex items-center justify-center text-white mb-5 shadow-sm">
+                                            <Bus size={24} />
+                                        </div> */}
+                                        <h3 className="text-xl font-black mb-2 tracking-tight">VOYAGE</h3>
+                                        <p className="text-sm mb-24 font-medium leading-relaxed opacity-90 mb-6 flex-1">
+                                            Transport public, billetterie, gestion des lignes et réservation.
+                                        </p>
+                                        <div className="flex items-center text-white text-xs font-black uppercase tracking-widest mt-auto group-hover:gap-2 transition-all">
+                                            Démarrer <ArrowRight size={14} className="ml-1.5" />
+                                        </div>
+                                    </div>
+                                </button>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 }

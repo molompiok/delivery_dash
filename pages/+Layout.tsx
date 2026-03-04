@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { LayoutDashboard, Users, Truck, Settings, LogOut, Search, Bell, User as UserIcon, Menu, X, ShoppingBag, Map as MapIcon, Calendar, DollarSign, Navigation, FileText, ChevronLeft, ChevronDown, LayoutGrid, Activity, Sun, Moon, Monitor, ChevronRight } from 'lucide-react';
+import { LayoutDashboard, Users, Truck, Settings, LogOut, Search, Bell, User as UserIcon, Menu, X, ShoppingBag, Map as MapIcon, Calendar, DollarSign, Navigation, FileText, ChevronLeft, ChevronDown, LayoutGrid, Activity, Sun, Moon, Monitor, ChevronRight, Wallet } from 'lucide-react';
 import './Layout.css';
 import './tailwind.css';
 import { authService } from '../api/auth';
@@ -177,6 +177,7 @@ function Topbar({ currentPath }: { currentPath: string }) {
     { href: '/fleet/3dview/TR-001', icon: Truck, label: 'Véhicules', activeBase: '/fleet' },
     { href: '/drivers', icon: Users, label: 'Chauffeurs' },
     { href: '/orders', icon: ShoppingBag, label: 'Commandes' },
+    { href: '/finance', icon: Wallet, label: 'Finance' },
     { href: '/map', icon: MapIcon, label: 'Carte Live' },
   ];
 

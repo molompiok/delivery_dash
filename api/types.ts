@@ -149,6 +149,17 @@ export interface CompanyDriverSetting {
 
 export type OrderTemplate = 'MISSION' | 'VOYAGE' | 'COMMANDE';
 
+export interface ZoneMatrixPair {
+    fromZoneId: string;
+    toZoneId: string;
+    basePrice: number;
+    bidirectional?: boolean;
+}
+
+export interface ZoneMatrixConfig {
+    pairs: ZoneMatrixPair[];
+}
+
 export interface PricingFilter {
     id: string;
     companyId: string | null;
@@ -171,6 +182,8 @@ export interface PricingFilter {
     heavyLoadSurchargePercent: number;
     lightLoadDiscountThresholdKg: number;
     lightLoadDiscountPercent: number;
+    zoneMatrixEnabled?: boolean;
+    zoneMatrix?: ZoneMatrixConfig;
     isActive: boolean;
     createdAt?: string;
     updatedAt?: string;
@@ -199,4 +212,71 @@ export interface Zone {
     assignedDriverIds?: string[];
     drivers?: Array<{ id: string }>;
     isActive: boolean;
+}
+
+export interface SubscriptionInvoice {
+    id: string;
+    month: string;
+    baseAmount: number;
+    commissionAmount: number;
+    ticketFeeAmount: number;
+    taxAmount: number;
+    totalAmount: number;
+    totalAmountWithTax: number;
+    status: 'ISSUED' | 'PAID' | 'OVERDUE' | 'CANCELLED';
+    paidAt?: string;
+    dueDate: string;
+    currency: string;
+}
+
+export interface SubscriptionStatus {
+    currentPlan: string;
+    status: 'ACTIVE' | 'OVERDUE' | 'GRACE_PERIOD';
+    nextBillingDate: string;
+    outstandingAmount: number;
+}
+
+export interface Wallet {
+    id: string;
+    ownerId: string;
+    ownerName: string | null;
+    owner_name?: string | null;
+    entityType: string;
+    balanceAccounting: number;
+    balanceAvailable: number;
+    currency: string;
+    isLocked: boolean;
+    walletType?: 'PERSONAL' | 'COMPANY';
+    label?: string;
+    image_url?: string;
+}
+
+export interface Transaction {
+    id: string;
+    wallet_id: string;
+    amount: number;
+    category: string;
+    label: string;
+    status: 'COMPLETED' | 'PENDING' | 'FAILED' | 'CANCELLED';
+    external_reference?: string;
+    metadata?: any;
+    created_at: string;
+    updated_at: string;
+    wallet?: Wallet;
+    type?: 'IN' | 'OUT';
+}
+
+export interface WalletStats {
+    income: number;
+    expense: number;
+    net: number;
+    transaction_count: number;
+    by_category?: Record<string, number>;
+    daily?: Array<{
+        date: string;
+        income: number;
+        expense: number;
+        net: number;
+    }>;
+    wallet?: Wallet;
 }

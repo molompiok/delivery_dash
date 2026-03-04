@@ -1834,7 +1834,7 @@ export default function Page() {
                                 }}
                                 transition={{ type: 'spring', stiffness: 300, damping: 30 }}
                                 className={`z-60 absolute flex flex-col bg-white/40 dark:bg-slate-900/40 backdrop-blur-3xl px-4 pt-4 pb-2 rounded-[32px] border border-white/60 dark:border-slate-800 shadow-[0_20px_50px_rgba(0,0,0,0.15)] dark:shadow-[0_20px_50px_rgba(0,0,0,0.4)] pointer-events-auto min-w-0 
-                                    ${windowWidth < 650 ? 'left-2 right-2 bottom-3' : 'left-[80px] max-w-[calc(100%-32px)]'}`}
+                                    ${windowWidth < 650 ||isSidebarFullscreen ? 'left-2 right-2 bottom-3' : 'left-[80px] max-w-[calc(100%-32px)]'}`}
                                 style={{
                                     top: `${headerHeight}px`,
                                     bottom: windowWidth < 650 ? '12px' : '16px',
