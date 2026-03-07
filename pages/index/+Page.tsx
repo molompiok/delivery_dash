@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   Truck, Users, Calendar, FileText, ShoppingBag,
   Map as MapIcon, DollarSign, Navigation, ArrowRight,
@@ -10,12 +11,16 @@ import {
 import { zoneService } from '../../api/zones';
 import { ordersApi, OrderSummary } from '../../api/orders';
 import { paymentsService } from '../../api/payments';
-import { User, Vehicle, CompanyDriverSetting, Zone, PricingFilter } from '../../api/types';
+import { User, Vehicle, CompanyDriverSetting, Zone, PricingFilter, DashboardStats } from '../../api/types';
 import { useHeaderAutoHide } from '../../hooks/useHeaderAutoHide';
 import { fleetService } from '../../api/fleet';
 import { driverService } from '../../api/drivers';
+import { dashboardApi } from '../../api/dashboard';
 import { MapLibre as GlobeMap } from '../../components/MapLibre';
 import { formatId } from '../../api/utils';
+import { socketClient } from '../../api/socket';
+
+const TUTORIAL_URL = 'https://www.youtube.com/channel/UCD-jxvBIorOz2uAkiReh_kw';
 
 export default function Page() {
   const [stats, setStats] = useState({
@@ -38,14 +43,19 @@ export default function Page() {
     orders: [],
     zones: []
   });
+  const [dashStats, setDashStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useHeaderAutoHide();
 
   useEffect(() => {
     loadDashboardData();
   }, []);
 
-  const loadDashboardData = async () => {
+  const loadDashboardData = async (silent = false) => {
+    if (!silent) {
+      setLoading(true);
+    }
     try {
       const userStr = localStorage.getItem('delivery_user');
       if (!userStr) return;
@@ -83,12 +93,43 @@ export default function Page() {
         zones: zonesData.slice(0, 4)
       });
 
+      try {
+        const dStats = await dashboardApi.getStats();
+        setDashStats(dStats);
+      } catch (e) {
+        console.error("Dashboard stats load error", e);
+      }
+
     } catch (error) {
       console.error("Dashboard load error", error);
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   };
+
+  useEffect(() => {
+    socketClient.joinFleetRoomFromStorage();
+
+    const silentRefresh = () => {
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+      refreshTimerRef.current = setTimeout(() => loadDashboardData(true), 900);
+    };
+
+    const offOrderStatus = socketClient.on('order_status_updated', silentRefresh);
+    const offRoute = socketClient.on('route_updated', silentRefresh);
+    const offNew = socketClient.on('orders:new', silentRefresh);
+    const offOrderUpdated = socketClient.on('order_updated', silentRefresh);
+
+    return () => {
+      offOrderStatus();
+      offRoute();
+      offNew();
+      offOrderUpdated();
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+    };
+  }, []);
 
   if (loading) {
     return (
@@ -98,33 +139,145 @@ export default function Page() {
     );
   }
 
+  const setupSteps = [
+    { key: 'vehicle', label: 'Véhicule', image: '/assets/setup_vehicle_cartoon_3d.png', href: '/fleet/add', completed: stats.vehiclesCount > 0 },
+    { key: 'driver', label: 'Chauffeur', image: '/assets/setup_driver_cartoon_3d.png', href: '/drivers/invite', completed: stats.driversCount > 0 },
+    { key: 'order', label: 'Mission', image: '/assets/setup_mission_cartoon_3d.png', href: '/orders', completed: stats.ordersCount > 0 },
+  ];
+
+  const completedCount = setupSteps.filter(s => s.completed).length;
+  const progressPercent = (completedCount / setupSteps.length) * 100;
+  const isSetupComplete = completedCount === setupSteps.length;
+
+
   return (
     <div className="max-w-[1600px] mx-auto space-y-8 animate-in fade-in duration-700 pb-40 px-4">
-      {/* Header Section */}
-      <header className="flex justify-between items-end px-1">
-        <div>
-          <h1 className="text-4xl font-semibold tracking-tight text-slate-900 dark:text-white">Vue d'ensemble</h1>
-          <p className="text-slate-500 dark:text-slate-400 mt-1 font-medium italic">Gérez votre flotte et vos opérations en un coup d'œil.</p>
-        </div>
-        <div className="flex gap-3 items-center">
-          <div className="hidden md:flex items-center gap-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-4 py-2 rounded-2xl shadow-sm text-sm font-medium">
-            <Activity size={16} className="text-emerald-500 animate-pulse" />
-            <span className="text-slate-600 dark:text-slate-300">Système opérationnel</span>
+      {/* Refined Welcome Hero - Permanent Mode */}
+      <section className="relative overflow-hidden rounded-[2.5rem] bg-slate-900 border border-slate-800 shadow-xl">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 blur-[80px] rounded-full -mr-32 -mt-32" />
+
+        <div className="relative z-10 p-6 md:p-8 space-y-6">
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+            <div className="space-y-1">
+              {!isSetupComplete ? (
+                <>
+                  <h2 className="text-2xl md:text-3xl font-black text-white tracking-tight">
+                    Étapes à compléter <span className="text-emerald-400">avant la 1ère mission</span>
+                  </h2>
+                  <p className="text-slate-400 text-sm font-medium">
+                    Configurez votre environnement pour commencer à opérer.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <h2 className="text-2xl md:text-3xl font-black text-white tracking-tight">
+                    Performance <span className="text-emerald-400">de la semaine</span>
+                  </h2>
+                  <p className="text-slate-400 text-sm font-medium">
+                    {dashStats?.missions.completed || 0} / {dashStats?.missions.total || 0} missions terminées avec succès.
+                  </p>
+                </>
+              )}
+            </div>
+
+            {/* Progress or Activity Curve */}
+            <div className="w-full md:w-80 space-y-2">
+              {!isSetupComplete ? (
+                <>
+                  <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest">
+                    <span className="text-slate-400">Progression globale</span>
+                    <span className="text-emerald-400">{Math.round(progressPercent)}%</span>
+                  </div>
+                  <div className="h-2 w-full bg-slate-800 rounded-full overflow-hidden border border-slate-700/30">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${progressPercent}%` }}
+                      transition={{ duration: 1, ease: "circOut" }}
+                      className="h-full bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.4)]"
+                    />
+                  </div>
+                </>
+              ) : (
+                <div className="h-24 pt-4">
+                  <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest mb-2">
+                    <span className="text-slate-400">Activité des missions</span>
+                    <span className="text-emerald-400">{dashStats?.missions.today || 0} AUJOURD'HUI</span>
+                  </div>
+                  <ActivityCurve data={dashStats?.weeklyActivity || []} />
+                </div>
+              )}
+            </div>
           </div>
 
-          <button className="relative p-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-sm hover:bg-amber-50 dark:hover:bg-amber-500/10 transition-all group border-amber-100 dark:border-amber-500/20" title="Centre de conformité - 2 alertes">
-            <Bell size={20} className="text-amber-500 animate-swing" />
-            <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-amber-500 rounded-full border-2 border-white dark:border-slate-800 shadow-sm" />
-          </button>
+          {/* Horizontal Scrollable 3D Steps / Stats */}
+          <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide -mx-2 px-2 mask-fade-right">
+            {setupSteps.map((step, index) => {
+              const countText = step.key === 'vehicle'
+                ? (dashStats?.resources.vehicles ?? stats.vehiclesCount) + ' véhicules'
+                : step.key === 'driver'
+                  ? (dashStats?.resources.drivers ?? stats.driversCount) + ' chauffeurs'
+                  : (dashStats?.missions.today ?? 0) + ' ce jour';
+
+              return (
+                <motion.a
+                  key={step.key}
+                  href={step.href}
+                  initial={{ opacity: 0, scale: 0.9, y: 10 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  transition={{ delay: index * 0.1 }}
+                  className={`flex-none w-72 h-40 relative overflow-hidden rounded-[2rem] border transition-all duration-500 group ${step.completed
+                    ? 'bg-emerald-500/5 border-emerald-500/20'
+                    : 'bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20'
+                    }`}
+                >
+                  {/* 3D Asset in Background */}
+                  <div className="absolute -bottom-4 -right-4 w-40 h-40 group-hover:scale-110 transition-transform duration-700 pointer-events-none opacity-80 group-hover:opacity-100">
+                    <img
+                      src={step.image}
+                      className={`w-full h-full object-contain object-bottom-right transition-all ${step.completed ? '' : 'grayscale-[0.5]'}`}
+                      alt={step.label}
+                    />
+                  </div>
+
+                  <div className="relative z-10 p-6 h-full flex flex-col">
+                    <div className="flex items-center justify-between">
+                      <div className={`px-3 py-1 rounded-full text-[9px] font-black border uppercase tracking-widest transition-all ${step.completed
+                        ? 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400'
+                        : 'bg-white/5 border-white/10 text-slate-400 group-hover:text-slate-200'
+                        }`}>
+                        {step.completed ? 'Opérationnel' : 'À faire'}
+                      </div>
+                      {step.completed && <CheckCircle2 size={16} className="text-emerald-500" />}
+                    </div>
+
+                    <div className="mt-auto">
+                      <h3 className={`font-black text-xl tracking-tight ${step.completed ? 'text-emerald-400' : 'text-slate-100'
+                        }`}>
+                        {step.label}
+                      </h3>
+                      <p className="text-[10px] font-bold text-slate-200 uppercase tracking-widest mt-1">
+                        {isSetupComplete ? countText : (step.completed ? 'Étape validée' : 'Configuration requise')}
+                      </p>
+                    </div>
+
+                    {(isSetupComplete || !step.completed) && (
+                      <div className="absolute top-6 right-6 w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                        <ArrowRight size={14} className="text-emerald-400" />
+                      </div>
+                    )}
+                  </div>
+                </motion.a>
+              );
+            })}
+          </div>
         </div>
-      </header>
+      </section>
 
       {/* Bento Grid */}
       <div className="grid grid-cols-12 auto-rows-[140px] md:auto-rows-[160px] gap-4">
 
-
         {/* 4. Map Action - (4x2) */}
-        <a href="/map" className="col-span-12 md:col-span-6 lg:col-span-4 row-span-2 group relative overflow-hidden rounded-[2.5rem] bg-slate-900 border border-slate-800 shadow-xl">
+        <a href="/map" className="col-span-12 md:col-span-6 lg:col-span-4 row-span-2 group relative overflow-hidden rounded-[2.5rem] dark:bg-slate-900 bg-slate-50 border border-slate-50 dark:border-slate-700 shadow-xl">
           <div className="absolute inset-0 pointer-events-none">
             <GlobeMap
               center={{ lat: 5.33, lng: -3.98 }}
@@ -155,19 +308,28 @@ export default function Page() {
           linkColor="cyan"
           badge={`${stats.zonesCount} actives`}
         >
-          <div className="mt-4 grid grid-cols-2 gap-2">
-            {data.zones.map(z => (
-              <a
-                key={z.id}
-                href={`/map?zone_id=${z.id}`}
-                className="p-3 rounded-2xl bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 flex flex-col items-center text-center hover:bg-slate-50 dark:hover:bg-slate-800/80 hover:shadow-sm transition-all group/zone"
-              >
-                <div className="w-8 h-8 rounded-full mb-2 border-2 border-white dark:border-slate-900 shadow-sm group-hover/zone:scale-110 transition-transform" style={{ backgroundColor: z.color }}></div>
-                <div className="text-[11px] font-bold text-slate-800 dark:text-slate-200 truncate w-full">{z.name}</div>
-                <div className="text-[9px] text-slate-400 uppercase mt-0.5">{z.sector}</div>
-              </a>
-            ))}
-          </div>
+          {data.zones.length > 0 ? (
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              {data.zones.map(z => (
+                <a
+                  key={z.id}
+                  href={`/map?zone_id=${z.id}`}
+                  className="p-3 rounded-2xl bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 flex flex-col items-center text-center hover:bg-slate-50 dark:hover:bg-slate-800/80 hover:shadow-sm transition-all group/zone"
+                >
+                  <div className="w-8 h-8 rounded-full mb-2 border-2 border-white dark:border-slate-900 shadow-sm group-hover/zone:scale-110 transition-transform" style={{ backgroundColor: z.color }}></div>
+                  <div className="text-[11px] font-bold text-slate-800 dark:text-slate-200 truncate w-full">{z.name}</div>
+                  <div className="text-[9px] text-slate-400 uppercase mt-0.5">{z.sector}</div>
+                </a>
+              ))}
+            </div>
+          ) : (
+            <EmptyCardCta
+              title="Aucune zone configurée"
+              description="Créez vos zones pour router automatiquement vos opérations."
+              primaryHref="/map?tab=ZONES"
+              primaryLabel="Créer une zone"
+            />
+          )}
         </BentoCard>
 
         {/* 6. Info Blocks (Pricing, Schedules, Docs) - 4x2 total or separate */}
@@ -233,7 +395,7 @@ export default function Page() {
           title="Flotte de véhicules"
           icon={<Truck size={22} className="text-emerald-500" />}
           badge={stats.vehiclesCount > 0 ? `${stats.vehiclesCount} actifs` : 'Aucun'}
-          link="/map?tab=VEHICLES"
+          link="/fleet"
           linkColor="emerald"
         >
           <div className="mt-4 space-y-2 pb-4">
@@ -258,7 +420,14 @@ export default function Page() {
                 </div>
               </a>
             ))}
-            {data.vehicles.length === 0 && <p className="text-center text-slate-400 py-6 text-sm">Aucun véhicule enregistré</p>}
+            {data.vehicles.length === 0 && (
+              <EmptyCardCta
+                title="Aucun véhicule enregistré"
+                description="Ajoutez votre premier véhicule pour commencer à dispatcher."
+                primaryHref="/fleet/add"
+                primaryLabel="Ajouter un véhicule"
+              />
+            )}
           </div>
         </BentoCard>
 
@@ -267,7 +436,7 @@ export default function Page() {
           className="col-span-12 md:col-span-6 lg:col-span-5 row-span-2"
           title="Équipe"
           icon={<Users size={22} className="text-blue-500" />}
-          link="/map?tab=DRIVERS"
+          link="/drivers"
           linkColor="blue"
           badge={
             <div className="flex items-center gap-3 ml-2">
@@ -285,25 +454,34 @@ export default function Page() {
           }
         >
           <div className="mt-4 space-y-2">
-            <div className="space-y-2">
-              {data.drivers.map(cds => (
-                <a
-                  key={cds.id}
-                  href={`/map?driver_id=${cds.id}`}
-                  className="flex items-center justify-between p-2 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group cursor-pointer border border-transparent hover:border-slate-200 dark:hover:border-slate-700"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-xs font-bold text-slate-600 dark:text-slate-300 group-hover:scale-105 transition-transform">
-                      {cds.driver?.fullName?.charAt(0) || 'D'}
+            {data.drivers.length > 0 ? (
+              <div className="space-y-2">
+                {data.drivers.map(cds => (
+                  <a
+                    key={cds.id}
+                    href={`/drivers/${cds.driverId}`}
+                    className="flex items-center justify-between p-2 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group cursor-pointer border border-transparent hover:border-slate-200 dark:hover:border-slate-700"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-xs font-bold text-slate-600 dark:text-slate-300 group-hover:scale-105 transition-transform">
+                        {cds.driver?.fullName?.charAt(0) || 'D'}
+                      </div>
+                      <div className="text-sm font-medium text-slate-700 dark:text-slate-200">{cds.driver?.fullName}</div>
                     </div>
-                    <div className="text-sm font-medium text-slate-700 dark:text-slate-200">{cds.driver?.fullName}</div>
-                  </div>
-                  <div className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${(cds.driver as any)?.driverSetting?.status === 'ONLINE' ? 'bg-emerald-100 text-emerald-700 shadow-sm' : 'bg-slate-100 text-slate-500'}`}>
-                    {(cds.driver as any)?.driverSetting?.status || 'OFFLINE'}
-                  </div>
-                </a>
-              ))}
-            </div>
+                    <div className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${(cds.driver as any)?.driverSetting?.status === 'ONLINE' ? 'bg-emerald-100 text-emerald-700 shadow-sm' : 'bg-slate-100 text-slate-500'}`}>
+                      {(cds.driver as any)?.driverSetting?.status || 'OFFLINE'}
+                    </div>
+                  </a>
+                ))}
+              </div>
+            ) : (
+              <EmptyCardCta
+                title="Aucun chauffeur dans l'équipe"
+                description="Invitez vos chauffeurs pour démarrer les affectations."
+                primaryHref="/drivers/invite"
+                primaryLabel="Inviter un chauffeur"
+              />
+            )}
           </div>
         </BentoCard>
 
@@ -460,11 +638,118 @@ export default function Page() {
             <div className="col-span-full py-8 flex flex-col items-center justify-center text-slate-400 gap-2">
               <Package size={32} className="text-slate-200 dark:text-slate-700" />
               <p className="text-sm font-bold">Aucune mission récente</p>
+              <div className="mt-2 flex items-center gap-2">
+                <a
+                  href="/orders"
+                  className="px-3 py-2 rounded-xl bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 text-xs font-black tracking-wide hover:opacity-90 transition-opacity"
+                >
+                  Créer une mission
+                </a>
+                <a
+                  href={TUTORIAL_URL}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                >
+                  voir tuto <ChevronRight className='w-4 h-4' />
+                </a>
+              </div>
             </div>
           )}
         </div>
       </BentoCard>
 
+    </div>
+  );
+}
+
+function ActivityCurve({ data }: { data: any[] }) {
+  if (!data || data.length === 0) return null;
+
+  const maxCount = Math.max(...data.map(d => d.count), 5);
+  const height = 40;
+  const width = 300;
+  const points = data.map((d, i) => {
+    const x = (i / (data.length - 1)) * width;
+    const y = height - (d.count / maxCount) * height;
+    return `${x},${y}`;
+  }).join(' ');
+
+  return (
+    <div className="w-full h-full flex flex-col">
+      <svg viewBox={`0 0 ${width} ${height + 10}`} className="w-full overflow-visible">
+        {/* Fill Area */}
+        <path
+          d={`M 0 ${height} L ${points} L ${width} ${height} Z`}
+          className="fill-emerald-500/10"
+        />
+        {/* Line */}
+        <polyline
+          points={points}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="3"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="text-emerald-500"
+        />
+        {/* Points */}
+        {data.map((d, i) => {
+          const x = (i / (data.length - 1)) * width;
+          const y = height - (d.count / maxCount) * height;
+          return (
+            <circle
+              key={i}
+              cx={x}
+              cy={y}
+              r="4"
+              className="fill-white stroke-emerald-500 stroke-2"
+            />
+          );
+        })}
+      </svg>
+      <div className="flex justify-between mt-2">
+        {data.map((d, i) => (
+          <span key={i} className="text-[8px] font-black text-slate-500 uppercase tracking-tighter">
+            {d.dayName}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function EmptyCardCta({
+  title,
+  description,
+  primaryHref,
+  primaryLabel
+}: {
+  title: string;
+  description: string;
+  primaryHref: string;
+  primaryLabel: string;
+}) {
+  return (
+    <div className="mt-3 rounded-2xl  p-4 text-center">
+      <p className="text-sm font-bold text-slate-700 dark:text-slate-200">{title}</p>
+      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{description}</p>
+      <div className="mt-3 flex flex-wrap justify-center gap-2">
+        <a
+          href={primaryHref}
+          className="px-3 py-2 rounded-xl bg-slate-900 dark:bg-slate-100 text-white  text-xs font-black tracking-wide hover:opacity-90 transition-opacity"
+        >
+          {primaryLabel}
+        </a>
+        <a
+          href={TUTORIAL_URL}
+          target="_blank"
+          rel="noreferrer"
+          className="flex gap-2 items-center px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+        >
+          voir tuto <ChevronRight className='w-4 h-4' />
+        </a>
+      </div>
     </div>
   );
 }

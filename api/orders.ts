@@ -36,6 +36,9 @@ export interface Action {
             volume_l?: number;
         };
         requirements?: string[];
+        client_name?: string;
+        client_phone?: string;
+        client_reference?: string;
         metadata?: any;
     };
     quantity: number;
@@ -118,6 +121,25 @@ export interface StopPayload {
     metadata?: any;
     reverse_geocode?: boolean;
     add_default_service?: boolean;
+}
+
+// --- Booking Types ---
+export interface Booking {
+    id: string;
+    clientId: string;
+    client?: {
+        fullName: string;
+        phone?: string;
+    };
+    pickupStopId: string | null;
+    dropoffStopId: string | null;
+    seatsReserved: string[] | null;
+    status: 'PENDING' | 'CONFIRMED' | 'CANCELLED';
+    transitItems?: NonNullable<Action['transitItem']>[];
+    pickupStop?: Stop;
+    dropoffStop?: Stop;
+    createdAt: string;
+    updatedAt: string;
 }
 
 // --- Step Types ---
@@ -230,6 +252,8 @@ export interface Order {
     totalDistanceMeters?: number;
     totalDurationSeconds?: number;
     transitItems: NonNullable<Action['transitItem']>[];
+    bookings?: Booking[];
+    template?: string;
     hasPendingChanges?: boolean;
     live_route?: any;
     pending_route?: any;
@@ -381,7 +405,10 @@ export const ordersApi = {
         const response = await client.post<{ order: Order; message: string }>(`/orders/${id}/submit`);
         return response.data;
     },
-
+    publish: async (id: string) => {
+        const response = await client.post<{ order: Order; message: string }>(`/orders/${id}/publish`);
+        return response.data;
+    },
     pushUpdates: async (id: string) => {
         const response = await client.post<{ order: Order; message: string }>(`/orders/${id}/push-updates`);
         return response.data;
@@ -466,4 +493,22 @@ export const ordersApi = {
         const response = await client.delete<{ message: string }>(`/actions/${actionId}${params}`);
         return response.data;
     },
+
+    getStats: async (fields: {
+        dailyCounts?: boolean,
+        completionRate?: boolean,
+        templates?: boolean,
+        inProgress?: boolean
+    } = {}) => {
+        const params = new URLSearchParams();
+        if (fields.dailyCounts) params.set('withDailyCounts', 'true');
+        if (fields.completionRate) params.set('withCompletionRate', 'true');
+        if (fields.templates) params.set('withTemplates', 'true');
+        if (fields.inProgress) params.set('withInProgress', 'true');
+
+        const qs = params.toString();
+        const url = qs ? `/orders/stats?${qs}` : '/orders/stats';
+        const response = await client.get<any>(url);
+        return response.data;
+    }
 };

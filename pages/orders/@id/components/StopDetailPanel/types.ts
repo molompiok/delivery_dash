@@ -48,6 +48,11 @@ export interface NewItemFormState {
     packaging_type: 'box' | 'fluid';
     dimensions: { width_cm: number; height_cm: number; depth_cm: number };
     requirements: string[];
+    client_data?: {
+        name?: string;
+        phone?: string;
+        reference?: string;
+    };
 }
 
 export type ViewType = 'stop' | 'product' | 'validation-edit' | 'map' | 'transit-item-detail';

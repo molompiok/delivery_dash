@@ -108,16 +108,24 @@ export interface User {
     phone: string;
     role: string; // 'DRIVER' | 'COMPANY_MANAGER' ...
     companyId?: string;
+    currentCompanyManaged?: string;
     verificationStatus?: 'PENDING' | 'VERIFIED' | 'REJECTED';
+    isDriver?: boolean;
+    isAdmin?: boolean;
+    photos?: string[];
+    addressPhotos?: string[];
 }
 
 export interface Company {
     id: string;
-    companyName: string;
+    name: string;
     registreCommerce?: string;
-    email: string;
-    phone: string;
-    isVerified: boolean;
+    logo?: string;
+    description?: string;
+    activityType: string;
+    defaultTemplate?: string;
+    ownerId: string;
+    verificationStatus: 'PENDING' | 'VERIFIED' | 'REJECTED';
 }
 
 export interface FileMetadata {
@@ -279,4 +287,21 @@ export interface WalletStats {
         net: number;
     }>;
     wallet?: Wallet;
+}
+
+export interface DashboardStats {
+    missions: {
+        total: number;
+        completed: number;
+        today: number;
+    };
+    weeklyActivity: Array<{
+        date: string;
+        dayName: string;
+        count: number;
+    }>;
+    resources: {
+        vehicles: number;
+        drivers: number;
+    };
 }

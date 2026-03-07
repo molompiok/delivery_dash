@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { driverService } from '../../../api/drivers';
 import { CompanyDriverSetting } from '../../../api/types';
+import { socketClient } from '../../../api/socket';
 import { EmptyState } from '../../../components/EmptyState';
 import { useHeaderAutoHide } from '../../../hooks/useHeaderAutoHide';
 
@@ -65,6 +66,21 @@ export default function Page() {
             setIsLoading(false);
         }
     };
+
+    useEffect(() => {
+        socketClient.joinFleetRoomFromStorage();
+        const onRelationUpdated = () => {
+            loadDrivers();
+        };
+
+        const offDriverRelation = socketClient.on('driver_relation_updated', onRelationUpdated);
+        const offFleetRelation = socketClient.on('fleet_driver_relation_updated', onRelationUpdated);
+
+        return () => {
+            offDriverRelation();
+            offFleetRelation();
+        };
+    }, []);
 
     const formatNumber = (num: number) => {
         return new Intl.NumberFormat('fr-FR', {
@@ -115,7 +131,7 @@ export default function Page() {
     }
 
     return (
-        <div className="space-y-6">
+        <div className="max-w-[1400px] mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20 px-4 md:px-8">
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
@@ -263,8 +279,12 @@ export default function Page() {
                                             >
                                                 <td className="px-6 py-4">
                                                     <div className="flex items-center gap-4">
-                                                        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold shadow-lg shadow-indigo-100 dark:shadow-none flex-shrink-0">
-                                                            {(d.fullName || d.email || 'C').split(' ').map(n => n[0] || '').join('').toUpperCase().substring(0, 2)}
+                                                        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold shadow-lg shadow-indigo-100 dark:shadow-none flex-shrink-0 overflow-hidden">
+                                                            {d.photos?.[0] ? (
+                                                                <img src={`${import.meta.env.VITE_API_URL || 'http://localhost:3333'}/${d.photos[0]}`} alt={d.fullName} className="w-full h-full object-cover" />
+                                                            ) : (
+                                                                (d.fullName || d.email || 'C').split(' ').map(n => n[0] || '').join('').toUpperCase().substring(0, 2)
+                                                            )}
                                                         </div>
                                                         <div className="flex flex-col">
                                                             <span className="font-bold text-slate-900 dark:text-slate-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors uppercase tracking-tight">{d.fullName}</span>

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Loader2, ChevronLeft, ChevronRight, Package, Truck, Maximize, Minimize, Menu } from 'lucide-react';
 import { MapLibre as GoogleMap, Marker, Circle, Polygon, DrawingManager, Rectangle, HexagonDrawer, LatLng } from '../../../components/MapLibre';
 import { mockService, DriverPosition, Driver, Zone } from '../../../api/mock';
@@ -78,6 +78,7 @@ export default function Page() {
     const [assignMode, setAssignMode] = useState(false);
     const [collapsedSectors, setCollapsedSectors] = useState<string[]>([]);
     const [showColorPicker, setShowColorPicker] = useState(false);
+    const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     useEffect(() => {
         const savedDriverDetail = localStorage.getItem('map_driver_detail');
@@ -251,27 +252,22 @@ export default function Page() {
     }, []);
 
     useEffect(() => {
-        const socket = socketClient.connect();
-        const userStr = localStorage.getItem('delivery_user');
-        if (userStr) {
-            try {
-                const user = JSON.parse(userStr);
-                const companyId = user.effectiveCompanyId || user.companyId;
-                if (companyId) {
-                    socket.emit('join', `fleet:${companyId}`);
-                    console.log(`[MAP] Subscribed to fleet:${companyId}`);
-                }
-            } catch (e) { }
+        const room = socketClient.joinFleetRoomFromStorage();
+        if (room) {
+            console.log(`[MAP] Subscribed to ${room}`);
         }
 
-        socket.on('route_updated', (payload: any) => {
+        const offRoute = socketClient.on('route_updated', (payload: any) => {
             console.log('[MAP] Route update received, refreshing positions:', payload);
-            // Refresh positions immediately
-            mockService.getDriverPositions().then(setPositions);
+            if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+            refreshTimerRef.current = setTimeout(() => {
+                mockService.getDriverPositions().then(setPositions);
+            }, 750);
         });
 
         return () => {
-            socket.off('route_updated');
+            offRoute();
+            if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
         };
     }, []);
 

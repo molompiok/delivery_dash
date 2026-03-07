@@ -10,6 +10,17 @@ export interface GetTransactionsParams {
     page?: number;
 }
 
+export interface PayoutEstimate {
+    net_amount: number;
+    fee_bps: number;
+    estimated_fee: number;
+    total_debit: number;
+    wallet_id?: string;
+    balance_available?: number;
+    can_payout?: boolean;
+    missing_amount?: number;
+}
+
 export const walletService = {
     /**
      * List all wallets accessible by the user (Personal + Managed Companies)
@@ -85,6 +96,14 @@ export const walletService = {
     async payout(payload: { walletId: string, amount: number, recipient_phone: string, recipient_name?: string }) {
         const { data } = await client.post<any>('/driver/payments/payout', payload);
         return data;
+    },
+
+    /**
+     * Estimate payout fee and wallet debit requirement
+     */
+    async estimatePayout(payload: { walletId: string, amount: number }) {
+        const { data } = await client.post<{ data: PayoutEstimate }>('/driver/payments/payout-estimate', payload);
+        return data?.data;
     },
 
     /**

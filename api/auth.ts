@@ -31,6 +31,10 @@ export const authService = {
         return client.get<User>('/auth/me'); // Assuming /auth/me exists or similar
     },
 
+    async updateProfile(data: Partial<User> | FormData) {
+        return client.put<{ message: string, user: User }>('/auth/me', data);
+    },
+
     logout() {
         localStorage.removeItem('delivery_token');
         localStorage.removeItem('delivery_user');

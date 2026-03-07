@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { usePageContext } from 'vike-react/usePageContext';
-import { Truck, User as UserIcon, FileText, ArrowLeft, Upload, Paperclip, AlertCircle, MapPin, Package, Edit, Clock, ShieldCheck, Fuel, Battery, RefreshCw, Star, TrendingUp, AlertTriangle, CheckCircle2, Info, Search, ChevronRight } from 'lucide-react';
+import { Truck, User as UserIcon, FileText, ArrowLeft, Upload, Paperclip, AlertCircle, MapPin, Package, Edit, Clock, ShieldCheck, Fuel, Battery, RefreshCw, Star, TrendingUp, AlertTriangle, CheckCircle2, Info, Search, ChevronRight, ExternalLink, Image as ImageIcon, File as FileIcon } from 'lucide-react';
 import { fleetService } from '../../../api/fleet';
 import { driverService } from '../../../api/drivers';
 import { Vehicle, User, CompanyDriverSetting } from '../../../api/types';
@@ -45,6 +45,7 @@ export default function Page() {
     const pageContext = usePageContext();
     const vehicleId = pageContext.routeParams?.id;
     const [vehicle, setVehicle] = useState<Vehicle | null>(null);
+    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3333';
     const [drivers, setDrivers] = useState<CompanyDriverSetting[]>([]);
     const [orders, setOrders] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -67,6 +68,28 @@ export default function Page() {
     const [docType, setDocType] = useState('VEHICLE_INSURANCE');
     const [expiryDate, setExpiryDate] = useState('');
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    // Helpers for file visualization
+    const getFileIcon = (filename: string) => {
+        if (!filename) return FileIcon;
+        const ext = filename.split('.').pop()?.toLowerCase();
+        if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext || '')) return ImageIcon;
+        if (ext === 'pdf') return FileText;
+        return FileIcon;
+    };
+
+    const openCenteredPopup = (url: string, title: string = 'Document Viewer') => {
+        const width = 1000;
+        const height = 900;
+        const left = (window.screen.width / 2) - (width / 2);
+        const top = (window.screen.height / 2) - (height / 2);
+
+        window.open(
+            url,
+            title,
+            `toolbar=no, location=no, directories=no, status=no, menubar=no, scrollbars=yes, resizable=yes, copyhistory=no, width=${width}, height=${height}, top=${top}, left=${left}`
+        );
+    };
 
     useEffect(() => {
         loadData();
@@ -141,7 +164,7 @@ export default function Page() {
     if (!vehicle) return <div className="p-8 text-center text-red-500">{error || 'Véhicule introuvable'}</div>;
 
     return (
-        <div className="max-w-6xl mx-auto space-y-6">
+        <div className="max-w-6xl pb-20 mx-auto space-y-6">
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
                 <div className="flex items-center gap-5">
                     <button onClick={() => window.location.href = '/fleet'} className="p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-2xl shadow-sm transition-all text-slate-600">
@@ -323,36 +346,57 @@ export default function Page() {
                     {activeTab === 'DRIVER' && (
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-in fade-in duration-300">
                             <div className="lg:col-span-1 space-y-6">
-                                <div className="bg-white rounded-3xl p-8 border border-slate-100 shadow-xl shadow-slate-200/50 text-center relative overflow-hidden">
-                                    <div className="absolute top-0 left-0 w-full h-24 bg-gradient-to-br from-indigo-500 to-purple-600 opacity-10"></div>
-                                    <div className="w-24 h-24 bg-white rounded-full flex items-center justify-center mx-auto mb-4 text-indigo-600 shadow-xl border-4 border-white relative z-10">
-                                        {vehicle.assignedDriver ? (
-                                            <span className="text-4xl font-black tracking-tighter">{(vehicle.assignedDriver.fullName || '?').split(' ').map(n => n[0]).join('')}</span>
-                                        ) : (
-                                            <UserIcon size={48} />
+                                <div
+                                    onClick={() => vehicle.assignedDriver && (window.location.href = `/drivers/${vehicle.assignedDriverId}`)}
+                                    className={`bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-xl border border-slate-100 dark:border-slate-800 overflow-hidden group/profile transition-all ${vehicle.assignedDriver ? 'cursor-pointer hover:scale-[1.02] active:scale-[0.98]' : ''}`}
+                                >
+                                    <div className={`relative h-32 ${vehicle.assignedDriver?.photos?.[0] ? '' : 'bg-gradient-to-br from-indigo-500 to-purple-600'} group`}>
+                                        {vehicle.assignedDriver?.photos?.[0] && (
+                                            <div
+                                                className="absolute inset-0 opacity-60 blur-sm scale-110 transition-all duration-700 group-hover/profile:scale-125"
+                                                style={{
+                                                    backgroundImage: `url(${API_URL}/${vehicle.assignedDriver.photos[0]})`,
+                                                    backgroundSize: 'cover',
+                                                    backgroundPosition: 'center'
+                                                }}
+                                            />
                                         )}
-                                    </div>
-                                    <h3 className="text-xl font-black text-slate-900 leading-tight">
-                                        {vehicle.assignedDriver ? vehicle.assignedDriver.fullName : 'SANS CHAUFFEUR'}
-                                    </h3>
-                                    <p className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-widest">
-                                        {vehicle.assignedDriver ? vehicle.assignedDriver.phone : 'Véhicule en attente d\'attribution'}
-                                    </p>
-
-                                    {vehicle.assignedDriver && (
-                                        <div className="mt-8 pt-8 border-t border-slate-50 grid grid-cols-2 gap-4">
-                                            <div className="text-center">
-                                                <p className="text-[10px] font-black text-slate-400 uppercase">Missions</p>
-                                                <p className="text-lg font-black text-indigo-600 mt-1">128</p>
-                                            </div>
-                                            <div className="text-center">
-                                                <p className="text-[10px] font-black text-slate-400 uppercase">Note</p>
-                                                <div className="flex items-center justify-center gap-1 text-amber-500 font-black text-lg mt-1">
-                                                    4.9 <Star size={14} fill="currentColor" />
+                                        <div className="absolute inset-0 bg-black/10" />
+                                        <div className="absolute -bottom-10 left-1/2 -translate-x-1/2">
+                                            <div className="w-24 h-24 rounded-3xl bg-white dark:bg-slate-800 p-1 shadow-lg ring-4 ring-white/20">
+                                                <div className="w-full h-full rounded-2xl overflow-hidden bg-slate-100 dark:bg-slate-700 flex items-center justify-center">
+                                                    {vehicle.assignedDriver?.photos?.[0] ? (
+                                                        <img src={`${API_URL}/${vehicle.assignedDriver.photos[0]}`} alt="Avatar" className="w-full h-full object-cover" />
+                                                    ) : (
+                                                        <div className="flex flex-col items-center justify-center text-indigo-600">
+                                                            {vehicle.assignedDriver ? (
+                                                                <span className="text-3xl font-black tracking-tighter">{(vehicle.assignedDriver.fullName || '?').split(' ').map(n => n[0]).join('')}</span>
+                                                            ) : (
+                                                                <UserIcon size={40} />
+                                                            )}
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
                                         </div>
-                                    )}
+                                    </div>
+
+                                    <div className="pt-16 p-8 pb-10 text-center">
+                                        <h3 className="text-xl font-black text-slate-900 dark:text-slate-100 leading-tight">
+                                            {vehicle.assignedDriver ? vehicle.assignedDriver.fullName : 'SANS CHAUFFEUR'}
+                                        </h3>
+                                        <p className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-widest">
+                                            {vehicle.assignedDriver ? vehicle.assignedDriver.phone : 'Véhicule en attente d\'attribution'}
+                                        </p>
+
+                                        {vehicle.assignedDriver && (
+                                            <div className="mt-4 flex justify-center">
+                                                <div className="inline-flex items-center gap-1 overflow-hidden rounded-full bg-indigo-50 dark:bg-indigo-500/10 px-2.5 py-1 text-[10px] font-black uppercase text-indigo-600 dark:text-indigo-400 transition-all group-hover/profile:bg-indigo-100 dark:group-hover/profile:bg-indigo-500/20">
+                                                    Voir le profil <ChevronRight size={12} />
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
 
                                 <div className="bg-slate-50/50 border border-slate-100 rounded-3xl p-6">
@@ -557,19 +601,24 @@ export default function Page() {
                                                 folder.files.map((file, idx) => (
                                                     <div key={idx} className="group flex items-center justify-between p-3 bg-slate-50/50 hover:bg-slate-100 rounded-xl transition-all border border-transparent hover:border-slate-200">
                                                         <div className="flex items-center gap-3 overflow-hidden">
-                                                            <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center text-slate-400 group-hover:text-indigo-600 shadow-sm">
-                                                                <FileText size={16} />
+                                                            <div className="w-8 h-8 rounded-lg bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 flex items-center justify-center text-slate-400 group-hover:text-indigo-600 shadow-sm transition-colors">
+                                                                {React.createElement(getFileIcon(file), { size: 16 })}
                                                             </div>
-                                                            <span className="text-xs font-bold text-slate-600 truncate max-w-[120px]">{file.split('/').pop()}</span>
+                                                            <span className="text-xs font-bold text-slate-600 dark:text-slate-400 truncate max-w-[120px]">{file.split('/').pop()}</span>
                                                         </div>
                                                         <button
                                                             onClick={async () => {
-                                                                const url = await fleetService.getSignedUrl(file);
-                                                                window.open(url, '_blank');
+                                                                try {
+                                                                    const url = await fleetService.getSignedUrl(file);
+                                                                    openCenteredPopup(url, folder.title);
+                                                                } catch (err) {
+                                                                    alert('Impossible de générer le lien sécurisé.');
+                                                                }
                                                             }}
                                                             className="p-2 text-slate-300 hover:text-indigo-600 transition-colors"
+                                                            title="Ouvrir le document"
                                                         >
-                                                            <ChevronRight size={18} />
+                                                            <ExternalLink size={18} />
                                                         </button>
                                                     </div>
                                                 ))

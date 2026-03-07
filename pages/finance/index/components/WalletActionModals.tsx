@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, ArrowUpRight, ArrowDownLeft, Send, Plus, CreditCard, Wallet, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { walletService } from '../../../../api/wallet';
+import { walletService, PayoutEstimate } from '../../../../api/wallet';
 
 const openCenteredPopup = (url: string, title: string, w: number, h: number) => {
     const y = window.top!.outerHeight / 2 + window.top!.screenY - (h / 2);
@@ -13,6 +13,7 @@ interface ModalProps {
     isOpen: boolean;
     onClose: () => void;
     walletId: string;
+    currentBalance?: number;
     onSuccess: () => void;
 }
 
@@ -130,13 +131,87 @@ export const RechargeModal: React.FC<ModalProps> = ({ isOpen, onClose, walletId,
     );
 };
 
-export const WithdrawModal: React.FC<ModalProps> = ({ isOpen, onClose, walletId, onSuccess }) => {
+export const WithdrawModal: React.FC<ModalProps> = ({ isOpen, onClose, walletId, currentBalance, onSuccess }) => {
     const [amount, setAmount] = useState('');
     const [phone, setPhone] = useState('');
     const [loading, setLoading] = useState(false);
+    const [estimate, setEstimate] = useState<PayoutEstimate | null>(null);
+    const [estimateLoading, setEstimateLoading] = useState(false);
+    const [estimateError, setEstimateError] = useState<string | null>(null);
+
+    const amountNum = Number(amount);
+    const hasValidAmount = Number.isFinite(amountNum) && amountNum > 0;
+    const formatNumber = (value: number) => new Intl.NumberFormat('fr-FR').format(value);
+
+    useEffect(() => {
+        if (!isOpen) {
+            setAmount('');
+            setPhone('');
+            setEstimate(null);
+            setEstimateError(null);
+            setEstimateLoading(false);
+            return;
+        }
+
+        if (!hasValidAmount || !walletId) {
+            setEstimate(null);
+            setEstimateError(null);
+            setEstimateLoading(false);
+            return;
+        }
+
+        let cancelled = false;
+        const timeoutId = window.setTimeout(async () => {
+            setEstimateLoading(true);
+            setEstimateError(null);
+            try {
+                const data = await walletService.estimatePayout({
+                    walletId,
+                    amount: amountNum,
+                });
+                if (!cancelled) setEstimate(data);
+            } catch (e: any) {
+                if (!cancelled) {
+                    setEstimateError(e?.message || 'Impossible d’estimer les frais');
+                }
+            } finally {
+                if (!cancelled) setEstimateLoading(false);
+            }
+        }, 250);
+
+        return () => {
+            cancelled = true;
+            window.clearTimeout(timeoutId);
+        };
+    }, [amountNum, hasValidAmount, isOpen, walletId]);
+
+    const fallbackEstimate: PayoutEstimate | null = hasValidAmount
+        ? {
+            net_amount: Math.floor(amountNum),
+            fee_bps: 100,
+            estimated_fee: Math.ceil((Math.floor(amountNum) * 100) / 10000),
+            total_debit: Math.floor(amountNum) + Math.ceil((Math.floor(amountNum) * 100) / 10000),
+        }
+        : null;
+
+    const effectiveEstimate = estimate || fallbackEstimate;
+    const effectiveBalance = typeof estimate?.balance_available === 'number'
+        ? estimate.balance_available
+        : (typeof currentBalance === 'number' ? currentBalance : undefined);
+    const hasBalanceCheck = effectiveEstimate && typeof effectiveBalance === 'number';
+    const canPayout = estimate?.can_payout ?? (hasBalanceCheck ? effectiveEstimate!.total_debit <= (effectiveBalance || 0) : true);
+    const missingAmount = hasBalanceCheck
+        ? Math.max(0, effectiveEstimate!.total_debit - (effectiveBalance || 0))
+        : (estimate?.missing_amount || 0);
 
     const handleWithdraw = async () => {
-        if (!amount || !phone) return;
+        if (!amount || !phone || !effectiveEstimate) return;
+
+        if (hasBalanceCheck && !canPayout) {
+            alert(`Solde insuffisant. Il manque ${formatNumber(missingAmount)} F CFA`);
+            return;
+        }
+
         setLoading(true);
         try {
             await walletService.payout({
@@ -175,11 +250,35 @@ export const WithdrawModal: React.FC<ModalProps> = ({ isOpen, onClose, walletId,
                             <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-1">Montant</label>
                             <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-2xl p-5 text-2xl font-black tabular-nums focus:ring-4 focus:ring-orange-500/10 transition-all" placeholder="0" />
                         </div>
+                        {effectiveEstimate && (
+                            <div className={`p-4 rounded-2xl border ${canPayout ? 'bg-orange-50 dark:bg-orange-500/10 border-orange-200 dark:border-orange-500/30' : 'bg-rose-50 dark:bg-rose-500/10 border-rose-200 dark:border-rose-500/30'}`}>
+                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">Estimation des frais</p>
+                                <div className="space-y-1 text-sm font-bold text-slate-700 dark:text-slate-200">
+                                    <p>Net demandé: {formatNumber(effectiveEstimate.net_amount)} F</p>
+                                    <p>Frais estimés ({(effectiveEstimate.fee_bps / 100).toFixed(2)}%): {formatNumber(effectiveEstimate.estimated_fee)} F</p>
+                                    <p className="font-black">Total débité wallet: {formatNumber(effectiveEstimate.total_debit)} F</p>
+                                    {typeof effectiveBalance === 'number' && (
+                                        <p>Solde disponible: {formatNumber(effectiveBalance)} F</p>
+                                    )}
+                                    {!canPayout && hasBalanceCheck && (
+                                        <p className="text-rose-600 dark:text-rose-400 font-black">
+                                            Solde insuffisant, manque: {formatNumber(missingAmount)} F
+                                        </p>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                        {estimateLoading && (
+                            <p className="text-xs text-slate-500 px-1">Calcul des frais...</p>
+                        )}
+                        {estimateError && (
+                            <p className="text-xs text-rose-500 px-1">{estimateError}</p>
+                        )}
                         <div className="space-y-2">
                             <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-1">Numéro Wave du bénéficiaire</label>
                             <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-2xl p-4 md:p-5 text-lg font-black tracking-widest focus:ring-4 focus:ring-orange-500/10 transition-all" placeholder="00 00 00 00 00" />
                         </div>
-                        <button disabled={!amount || !phone || loading} onClick={handleWithdraw} className={`w-full py-5 rounded-3xl font-black uppercase tracking-widest transition-all shadow-xl shadow-orange-500/20 ${!amount || !phone || loading ? 'bg-slate-100 text-slate-400' : 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:scale-[1.02] active:scale-95'}`}>
+                        <button disabled={!amount || !phone || loading || !canPayout} onClick={handleWithdraw} className={`w-full py-5 rounded-3xl font-black uppercase tracking-widest transition-all shadow-xl shadow-orange-500/20 ${!amount || !phone || loading || !canPayout ? 'bg-slate-100 text-slate-400' : 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:scale-[1.02] active:scale-95'}`}>
                             {loading ? 'Traitement...' : 'Confirmer le Retrait'}
                         </button>
                     </div>

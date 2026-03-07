@@ -1,10 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { usePageContext } from 'vike-react/usePageContext';
-import { User, Truck, MapPin, Package, FileText, Calendar, Clock, AlertTriangle, UserCheck, ArrowLeft, ExternalLink, Briefcase, Plane, Coffee, Users, ChevronRight, Briefcase as BriefcaseIcon, Send, TrendingUp, Star } from 'lucide-react';
+import { User, Truck, MapPin, Package, FileText, Calendar, Clock, AlertTriangle, UserCheck, ArrowLeft, ExternalLink, Briefcase, Plane, Coffee, Users, ChevronRight, Briefcase as BriefcaseIcon, Send, TrendingUp, Star, Image as ImageIcon, File as FileIcon } from 'lucide-react';
 import { driverService } from '../../../api/drivers';
 import { companyService } from '../../../api/company';
+import { documentService } from '../../../api/documents';
+import { socketClient } from '../../../api/socket';
 import { EmptyState } from '../../../components/EmptyState';
 import { ConfirmModal } from '../../../components/ConfirmModal';
+import { DocumentRejectModal } from '../../../components/DocumentRejectModal';
 import { useHeaderAutoHide } from '../../../hooks/useHeaderAutoHide';
 
 export default function Page() {
@@ -13,6 +16,7 @@ export default function Page() {
     const driverId = pageContext.routeParams?.id;
 
     const [driverData, setDriverData] = useState<any>(null);
+    const [driverStats, setDriverStats] = useState<any>(null);
     const [availableDocTypes, setAvailableDocTypes] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState('');
@@ -24,9 +28,33 @@ export default function Page() {
     });
 
     const [showInviteConfirm, setShowInviteConfirm] = useState(false);
+    const [showRejectModal, setShowRejectModal] = useState(false);
+    const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
     const [invitationError, setInvitationError] = useState('');
     const [validationError, setValidationError] = useState('');
     const [isInviting, setIsInviting] = useState(false);
+    const [isRejecting, setIsRejecting] = useState(false);
+
+    // Helpers for file visualization
+    const getFileIcon = (mimeType: string) => {
+        if (!mimeType) return FileIcon;
+        if (mimeType.startsWith('image/')) return ImageIcon;
+        if (mimeType.includes('pdf')) return FileText;
+        return FileIcon;
+    };
+
+    const openCenteredPopup = (url: string, title: string = 'Document Viewer') => {
+        const width = 1000;
+        const height = 900;
+        const left = (window.screen.width / 2) - (width / 2);
+        const top = (window.screen.height / 2) - (height / 2);
+
+        window.open(
+            url,
+            title,
+            `toolbar=no, location=no, directories=no, status=no, menubar=no, scrollbars=yes, resizable=yes, copyhistory=no, width=${width}, height=${height}, top=${top}, left=${left}`
+        );
+    };
 
     const handleTabChange = (tab: typeof activeTab) => {
         setActiveTab(tab);
@@ -45,14 +73,37 @@ export default function Page() {
         if (driverId) loadDriver();
     }, [driverId]);
 
+    useEffect(() => {
+        if (!driverId) return;
+
+        socketClient.joinFleetRoomFromStorage();
+        const onRelationUpdated = (payload: any) => {
+            const payloadDriverId = payload?.driverId?.toString?.();
+            if (payloadDriverId && payloadDriverId !== driverId.toString()) {
+                return;
+            }
+            loadDriver();
+        };
+
+        const offDriverRelation = socketClient.on('driver_relation_updated', onRelationUpdated);
+        const offFleetRelation = socketClient.on('fleet_driver_relation_updated', onRelationUpdated);
+
+        return () => {
+            offDriverRelation();
+            offFleetRelation();
+        };
+    }, [driverId]);
+
     const loadDriver = async () => {
         try {
-            const [driverRes, requirementsRes] = await Promise.all([
+            const [driverRes, statsRes, requirementsRes] = await Promise.all([
                 driverService.getDriver(driverId),
+                driverService.getDriverStats(driverId),
                 companyService.getRequirements()
             ]);
 
             setDriverData(driverRes.data);
+            setDriverStats(statsRes.data);
 
             if (requirementsRes.data && requirementsRes.data.length > 0) {
                 setAvailableDocTypes(requirementsRes.data.map((r: any) => ({
@@ -83,6 +134,21 @@ export default function Page() {
             setInvitationError(err.response?.data?.message || 'Erreur lors de l\'envoi de l\'invitation.');
         } finally {
             setIsInviting(false);
+        }
+    };
+
+    const handleRejectDocument = async (comment: string) => {
+        if (!selectedDocId) return;
+        setIsRejecting(true);
+        try {
+            await driverService.validateDocument(selectedDocId, 'REJECTED', comment);
+            await loadDriver();
+            setShowRejectModal(false);
+            setSelectedDocId(null);
+        } catch (err: any) {
+            alert(err.response?.data?.message || 'Erreur lors du refus du document.');
+        } finally {
+            setIsRejecting(false);
         }
     };
 
@@ -124,7 +190,7 @@ export default function Page() {
     };
 
     return (
-        <div className="max-w-6xl mx-auto space-y-6 text-slate-900 dark:text-slate-100 pb-12">
+        <div className="max-w-6xl mx-auto pb-20 space-y-6 text-slate-900 dark:text-slate-100 pb-12">
             {/* Premium Header */}
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
                 <div className="flex items-center gap-5">
@@ -167,10 +233,10 @@ export default function Page() {
             {/* Quick Stats Bar */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 {[
-                    { label: 'Revenus Mensuels', value: '450.000 FCFA', icon: Briefcase, color: 'text-emerald-500', bg: 'bg-emerald-50 dark:bg-emerald-500/10' },
-                    { label: 'Score Excellence', value: '4.95', icon: UserCheck, color: 'text-amber-500', bg: 'bg-amber-50 dark:bg-amber-500/10' },
-                    { label: 'Missions Totales', value: '1,248', icon: Package, color: 'text-blue-500', bg: 'bg-blue-50 dark:bg-blue-500/10' },
-                    { label: 'Taux Succès', value: '99.2%', icon: TrendingUp, color: 'text-indigo-500', bg: 'bg-indigo-50 dark:bg-indigo-500/10' }
+                    { label: 'Revenus Mensuels', value: driverStats ? `${driverStats.monthlyRevenue.toLocaleString()} FCFA` : '...', icon: Briefcase, color: 'text-emerald-500', bg: 'bg-emerald-50 dark:bg-emerald-500/10' },
+                    { label: 'Score Excellence', value: driverStats ? `${driverStats.excellenceScore}/5.0` : '...', icon: UserCheck, color: 'text-amber-500', bg: 'bg-amber-50 dark:bg-amber-500/10' },
+                    { label: 'Missions Totales', value: driverStats ? driverStats.totalMissions.toLocaleString() : '...', icon: Package, color: 'text-blue-500', bg: 'bg-blue-50 dark:bg-blue-500/10' },
+                    { label: 'Taux Succès', value: driverStats ? `${driverStats.successRate}%` : '...', icon: TrendingUp, color: 'text-indigo-500', bg: 'bg-indigo-50 dark:bg-indigo-500/10' }
                 ].map((stat, i) => (
                     <div key={i} className="bg-white dark:bg-slate-900 p-4 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-none flex items-center gap-4">
                         <div className={`p-2.5 ${stat.bg} ${stat.color} rounded-2xl`}>
@@ -235,8 +301,16 @@ export default function Page() {
                                 </dl>
                             </div>
                             <div className="bg-indigo-900 text-white rounded-[2rem] p-8 shadow-2xl relative overflow-hidden group">
-                                <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:scale-110 group-hover:rotate-12 transition-transform duration-700">
-                                    <UserCheck size={120} />
+                                <div className="absolute top-0 right-0 p-2  group-hover:scale-110  transition-all duration-700 w-48 h-48 flex items-center justify-center">
+                                    {driver.photos && driver.photos.length > 0 ? (
+                                        <img
+                                            src={documentService.getFileUrl(driver.photos[0])}
+                                            alt={driver.fullName}
+                                            className="w-full h-full object-cover rounded-3xl "
+                                        />
+                                    ) : (
+                                        <UserCheck size={120} />
+                                    )}
                                 </div>
                                 <div className="relative z-10">
                                     <p className="text-[10px] font-black opacity-60 uppercase tracking-[0.2em] mb-4">Score de Sécurité</p>
@@ -459,16 +533,38 @@ export default function Page() {
                                             <div key={doc.id} className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl p-6 shadow-xl shadow-slate-200/50 dark:shadow-none group hover:border-indigo-200 dark:hover:border-indigo-500/50 transition-all">
                                                 <div className="flex items-center justify-between mb-4">
                                                     <h5 className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase italic">{getDocTypeLabel(doc.documentType)}</h5>
-                                                    <span className={`px-2 py-1 rounded-lg text-[9px] font-black uppercase ${doc.status === 'APPROVED' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400'}`}>
+                                                    <span className={`px-2 py-1 rounded-lg text-[9px] font-black uppercase ${doc.status === 'APPROVED' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-100/50 dark:border-emerald-500/20' :
+                                                        doc.status === 'REJECTED' ? 'bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-100/50 dark:border-rose-500/20' :
+                                                            'bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-100/50 dark:border-indigo-500/20'}`}>
                                                         {doc.status}
                                                     </span>
                                                 </div>
+                                                {doc.status === 'REJECTED' && doc.validationComment && (
+                                                    <div className="mb-4 p-3 bg-rose-50/50 dark:bg-rose-500/5 border border-rose-100 dark:border-rose-500/10 rounded-xl">
+                                                        <p className="text-[9px] font-black text-rose-400 dark:text-rose-500 uppercase tracking-widest mb-1">Motif du rejet</p>
+                                                        <p className="text-[11px] font-bold text-rose-600 dark:text-rose-400 leading-tight italic">"{doc.validationComment}"</p>
+                                                    </div>
+                                                )}
                                                 {doc.file ? (
                                                     <div className="space-y-4">
-                                                        <div className="aspect-video bg-slate-50 dark:bg-slate-800 rounded-2xl flex items-center justify-center border border-slate-100 dark:border-slate-700 relative group/img overflow-hidden">
-                                                            <FileText size={40} className="text-slate-200 dark:text-slate-700" />
+                                                        <div className="aspect-video bg-slate-50 dark:bg-slate-800/50 rounded-2xl flex items-center justify-center border border-slate-100 dark:border-slate-800 relative group/img overflow-hidden">
+                                                            {React.createElement(getFileIcon(doc.file.mimeType), {
+                                                                size: 48,
+                                                                className: "text-slate-200 dark:text-slate-700 transition-transform group-hover/img:scale-110 duration-500"
+                                                            })}
+
                                                             <div className="absolute inset-0 bg-indigo-900/40 opacity-0 group-hover/img:opacity-100 transition-all flex items-center justify-center">
-                                                                <button onClick={() => window.open(`/api/v1/fs/${doc.file.name}`, '_blank')} className="p-3 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl hover:scale-110 transition-transform">
+                                                                <button
+                                                                    onClick={async () => {
+                                                                        try {
+                                                                            const url = await documentService.getSignedUrl(doc.file.name);
+                                                                            openCenteredPopup(url, getDocTypeLabel(doc.documentType));
+                                                                        } catch (err) {
+                                                                            alert('Impossible de générer le lien sécurisé.');
+                                                                        }
+                                                                    }}
+                                                                    className="p-3 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl hover:scale-110 transition-transform"
+                                                                >
                                                                     <ExternalLink size={20} className="text-indigo-600 dark:text-indigo-400" />
                                                                 </button>
                                                             </div>
@@ -476,9 +572,18 @@ export default function Page() {
                                                         <div className="flex gap-2">
                                                             <button
                                                                 onClick={async () => { try { await driverService.validateDocument(doc.id, 'APPROVED'); loadDriver(); } catch (err) { alert('Approval Error'); } }}
-                                                                className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase italic transition-all ${doc.status === 'APPROVED' ? 'bg-emerald-500 text-white' : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-emerald-50 dark:hover:bg-emerald-500/10'}`}
+                                                                className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase italic transition-all ${doc.status === 'APPROVED' ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-emerald-50 dark:hover:bg-emerald-500/10'}`}
                                                             >
                                                                 Dossier OK
+                                                            </button>
+                                                            <button
+                                                                onClick={() => {
+                                                                    setSelectedDocId(doc.id);
+                                                                    setShowRejectModal(true);
+                                                                }}
+                                                                className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase italic transition-all ${doc.status === 'REJECTED' ? 'bg-rose-600 text-white shadow-lg shadow-rose-500/20' : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-rose-50 dark:hover:bg-rose-500/10'}`}
+                                                            >
+                                                                Refuser
                                                             </button>
                                                         </div>
                                                     </div>
@@ -506,6 +611,18 @@ export default function Page() {
                 description={`Confirmez-vous l'intégration de ${driver.fullName} dans les effectifs actifs ? Une notification formelle sera envoyée au terminal du chauffeur.`}
                 confirmLabel={isInviting ? "Transmission..." : "Confirmer l'Intégration"}
                 confirmVariant="primary"
+            />
+
+            <DocumentRejectModal
+                isOpen={showRejectModal}
+                onClose={() => {
+                    setShowRejectModal(false);
+                    setSelectedDocId(null);
+                }}
+                onConfirm={handleRejectDocument}
+                title="Refus de Document"
+                description="Veuillez spécifier la raison du refus. Le chauffeur recevra une notification pour corriger son dossier."
+                isSubmitting={isRejecting}
             />
         </div>
     );

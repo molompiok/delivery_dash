@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { ChevronLeft, Package, Boxes, Droplets, AlertCircle, AlertTriangle, ThermometerSnowflake, Plus, Loader2 } from 'lucide-react';
+import { ChevronLeft, Package, Boxes, Droplets, AlertCircle, AlertTriangle, ThermometerSnowflake, Plus, Loader2, User, Phone, Tag } from 'lucide-react';
 import EditableField from '../EditableField';
 import { variants, transition, NewItemFormState, ViewType } from './types';
 
@@ -10,7 +10,7 @@ interface TransitItemDetailViewProps {
     isCreatingTransitItem: boolean;
     isEditing?: boolean;
     setDirection: (dir: number) => void;
-    setView: (view: ViewType) => void;
+    onBack: () => void;
     setTransitItemForm: (form: NewItemFormState) => void;
     handleConfirmCreateTransitItem: () => Promise<void>;
     handleTransitItemChange?: (field: string, value: any) => Promise<void>;
@@ -22,7 +22,7 @@ const TransitItemDetailView: React.FC<TransitItemDetailViewProps> = ({
     isCreatingTransitItem,
     isEditing = false,
     setDirection,
-    setView,
+    onBack,
     setTransitItemForm: setNewItemForm,
     handleConfirmCreateTransitItem,
     handleTransitItemChange
@@ -31,6 +31,14 @@ const TransitItemDetailView: React.FC<TransitItemDetailViewProps> = ({
         setNewItemForm({ ...newItemForm, [field]: value });
         if (isEditing && handleTransitItemChange) {
             handleTransitItemChange(field, value);
+        }
+    };
+
+    const onClientDataChange = (field: string, value: string) => {
+        const newData = { ...(newItemForm.client_data || {}), [field]: value };
+        setNewItemForm({ ...newItemForm, client_data: newData });
+        if (isEditing && handleTransitItemChange) {
+            handleTransitItemChange('metadata', { ...newItemForm, client_data: newData });
         }
     };
 
@@ -54,6 +62,7 @@ const TransitItemDetailView: React.FC<TransitItemDetailViewProps> = ({
         }
     };
 
+    console.log(newItemForm);
     return (
         <motion.div
             key="transit-item-detail"
@@ -71,7 +80,7 @@ const TransitItemDetailView: React.FC<TransitItemDetailViewProps> = ({
                     <button
                         onClick={() => {
                             setDirection(-1);
-                            setView('product');
+                            onBack();
                         }}
                         className="p-2 bg-gray-50 dark:bg-slate-800 text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-200 rounded-xl transition-all"
                     >
@@ -138,7 +147,7 @@ const TransitItemDetailView: React.FC<TransitItemDetailViewProps> = ({
                             <div className="flex gap-2">
                                 <button
                                     onClick={() => onFieldChange('packaging_type', 'box')}
-                                    className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-xl border transition-all ${newItemForm.packaging_type === 'box'
+                                    className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-xl border transition-all ${newItemForm.packaging_type == 'box'
                                         ? 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
                                         : 'bg-white dark:bg-slate-900 border-gray-100 dark:border-slate-800 text-gray-400 dark:text-slate-500 hover:border-gray-200 dark:hover:border-slate-700'
                                         }`}
@@ -148,7 +157,7 @@ const TransitItemDetailView: React.FC<TransitItemDetailViewProps> = ({
                                 </button>
                                 <button
                                     onClick={() => onFieldChange('packaging_type', 'fluid')}
-                                    className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-xl border transition-all ${newItemForm.packaging_type === 'fluid'
+                                    className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-xl border transition-all ${newItemForm.packaging_type == 'fluid'
                                         ? 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
                                         : 'bg-white dark:bg-slate-900 border-gray-100 dark:border-slate-800 text-gray-400 dark:text-slate-500 hover:border-gray-200 dark:hover:border-slate-700'
                                         }`}
@@ -207,7 +216,7 @@ const TransitItemDetailView: React.FC<TransitItemDetailViewProps> = ({
                         </div>
                         <h3 className="text-[12px] uppercase tracking-widest text-gray-400 dark:text-slate-500 font-bold">Special Handling</h3>
                     </div>
-                    <div className="grid grid-cols-2 gap-3 pb-8">
+                    <div className="grid grid-cols-2 gap-3">
                         {[
                             { id: 'froid', label: 'Cold Chain', icon: ThermometerSnowflake, activeClass: 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400', iconColor: 'text-emerald-600 dark:text-emerald-400' },
                             { id: 'fragile', label: 'Fragile', icon: AlertCircle, activeClass: 'border-rose-500 bg-rose-50/50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-400', iconColor: 'text-rose-600 dark:text-rose-400' },
@@ -231,42 +240,62 @@ const TransitItemDetailView: React.FC<TransitItemDetailViewProps> = ({
                         })}
                     </div>
                 </section>
+
+                {/* Client Information */}
+                <section>
+                    <div className="flex items-center gap-2 mb-4">
+                        <div className="p-2 bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-lg">
+                            <User size={16} />
+                        </div>
+                        <h3 className="text-[12px] uppercase tracking-widest text-gray-400 dark:text-slate-500 font-bold">Client Information</h3>
+                    </div>
+                    <div className="space-y-4 pb-8">
+                        <EditableField
+                            label="Client Name"
+                            value={newItemForm.client_data?.name || ''}
+                            placeholder="Nom du client fina..."
+                            onChange={(val) => onClientDataChange('name', val)}
+                        />
+                        <div className="grid grid-cols-2 gap-4">
+                            <EditableField
+                                label="Phone"
+                                value={newItemForm.client_data?.phone || ''}
+                                placeholder="Numéro..."
+                                onChange={(val) => onClientDataChange('phone', val)}
+                            />
+                            <EditableField
+                                label="Reference"
+                                value={newItemForm.client_data?.reference || ''}
+                                placeholder="REF-..."
+                                onChange={(val) => onClientDataChange('reference', val)}
+                            />
+                        </div>
+                    </div>
+                </section>
             </div>
 
             {/* Footer */}
             <div className="p-6 bg-white dark:bg-slate-900 border-t border-gray-100 dark:border-slate-800 shrink-0">
-                {isEditing ? (
-                    <button
-                        onClick={() => {
-                            setDirection(-1);
-                            setView('product');
-                        }}
-                        className="w-full py-4 rounded-2xl text-[11px] font-black uppercase tracking-widest bg-emerald-600 text-white hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200 dark:shadow-emerald-500/20"
-                    >
-                        Save & Back
-                    </button>
-                ) : (
-                    <button
-                        onClick={handleConfirmCreateTransitItem}
-                        disabled={isCreatingTransitItem || !newItemForm.name.trim()}
-                        className={`w-full py-4 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${isCreatingTransitItem || !newItemForm.name.trim()
-                            ? 'bg-gray-100 dark:bg-slate-800 text-gray-400 dark:text-slate-500 cursor-not-allowed'
-                            : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-lg shadow-emerald-200 dark:shadow-emerald-500/20'
-                            }`}
-                    >
-                        {isCreatingTransitItem ? (
-                            <>
-                                <Loader2 size={16} className="animate-spin" />
-                                Création en cours...
-                            </>
-                        ) : (
-                            <>
-                                <Plus size={16} />
-                                Créer le Produit
-                            </>
-                        )}
-                    </button>
-                )}
+                <button
+                    onClick={handleConfirmCreateTransitItem}
+                    disabled={isCreatingTransitItem || !newItemForm.name.trim()}
+                    className={`w-full py-4 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${isCreatingTransitItem || !newItemForm.name.trim()
+                        ? 'bg-gray-100 dark:bg-slate-800 text-gray-400 dark:text-slate-500 cursor-not-allowed'
+                        : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-lg shadow-emerald-200 dark:shadow-emerald-500/20'
+                        }`}
+                >
+                    {isCreatingTransitItem ? (
+                        <>
+                            <Loader2 size={16} className="animate-spin" />
+                            {isEditing ? 'Enregistrement...' : 'Création en cours...'}
+                        </>
+                    ) : (
+                        <>
+                            {isEditing ? <Tag size={16} /> : <Plus size={16} />}
+                            {isEditing ? 'Enregistrer les modifications' : 'Créer le Produit'}
+                        </>
+                    )}
+                </button>
             </div>
         </motion.div>
     );

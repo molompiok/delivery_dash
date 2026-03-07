@@ -66,5 +66,12 @@ export const driverService = {
      */
     async syncRequirements(driverId: string) {
         return client.post(`/company/drivers/${driverId}/sync-requirements`);
+    },
+
+    /**
+     * Get driver statistics (Missions, Success Rate, Revenue, Excellence)
+     */
+    async getDriverStats(driverId: string) {
+        return client.get<any>(`/company/drivers/${driverId}/stats`);
     }
 };

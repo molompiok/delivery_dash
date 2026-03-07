@@ -1,5 +1,7 @@
 import { io, Socket } from "socket.io-client";
 
+type SocketHandler = (payload: any) => void;
+
 class SocketClient {
     private socket: Socket | null = null;
     private static instance: SocketClient;
@@ -15,14 +17,7 @@ class SocketClient {
 
     public connect(): Socket {
         if (!this.socket) {
-            const getSocketUrl = () => {
-                if (import.meta.env.VITE_SOCKET_URL) return import.meta.env.VITE_SOCKET_URL;
-                if (typeof window !== 'undefined') {
-                    return `http://${window.location.hostname}:3333`;
-                }
-                return "http://localhost:3333";
-            };
-            this.socket = io(getSocketUrl(), {
+            this.socket = io(this.getSocketUrl(), {
                 transports: ["websocket"],
                 autoConnect: false,
             });
@@ -42,11 +37,61 @@ class SocketClient {
         return this.socket;
     }
 
+    public ensureConnected(): Socket {
+        const socket = this.connect();
+        if (!socket.connected) {
+            socket.connect();
+        }
+        return socket;
+    }
+
+    public join(room: string) {
+        if (!room) return;
+        const socket = this.ensureConnected();
+        socket.emit("join", room);
+    }
+
+    public joinOrderRoom(orderId: string) {
+        if (!orderId) return;
+        this.join(`order:${orderId}`);
+    }
+
+    public joinFleetRoomFromStorage(): string | null {
+        if (typeof window === "undefined") return null;
+        const userStr = localStorage.getItem("delivery_user");
+        if (!userStr) return null;
+
+        try {
+            const user = JSON.parse(userStr);
+            const companyId = user?.effectiveCompanyId || user?.companyId;
+            if (!companyId) return null;
+            const room = `fleet:${companyId}`;
+            this.join(room);
+            return room;
+        } catch {
+            return null;
+        }
+    }
+
+    public on(event: string, handler: SocketHandler): () => void {
+        const socket = this.ensureConnected();
+        socket.on(event, handler);
+        return () => socket.off(event, handler);
+    }
+
     public disconnect() {
         if (this.socket) {
             this.socket.disconnect();
             this.socket = null;
         }
+    }
+
+    private getSocketUrl(): string {
+        if (import.meta.env.VITE_SOCKET_URL) return import.meta.env.VITE_SOCKET_URL;
+        if (typeof window !== "undefined") {
+            return `${window.location.protocol}//${window.location.hostname}:3333`;
+        }
+        return "http://localhost:3333";
     }
 }
 

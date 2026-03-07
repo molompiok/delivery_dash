@@ -36,7 +36,11 @@ import {
     Package,
     Flag,
     List,
-    Bike
+    Bike,
+    Ticket,
+    Boxes,
+    ArrowDownRight,
+    Pencil
 } from 'lucide-react';
 import { arrayMove } from '@dnd-kit/sortable';
 import ListOptions from './components/ListOptions';
@@ -47,6 +51,12 @@ import { useTheme } from '../../../context/ThemeContext';
 import { ConfirmModal } from '../../../components/ConfirmModal';
 import LocationSearchBar from '../../../components/LocationSearchBar';
 import StopDetailPanel from './components/StopDetailPanel';
+import {
+    NewItemFormState,
+    TransitItemDetailView,
+    variants,
+    transition
+} from './components/StopDetailPanel/index';
 import { ordersApi, Order, Step as ApiStep, ValidationIssue } from '../../../api/orders';
 import { driverService } from '../../../api/drivers';
 import { fleetService } from '../../../api/fleet';
@@ -134,7 +144,23 @@ export default function Page() {
     const [direction, setDirection] = useState(0);
     const [isSidebarFullscreen, setIsSidebarFullscreen] = useState(false);
     const [activeRouteTab, setActiveRouteTab] = useState<'details' | 'history'>('details');
-    const [activeRightPanel, setActiveRightPanel] = useState<'list' | 'route' | 'history' | 'operation' | 'weight' | 'items' | null>('list');
+    const [activeRightPanel, setActiveRightPanel] = useState<'list' | 'bookings' | 'history' | 'operation' | 'weight' | 'items' | null>('bookings');
+    const [selectedTransitItemId, setSelectedTransitItemId] = useState<string | null>(null);
+    const [itemSubView, setItemSubView] = useState<'list' | 'detail' | 'create' | 'plan'>('list');
+    const [itemDirection, setItemDirection] = useState(0);
+    const [isSavingStandaloneItem, setIsSavingStandaloneItem] = useState(false);
+    const [itemForm, setItemForm] = useState<NewItemFormState>({
+        name: '',
+        weight: 0,
+        unitary_price: 0,
+        packaging_type: 'box',
+        dimensions: { width_cm: 0, height_cm: 0, depth_cm: 0 },
+        requirements: [],
+        client_data: { name: '', phone: '', reference: '' }
+    });
+    const [selectedStopIdForPlanning, setSelectedStopIdForPlanning] = useState<string | null>(null);
+    const [planningType, setPlanningType] = useState<'PICKUP' | 'DELIVERY'>('PICKUP');
+    const [planningQuantity, setPlanningQuantity] = useState(1);
     const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1200);
 
     useEffect(() => {
@@ -147,7 +173,7 @@ export default function Page() {
         return () => window.removeEventListener('resize', handleResize);
     }, []);
 
-    const handleRightPanelToggle = (panel: 'list' | 'route' | 'history' | 'operation' | 'weight' | 'items') => {
+    const handleRightPanelToggle = (panel: 'list' | 'bookings' | 'history' | 'operation' | 'weight' | 'items') => {
         setActiveRightPanel(prev => prev === panel ? null : panel);
     };
     const [visibleLayers, setVisibleLayers] = useState({
@@ -314,23 +340,22 @@ export default function Page() {
     useEffect(() => {
         if (!id || !socketClient) return;
 
-        const socket = socketClient.connect();
-        socket.emit('join', `order:${id}`);
+        socketClient.joinOrderRoom(id);
 
         const handleUpdate = (data: any) => debouncedRefresh(data, 'order');
         const handleRouteUpdate = (data: any) => debouncedRefresh(data, 'route');
 
-        socket.on('order_updated', handleUpdate);
-        socket.on('route_updated', handleRouteUpdate);
-        socket.on('stop_status_updated', handleUpdate);
-        socket.on('action_status_updated', handleUpdate);
+        const offOrder = socketClient.on('order_updated', handleUpdate);
+        const offRoute = socketClient.on('route_updated', handleRouteUpdate);
+        const offStop = socketClient.on('stop_status_updated', handleUpdate);
+        const offAction = socketClient.on('action_status_updated', handleUpdate);
 
         return () => {
             if (refreshTimeout.current) clearTimeout(refreshTimeout.current);
-            socket.off('order_updated', handleUpdate);
-            socket.off('route_updated', handleRouteUpdate);
-            socket.off('stop_status_updated', handleUpdate);
-            socket.off('action_status_updated', handleUpdate);
+            offOrder();
+            offRoute();
+            offStop();
+            offAction();
         };
     }, [id, socketClient]);
 
@@ -734,7 +759,114 @@ export default function Page() {
         console.log("Revert button clicked");
         if (!order || !id) return;
         setShowRevertModal(true);
-        console.log("Modal state set to true");
+    };
+
+    const handleStandaloneCreateOpen = () => {
+        setSelectedTransitItemId(null);
+        setItemForm({
+            name: '',
+            weight: 0,
+            unitary_price: 0,
+            packaging_type: 'box',
+            dimensions: { width_cm: 0, height_cm: 0, depth_cm: 0 },
+            requirements: [],
+            client_data: { name: '', phone: '', reference: '' }
+        });
+        setSelectedTransitItemId(null);
+        setItemDirection(1);
+        setItemSubView('create');
+    };
+
+    const handleStandaloneCreateConfirm = async () => {
+        if (!itemForm.name.trim() || !id) return;
+        setIsSavingStandaloneItem(true);
+        try {
+            const isEditing = !!selectedTransitItemId;
+            const payload = {
+                name: itemForm.name,
+                weight: itemForm.weight,
+                unitary_price: itemForm.unitary_price,
+                packaging_type: itemForm.packaging_type,
+                dimensions: itemForm.dimensions,
+                client_name: itemForm?.client_data?.name,
+                client_phone: itemForm?.client_data?.phone,
+                client_reference: itemForm?.client_data?.reference,
+                requirements: itemForm.requirements,
+                metadata: {
+                    requirements: itemForm.requirements,
+                    client_data: itemForm.client_data
+                }
+            };
+
+            const result = isEditing
+                ? await ordersApi.updateItem(selectedTransitItemId, payload)
+                : await ordersApi.addItem(id, payload);
+
+            if (result.entity || result.item || result.id) {
+                // Refresh order to get new or updated items
+                const updatedOrder = await ordersApi.get(id, ['transitItems', 'steps.stops.actions.transitItem']);
+                setOrder(updatedOrder);
+                setItemDirection(-1);
+                setItemSubView('list');
+                setSelectedTransitItemId(null);
+            }
+        } catch (error) {
+            console.error("Failed to save standalone item", error);
+            setAlertConfig({
+                isOpen: true,
+                title: "Erreur",
+                description: `Impossible de ${selectedTransitItemId ? 'modifier' : 'créer'} l'objet de transit.`
+            });
+        } finally {
+            setIsSavingStandaloneItem(false);
+        }
+    };
+
+    const handleSelectItem = (itemId: string) => {
+        setSelectedTransitItemId(itemId);
+        setItemDirection(1);
+        setItemSubView('detail');
+    };
+
+    const handleConfirmPlanning = async () => {
+        if (!id || !selectedTransitItemId || !selectedStopIdForPlanning) return;
+        setIsSavingStandaloneItem(true);
+        try {
+            await ordersApi.addAction(selectedStopIdForPlanning, {
+                type: planningType.toLowerCase() as any,
+                transit_item_id: selectedTransitItemId,
+                quantity: planningQuantity,
+                service_time: 300 // default 5 min
+            }, { recalculate: true });
+
+            // Refresh order
+            const updatedOrder = await ordersApi.get(id, ['steps.stops.actions.transitItem', 'transitItems']);
+            setOrder(updatedOrder);
+
+            setItemDirection(-1);
+            setItemSubView('detail');
+            setSelectedStopIdForPlanning(null);
+        } catch (error) {
+            console.error("Failed to plan action", error);
+            setAlertConfig({
+                isOpen: true,
+                title: "Erreur",
+                description: "Impossible de planifier l'action."
+            });
+        } finally {
+            setIsSavingStandaloneItem(false);
+        }
+    };
+
+    const handlePublish = async () => {
+        if (!order) return;
+        try {
+            const res = await ordersApi.publish(order.id);
+            setOrder(res.order);
+            showAlert("Publication réussie", "Le voyage est maintenant publié.");
+        } catch (err) {
+            showAlert("Erreur", "Impossible de publier le voyage.");
+        }
     };
 
     const executeRevert = async () => {
@@ -1669,104 +1801,191 @@ export default function Page() {
 
                     {/* Map controls overlay (top-left, shifted right of sidebar) */}
                     <div
-                        className="absolute z-[50] flex flex-col gap-2 transition-all duration-500 ease-in-out"
+                        className="absolute z-[50] flex flex-row gap-4 items-start transition-all duration-500 ease-in-out pointer-events-none"
                         style={{
                             top: `${headerHeight}px`,
                             right: isSidebarFullscreen ? '60px' : '16px'
                         }}
                     >
-                        <div className="relative">
-                            <AnimatePresence>
-                                {isLayerMenuOpen && (
-                                    <motion.div
-                                        initial={{ opacity: 0, scale: 0.95, x: 10 }}
-                                        animate={{ opacity: 1, scale: 1, x: 0 }}
-                                        exit={{ opacity: 0, scale: 0.95, x: 10 }}
-                                        className="absolute right-12 top-0 w-48 bg-white/20 dark:bg-slate-900/40 backdrop-blur-2xl rounded-2xl shadow-2xl border border-white/20 dark:border-slate-800 p-2 z-50"
-                                    >
-                                        <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-3 py-2 border-b border-gray-50 mb-1">Affichage Carte</div>
+                        {/* Order Summary Info Bubble (Vertical Card) */}
+                        {order && (
+                            <div className="w-[240px] bg-white/40 dark:bg-slate-900/40 backdrop-blur-3xl rounded-[32px] border border-white/60 dark:border-slate-800 shadow-2xl p-3 pt-6 flex flex-col gap-6 transition-all hover:bg-white/60 dark:hover:bg-slate-900/60 group pointer-events-auto">
+                                <div className="flex flex-col border-b border-gray-200/50 dark:border-slate-700/50 ">
+                                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-2">Template Commande</div>
+                                    <div className="text-sm font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-tight truncate">
+                                        {order.template || 'STANDARD'}
+                                    </div>
+                                </div>
 
-                                        <button
-                                            onClick={() => setVisibleLayers(prev => ({ ...prev, auto: !prev.auto }))}
-                                            className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition-colors mb-1 ${visibleLayers.auto ? 'bg-orange-50 text-orange-700' : 'text-gray-500 hover:bg-gray-50'}`}
-                                        >
-                                            <div className="flex flex-col items-start">
-                                                <span className="text-[11px] font-bold">Mode Auto</span>
-                                                <span className="text-[9px] opacity-60">Gestion intelligente</span>
-                                            </div>
-                                            <div className={`w-2 h-2 rounded-full ${visibleLayers.auto ? 'bg-orange-500 animate-pulse' : 'bg-gray-200'}`} />
-                                        </button>
-
-                                        <div className="h-px bg-gray-100 dark:bg-slate-800 my-1 mx-2"></div>
-
-                                        <button
-                                            onClick={() => setVisibleLayers(prev => ({ ...prev, live: !prev.live, auto: false }))}
-                                            className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition-colors ${visibleLayers.live ? 'bg-green-50 text-green-700' : 'text-gray-500 hover:bg-gray-50'}`}
-                                        >
-                                            <span className="text-[11px] font-bold">Route Planifiée</span>
-                                            <div className={`w-2 h-2 rounded-full ${visibleLayers.live ? 'bg-green-600' : 'bg-gray-200'}`} />
-                                        </button>
-
-                                        <button
-                                            onClick={() => setVisibleLayers(prev => ({ ...prev, pending: !prev.pending, auto: false }))}
-                                            className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition-colors ${visibleLayers.pending ? 'bg-blue-50 text-blue-700' : 'text-gray-500 hover:bg-gray-50'}`}
-                                        >
-                                            <span className="text-[11px] font-bold">Modifications</span>
-                                            <div className={`w-2 h-2 rounded-full ${visibleLayers.pending ? 'bg-blue-600' : 'bg-gray-200'}`} />
-                                        </button>
-
-                                        <button
-                                            onClick={() => setVisibleLayers(prev => ({ ...prev, actual: !prev.actual, auto: false }))}
-                                            className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition-colors ${visibleLayers.actual ? 'bg-amber-50 text-amber-700' : 'text-gray-500 hover:bg-gray-50'}`}
-                                        >
-                                            <span className="text-[11px] font-bold">Tracé Réel</span>
-                                            <div className={`w-2 h-2 rounded-full ${visibleLayers.actual ? 'bg-amber-500' : 'bg-gray-200'}`} />
-                                        </button>
-
-                                        {/* Sources Tooltip */}
-                                        <div className="mt-2 p-2 bg-white/10 dark:bg-slate-800/40 rounded-lg border border-white/10 dark:border-slate-800">
-                                            <div className="text-[9px] text-gray-400 font-bold mb-1 uppercase tracking-wider">Sources du tracé</div>
-                                            <div className="flex flex-col gap-1">
-                                                <div className="flex justify-between items-center text-[10px]">
-                                                    <span className="text-gray-500">Prévu:</span>
-                                                    <span className="font-mono bg-white dark:bg-slate-900 px-1 rounded border border-gray-100 dark:border-slate-800">{order?.route_metadata?.live_source || '...'}</span>
-                                                </div>
-                                                <div className="flex justify-between items-center text-[10px]">
-                                                    <span className="text-gray-500">Modif.:</span>
-                                                    <span className="font-mono bg-white dark:bg-slate-900 px-1 rounded border border-gray-100 dark:border-slate-800">{order?.route_metadata?.pending_source || '...'}</span>
-                                                </div>
-                                            </div>
+                                <div className="flex items-center justify-between gap-1">
+                                    <div className="flex flex-col items-center gap-1.5 flex-1">
+                                        <div className="p-2 rounded-xl bg-emerald-100 dark:bg-emerald-500/10">
+                                            <MapPin size={16} className="text-emerald-600 dark:text-emerald-400" />
                                         </div>
-                                    </motion.div>
-                                )}
-                            </AnimatePresence>
-                        </div>
-                        <button
-                            onClick={() => setIsLayerMenuOpen(!isLayerMenuOpen)}
-                            className={`p-2 rounded-lg shadow-md transition-all ${isLayerMenuOpen ? 'bg-emerald-600 text-white' : 'bg-white dark:bg-slate-900 text-gray-600 hover:bg-gray-50'}`}
-                            title="Couches de la carte"
-                        >
-                            <Layers size={18} />
-                        </button>
+                                        <span className="text-[13px] font-black">{steps.reduce((acc, s) => acc + s.stops.length, 0)}</span>
+                                    </div>
 
-                        <button
-                            onClick={() => setIsCreativeMode(!isCreativeMode)}
-                            className={`p-2 rounded-lg shadow-md transition-all ${isCreativeMode ? 'bg-orange-500 text-white animate-pulse' : 'bg-white dark:bg-slate-900 text-gray-600 hover:bg-gray-50'}`}
-                            title={isCreativeMode ? "Désactiver le Mode Créatif" : "Activer le Mode Créatif (cliquer sur la carte pour ajouter un stop)"}
-                        >
-                            <MapPinPlus size={18} />
-                        </button>
-                        <button
-                            onClick={() => fetchRoute({ force: true })}
-                            disabled={isRouteLoading}
-                            className={`p-2 bg-white dark:bg-slate-900 rounded-lg shadow-md text-gray-600 hover:bg-gray-50 transition-all ${isRouteLoading ? 'opacity-50' : ''}`}
-                            title="Recalculer la route (VROOM)"
-                        >
-                            <RotateCcw size={18} className={isRouteLoading ? 'animate-spin' : ''} />
-                        </button>
-                        <button className="p-2 bg-white dark:bg-slate-900 rounded-lg shadow-md hover:bg-gray-50 text-gray-600">
-                            <Navigation size={18} />
-                        </button>
+                                    <div className="flex flex-col items-center gap-1.5 flex-1 border-l border-gray-100 dark:border-slate-800/50">
+                                        <div className="p-2 rounded-xl bg-blue-100 dark:bg-blue-500/10">
+                                            <Ticket size={16} className="text-blue-600 dark:text-blue-400" />
+                                        </div>
+                                        <span className="text-[13px] font-black">{order.bookings?.length || 0}</span>
+                                    </div>
+
+                                    <div className="flex flex-col items-center gap-1.5 flex-1 border-l border-gray-100 dark:border-slate-800/50">
+                                        <div className="p-2 rounded-xl bg-orange-100 dark:bg-orange-500/10">
+                                            <Package size={16} className="text-orange-600 dark:text-orange-400" />
+                                        </div>
+                                        <span className="text-[13px] font-black">
+                                            {order.transitItems?.filter(i => !(i.name?.toLowerCase().includes('bag') || i.name?.toLowerCase().includes('sac'))).length || 0}
+                                        </span>
+                                    </div>
+
+                                    <div className="flex flex-col items-center gap-1.5 flex-1 border-l border-gray-100 dark:border-slate-800/50">
+                                        <div className="p-2 rounded-xl bg-rose-100 dark:bg-rose-500/10">
+                                            <ShoppingBag size={16} className="text-rose-600 dark:text-rose-400" />
+                                        </div>
+                                        <span className="text-[13px] font-black">
+                                            {order.transitItems?.filter(i => i.name?.toLowerCase().includes('bag') || i.name?.toLowerCase().includes('sac')).length || 0}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <div className="flex flex-col gap-2 pt-4 border-t border-gray-200/50 dark:border-slate-700/50">
+                                    {order.status === 'DRAFT' && (
+                                        <button
+                                            onClick={handleSubmit}
+                                            className="w-full py-3 bg-emerald-500 text-white rounded-2xl hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-500/20 active:scale-95 flex items-center justify-center gap-2 group/btn"
+                                        >
+                                            <CheckCircle2 size={16} />
+                                            <span className="text-[10px] font-black uppercase tracking-widest">Valider la commande</span>
+                                        </button>
+                                    )}
+                                    {(order.status === 'PENDING' || order.status === 'DRAFT') && order.template === 'VOYAGE' && (
+                                        <button
+                                            onClick={handlePublish}
+                                            className="w-full py-3 bg-blue-500 text-white rounded-2xl hover:bg-blue-600 transition-all shadow-lg shadow-blue-500/20 active:scale-95 flex items-center justify-center gap-2 group/btn"
+                                        >
+                                            <Send size={16} />
+                                            <span className="text-[10px] font-black uppercase tracking-widest">Publier Voyage</span>
+                                        </button>
+                                    )}
+                                    {order.hasPendingChanges && (
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={handleRevert}
+                                                className="flex-1 py-3 bg-rose-50 text-rose-600 rounded-2xl hover:bg-rose-100 transition-all active:scale-95 flex items-center justify-center gap-2 border border-rose-100"
+                                            >
+                                                <RotateCcw size={16} />
+                                                <span className="text-[10px] font-black uppercase tracking-widest">Annuler</span>
+                                            </button>
+                                            <button
+                                                onClick={handlePushUpdates}
+                                                className="flex-1 py-3 bg-indigo-500 text-white rounded-2xl hover:bg-indigo-600 transition-all shadow-lg shadow-indigo-500/20 active:scale-95 flex items-center justify-center gap-2"
+                                            >
+                                                <Check size={16} />
+                                                <span className="text-[10px] font-black uppercase tracking-widest">Push</span>
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="flex flex-col gap-2 pointer-events-auto">
+                            <div className="relative">
+                                <AnimatePresence>
+                                    {isLayerMenuOpen && (
+                                        <motion.div
+                                            initial={{ opacity: 0, scale: 0.95, x: 10 }}
+                                            animate={{ opacity: 1, scale: 1, x: 0 }}
+                                            exit={{ opacity: 0, scale: 0.95, x: 10 }}
+                                            className="absolute right-12 top-0 w-48 bg-white/20 dark:bg-slate-900/40 backdrop-blur-2xl rounded-2xl shadow-2xl border border-white/20 dark:border-slate-800 p-2 z-50"
+                                        >
+                                            <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-3 py-2 border-b border-gray-50 mb-1">Affichage Carte</div>
+
+                                            <button
+                                                onClick={() => setVisibleLayers(prev => ({ ...prev, auto: !prev.auto }))}
+                                                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition-colors mb-1 ${visibleLayers.auto ? 'bg-orange-50 text-orange-700' : 'text-gray-500 hover:bg-gray-50'}`}
+                                            >
+                                                <div className="flex flex-col items-start">
+                                                    <span className="text-[11px] font-bold">Mode Auto</span>
+                                                    <span className="text-[9px] opacity-60">Gestion intelligente</span>
+                                                </div>
+                                                <div className={`w-2 h-2 rounded-full ${visibleLayers.auto ? 'bg-orange-500 animate-pulse' : 'bg-gray-200'}`} />
+                                            </button>
+
+                                            <div className="h-px bg-gray-100 dark:bg-slate-800 my-1 mx-2"></div>
+
+                                            <button
+                                                onClick={() => setVisibleLayers(prev => ({ ...prev, live: !prev.live, auto: false }))}
+                                                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition-colors ${visibleLayers.live ? 'bg-green-50 text-green-700' : 'text-gray-500 hover:bg-gray-50'}`}
+                                            >
+                                                <span className="text-[11px] font-bold">Route Planifiée</span>
+                                                <div className={`w-2 h-2 rounded-full ${visibleLayers.live ? 'bg-green-600' : 'bg-gray-200'}`} />
+                                            </button>
+
+                                            <button
+                                                onClick={() => setVisibleLayers(prev => ({ ...prev, pending: !prev.pending, auto: false }))}
+                                                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition-colors ${visibleLayers.pending ? 'bg-blue-50 text-blue-700' : 'text-gray-500 hover:bg-gray-50'}`}
+                                            >
+                                                <span className="text-[11px] font-bold">Modifications</span>
+                                                <div className={`w-2 h-2 rounded-full ${visibleLayers.pending ? 'bg-blue-600' : 'bg-gray-200'}`} />
+                                            </button>
+
+                                            <button
+                                                onClick={() => setVisibleLayers(prev => ({ ...prev, actual: !prev.actual, auto: false }))}
+                                                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition-colors ${visibleLayers.actual ? 'bg-amber-50 text-amber-700' : 'text-gray-500 hover:bg-gray-50'}`}
+                                            >
+                                                <span className="text-[11px] font-bold">Tracé Réel</span>
+                                                <div className={`w-2 h-2 rounded-full ${visibleLayers.actual ? 'bg-amber-500' : 'bg-gray-200'}`} />
+                                            </button>
+
+                                            {/* Sources Tooltip */}
+                                            <div className="mt-2 p-2 bg-white/10 dark:bg-slate-800/40 rounded-lg border border-white/10 dark:border-slate-800">
+                                                <div className="text-[9px] text-gray-400 font-bold mb-1 uppercase tracking-wider">Sources du tracé</div>
+                                                <div className="flex flex-col gap-1">
+                                                    <div className="flex justify-between items-center text-[10px]">
+                                                        <span className="text-gray-500">Prévu:</span>
+                                                        <span className="font-mono bg-white dark:bg-slate-900 px-1 rounded border border-gray-100 dark:border-slate-800">{order?.route_metadata?.live_source || '...'}</span>
+                                                    </div>
+                                                    <div className="flex justify-between items-center text-[10px]">
+                                                        <span className="text-gray-500">Modif.:</span>
+                                                        <span className="font-mono bg-white dark:bg-slate-900 px-1 rounded border border-gray-100 dark:border-slate-800">{order?.route_metadata?.pending_source || '...'}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
+                            </div>
+                            <button
+                                onClick={() => setIsLayerMenuOpen(!isLayerMenuOpen)}
+                                className={`p-2 rounded-lg shadow-md transition-all ${isLayerMenuOpen ? 'bg-emerald-600 text-white' : 'bg-white dark:bg-slate-900 text-gray-600 hover:bg-gray-50'}`}
+                                title="Couches de la carte"
+                            >
+                                <Layers size={18} />
+                            </button>
+
+                            <button
+                                onClick={() => setIsCreativeMode(!isCreativeMode)}
+                                className={`p-2 rounded-lg shadow-md transition-all ${isCreativeMode ? 'bg-orange-500 text-white animate-pulse' : 'bg-white dark:bg-slate-900 text-gray-600 hover:bg-gray-50'}`}
+                                title={isCreativeMode ? "Désactiver le Mode Créatif" : "Activer le Mode Créatif (cliquer sur la carte pour ajouter un stop)"}
+                            >
+                                <MapPinPlus size={18} />
+                            </button>
+                            <button
+                                onClick={() => fetchRoute({ force: true })}
+                                disabled={isRouteLoading}
+                                className={`p-2 bg-white dark:bg-slate-900 rounded-lg shadow-md text-gray-600 hover:bg-gray-50 transition-all ${isRouteLoading ? 'opacity-50' : ''}`}
+                                title="Recalculer la route (VROOM)"
+                            >
+                                <RotateCcw size={18} className={isRouteLoading ? 'animate-spin' : ''} />
+                            </button>
+                            <button className="p-2 bg-white dark:bg-slate-900 rounded-lg shadow-md hover:bg-gray-50 text-gray-600">
+                                <Navigation size={18} />
+                            </button>
+                        </div>
                     </div>
 
                     <div
@@ -1785,7 +2004,7 @@ export default function Page() {
                                     { id: 'items' as const, icon: Package, label: 'Items', activeClass: 'bg-rose-100 dark:bg-rose-500/20 text-rose-600 shadow-lg shadow-rose-200/50 dark:shadow-rose-500/10 scale-105', dotClass: 'bg-rose-500' },
                                     { id: 'operation' as const, icon: Truck, label: 'Opération', activeClass: 'bg-indigo-100 dark:bg-indigo-500/20 text-indigo-600 shadow-lg shadow-indigo-200/50 dark:shadow-indigo-500/10 scale-105', dotClass: 'bg-indigo-500' },
                                     { id: 'weight' as const, icon: LayoutGrid, label: 'Charge', activeClass: 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 shadow-lg shadow-emerald-200/50 dark:shadow-emerald-500/10 scale-105', dotClass: 'bg-emerald-500' },
-                                    { id: 'route' as const, icon: MapPin, label: 'Route', activeClass: 'bg-emerald-200 dark:bg-emerald-500/20 text-emerald-600 shadow-lg shadow-emerald-200/50 dark:shadow-emerald-500/10 scale-105', dotClass: 'bg-emerald-500' },
+                                    { id: 'bookings' as const, icon: Ticket, label: 'Bookings', activeClass: 'bg-blue-100 dark:bg-blue-500/20 text-blue-600 shadow-lg shadow-blue-200/50 dark:shadow-blue-500/10 scale-105', dotClass: 'bg-blue-500' },
                                     { id: 'history' as const, icon: Clock, label: 'Historique', activeClass: 'bg-amber-100 dark:bg-amber-500/20 text-amber-600 shadow-lg shadow-amber-200/50 dark:shadow-amber-500/10 scale-105', dotClass: 'bg-amber-500' },
                                 ]).map(({ id, icon: Icon, label, activeClass, dotClass }) => (
                                     <button
@@ -1834,7 +2053,7 @@ export default function Page() {
                                 }}
                                 transition={{ type: 'spring', stiffness: 300, damping: 30 }}
                                 className={`z-60 absolute flex flex-col bg-white/40 dark:bg-slate-900/40 backdrop-blur-3xl px-4 pt-4 pb-2 rounded-[32px] border border-white/60 dark:border-slate-800 shadow-[0_20px_50px_rgba(0,0,0,0.15)] dark:shadow-[0_20px_50px_rgba(0,0,0,0.4)] pointer-events-auto min-w-0 
-                                    ${windowWidth < 650 ||isSidebarFullscreen ? 'left-2 right-2 bottom-3' : 'left-[80px] max-w-[calc(100%-32px)]'}`}
+                                    ${windowWidth < 650 || isSidebarFullscreen ? 'left-2 right-2 bottom-3' : 'left-[80px] max-w-[calc(100%-32px)]'}`}
                                 style={{
                                     top: `${headerHeight}px`,
                                     bottom: windowWidth < 650 ? '12px' : '16px',
@@ -2054,21 +2273,21 @@ export default function Page() {
                             <motion.div
                                 key="right-panel"
                                 initial={{ opacity: 0, x: windowWidth < 650 ? 0 : -20, y: windowWidth < 650 ? 20 : 0 }}
-                                animate={{ opacity: 1, x: 0, y: 0, width: windowWidth < 650 ? 'auto' : 372 }}
+                                animate={{ opacity: 1, x: 0, y: 0, width: windowWidth < 650 ? 'auto' : 400 }}
                                 exit={{ opacity: 0, x: windowWidth < 650 ? 0 : -20, y: windowWidth < 650 ? 20 : 0 }}
                                 transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-                                className={`overflow-hidden flex flex-col p-4 z-[60] ${windowWidth < 650 ? 'absolute left-2 right-2 bottom-3' : 'absolute left-[72px] right-0'}`}
+                                className={`overflow-hidden flex flex-col p-2 z-[60] ${windowWidth < 650 ? 'absolute left-2 right-2 bottom-3' : 'absolute left-[72px] right-0'}`}
                                 style={{
                                     top: `${headerHeight}px`,
                                     bottom: '16px'
                                 }}
                             >
                                 {/* ... panel content ... */}
-                                <div className={`bg-white/40 dark:bg-slate-900/40 backdrop-blur-3xl rounded-[32px] border border-white/60 dark:border-slate-800 shadow-[0_20px_50px_rgba(0,0,0,0.2)] p-6 flex flex-col h-full overflow-hidden ${windowWidth < 650 ? 'w-full' : 'w-[350px]'}`}>
+                                <div className={`bg-white/40 dark:bg-slate-900/40 backdrop-blur-3xl rounded-[32px] border border-white/60 dark:border-slate-800 shadow-[0_20px_50px_rgba(0,0,0,0.2)]  flex flex-col h-full overflow-hidden ${windowWidth < 650 ? 'w-full' : 'w-[385px]'}`}>
                                     {/* Panel Header */}
-                                    <div className="flex items-center justify-between mb-5 pb-4 border-b border-gray-200/50 dark:border-slate-700/50 flex-shrink-0">
-                                        <h3 className="text-[11px] font-black text-gray-800 dark:text-slate-200 uppercase tracking-[0.2em]">
-                                            {activeRightPanel === 'route' && 'Route Details'}
+                                    <div className="flex items-center justify-between p-2.5  border-b border-gray-200/50 dark:border-slate-700/50 flex-shrink-0">
+                                        <h3 className=" text-[11px] font-black text-gray-800 dark:text-slate-200 uppercase tracking-[0.2em]">
+                                            {activeRightPanel === 'bookings' && 'Bookings & Bagages'}
                                             {activeRightPanel === 'history' && 'History Status'}
                                             {activeRightPanel === 'operation' && 'Operation Details'}
                                             {activeRightPanel === 'weight' && 'Weight Distribution'}
@@ -2085,34 +2304,64 @@ export default function Page() {
                                     {/* Panel Content (Rest of the panel content follows...) */}
 
                                     {/* Panel Content */}
-                                    <div className="flex-1 overflow-y-auto scrollbar-hide">
-                                        {/* === ROUTE DETAILS === */}
-                                        {activeRightPanel === 'route' && (
-                                            routeDetails.length > 0 ? (
-                                                <div className="space-y-6 relative animate-in fade-in slide-in-from-right-4 duration-500">
-                                                    <div className="absolute left-[11px] top-[14px] bottom-[14px] w-0 border-l-2 border-dashed border-emerald-200 dark:border-emerald-800/50"></div>
-                                                    {routeDetails.map((stop: any) => (
-                                                        <div key={stop.id} className="flex gap-4 relative group">
-                                                            <div className="flex-shrink-0 w-6 h-6 rounded-full bg-emerald-600 dark:bg-emerald-500 flex items-center justify-center text-[10px] font-black text-white z-10 shadow-lg shadow-emerald-500/20 group-hover:scale-115 transition-transform">
-                                                                {stop.id}
-                                                            </div>
-                                                            <div className="pt-0.5 flex-1 min-w-0">
-                                                                <div className="flex items-center justify-between mb-1">
-                                                                    <div className="text-[12px] font-black text-slate-800 dark:text-slate-100 truncate group-hover:text-emerald-500 transition-colors uppercase tracking-tight">{stop.location}</div>
-                                                                    <div className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 bg-emerald-50/80 dark:bg-emerald-500/10 px-2 py-0.5 rounded-lg uppercase tracking-tighter shrink-0">{stop.timing}</div>
+                                    <div className="p-2 flex-1 overflow-y-auto scrollbar-hide">
+                                        {/* === BOOKINGS & BAGAGES === */}
+                                        {activeRightPanel === 'bookings' && (
+                                            (order?.bookings || []).length > 0 ? (
+                                                <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-500">
+                                                    {(order?.bookings || []).map((booking: any) => (
+                                                        <div key={booking.id} className="p-4 bg-white dark:bg-slate-800/50 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm group hover:border-blue-500/30 transition-all">
+                                                            <div className="flex items-center justify-between mb-3">
+                                                                <div className="flex items-center gap-3">
+                                                                    <div className="w-8 h-8 rounded-full bg-blue-500/10 text-blue-600 flex items-center justify-center">
+                                                                        <User size={14} />
+                                                                    </div>
+                                                                    <div>
+                                                                        <div className="text-[11px] font-black text-slate-800 dark:text-slate-100 uppercase tracking-tight">{booking.client?.fullName || 'Client Inconnu'}</div>
+                                                                        <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{booking.id}</div>
+                                                                    </div>
                                                                 </div>
-                                                                <div className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest leading-relaxed line-clamp-1">{stop.address}</div>
+                                                                <div className={`px-2 py-0.5 rounded-lg text-[8px] font-black uppercase tracking-tighter ${booking.status === 'CONFIRMED' ? 'bg-emerald-50 text-emerald-600' :
+                                                                    booking.status === 'CANCELLED' ? 'bg-rose-50 text-rose-600' :
+                                                                        'bg-amber-50 text-amber-600'
+                                                                    }`}>
+                                                                    {booking.status}
+                                                                </div>
                                                             </div>
+
+                                                            <div className="flex flex-wrap gap-2 mb-3">
+                                                                {booking.seatsReserved?.map((seat: string) => (
+                                                                    <div key={seat} className="px-2 py-1 bg-slate-100 dark:bg-slate-700/50 rounded-lg flex items-center gap-1.5 border border-slate-200 dark:border-slate-600">
+                                                                        <Ticket size={10} className="text-blue-500" />
+                                                                        <span className="text-[9px] font-black text-slate-700 dark:text-slate-200">Siège {seat}</span>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+
+                                                            {booking.transitItems?.filter((ti: any) => ti.metadata?.type === 'luggage').length > 0 && (
+                                                                <div className="space-y-1.5 pt-2 border-t border-slate-100 dark:border-slate-700">
+                                                                    <div className="text-[8px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Bagages</div>
+                                                                    {booking.transitItems.filter((ti: any) => ti.metadata?.type === 'luggage').map((ti: any) => (
+                                                                        <div key={ti.id} className="flex items-center justify-between py-1">
+                                                                            <div className="flex items-center gap-2">
+                                                                                <Package size={10} className="text-slate-400" />
+                                                                                <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300">{ti.name}</span>
+                                                                            </div>
+                                                                            <span className="text-[9px] font-mono text-slate-400">{ti.weight}kg</span>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     ))}
                                                 </div>
                                             ) : (
                                                 <div className="flex flex-col items-center justify-center h-full text-center py-20 animate-in fade-in duration-700">
                                                     <div className="w-16 h-16 bg-slate-50 dark:bg-slate-800/50 rounded-[28px] flex items-center justify-center mb-4 text-slate-300 dark:text-slate-700 border border-slate-100 dark:border-slate-800">
-                                                        <MapPin size={32} />
+                                                        <Ticket size={32} />
                                                     </div>
-                                                    <p className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] mb-2">Pas d'itinéraire</p>
-                                                    <p className="text-[9px] text-slate-400 dark:text-slate-500 font-bold max-w-[180px] leading-relaxed">Ajoutez des points de passage pour générer le parcours détaillé.</p>
+                                                    <p className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] mb-2">Aucune réservation</p>
+                                                    <p className="text-[9px] text-slate-400 dark:text-slate-500 font-bold max-w-[180px] leading-relaxed">Les réservations de passagers apparaîtront ici pour ce voyage.</p>
                                                 </div>
                                             )
                                         )}
@@ -2293,69 +2542,440 @@ export default function Page() {
                                         )}
                                         {/* === TRANSIT ITEMS === */}
                                         {activeRightPanel === 'items' && (
-                                            <div className="flex flex-col h-full animate-in fade-in slide-in-from-right-4 duration-500">
-                                                <div className="flex items-center justify-between mb-5 px-1">
-                                                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.15em]">
-                                                        {order?.transitItems?.length || 0} ITEMS EN TRANSIT
-                                                    </div>
-                                                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
-                                                </div>
+                                            <div className="flex flex-col h-full animate-in fade-in slide-in-from-right-4 duration-500 relative overflow-hidden">
+                                                <AnimatePresence mode="wait" custom={itemDirection}>
+                                                    {itemSubView === 'list' && (
+                                                        <motion.div
+                                                            key="list"
+                                                            custom={itemDirection}
+                                                            variants={variants}
+                                                            initial="enter"
+                                                            animate="center"
+                                                            exit="exit"
+                                                            transition={transition}
+                                                            className=" flex flex-col h-full"
+                                                        >
+                                                            <div className="flex items-center justify-between mb-5 px-1">
+                                                                <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.15em]">
+                                                                    {order?.transitItems?.length || 0} ITEMS EN TRANSIT
+                                                                </div>
+                                                                <button
+                                                                    onClick={handleStandaloneCreateOpen}
+                                                                    className="p-2 bg-emerald-500 text-white rounded-xl hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-500/20 active:scale-95 flex items-center gap-1.5 group/add"
+                                                                >
+                                                                    <Plus size={14} className="group-hover/add:rotate-90 transition-transform" />
+                                                                    <span className="text-[9px] font-black uppercase tracking-widest">Ajouter</span>
+                                                                </button>
+                                                            </div>
 
-                                                <div className="flex-1 overflow-y-auto pr-1 space-y-3.5 scrollbar-hide pb-20">
-                                                    {order?.transitItems && order.transitItems.length > 0 ? (
-                                                        order.transitItems.map((item: any) => (
-                                                            <div
-                                                                key={item.id}
-                                                                className="group relative bg-white/40 dark:bg-slate-800/40 rounded-[28px] p-4 border border-white/60 dark:border-slate-700/40 hover:border-emerald-300 dark:hover:border-emerald-500/50 transition-all cursor-pointer shadow-sm hover:shadow-xl hover:-translate-y-1"
-                                                                onClick={() => {
-                                                                    const stopWithItem = steps.flatMap(s => s.stops).find(st =>
-                                                                        st.actions?.some((a: any) => a.transitItemId === item.id)
-                                                                    );
-                                                                    if (stopWithItem) {
-                                                                        const stepIdx = steps.findIndex(s => s.stops.some(st => st.id === stopWithItem.id));
-                                                                        const stopIdx = steps[stepIdx].stops.findIndex(st => st.id === stopWithItem.id);
-                                                                        handleOpenStopDetail(stepIdx, stopIdx);
-                                                                    }
-                                                                }}
-                                                            >
-                                                                <div className="flex items-center gap-4">
-                                                                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-50 to-white dark:from-emerald-900/20 dark:to-slate-800 flex items-center justify-center text-emerald-500 border border-emerald-100/50 dark:border-emerald-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-500">
-                                                                        <Package size={22} strokeWidth={2.5} />
-                                                                    </div>
-                                                                    <div className="flex-1 min-w-0">
-                                                                        <div className="flex justify-between items-start mb-1">
-                                                                            <h4 className="text-[12px] font-black text-slate-800 dark:text-slate-100 uppercase tracking-tight truncate">
-                                                                                {item.name}
-                                                                            </h4>
-                                                                            <span className="text-[10px] font-mono font-black text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded-lg">
-                                                                                {item.weight > 0 ? `${(item.weight / 1000).toFixed(1)}kg` : ''}
-                                                                            </span>
-                                                                        </div>
-                                                                        <div className="flex items-center gap-2">
-                                                                            <span className={`px-2 py-0.5 rounded-lg text-[8px] font-black uppercase tracking-widest
-                                                                                    ${item.status === 'DELIVERED' ? 'bg-emerald-500 text-white' :
-                                                                                    item.status === 'IN_TRANSIT' ? 'bg-amber-500 text-white' :
-                                                                                        'bg-slate-100 dark:bg-slate-700 text-slate-500'}`}>
-                                                                                {item.status || 'DRAFT'}
-                                                                            </span>
-                                                                            <div className="flex items-center gap-1 text-[9px] text-slate-400 font-bold uppercase tracking-tighter">
-                                                                                <div className="w-1 h-1 rounded-full bg-slate-300"></div>
-                                                                                Ref: {item.id.slice(-8)}
+                                                            <div className="flex-1 overflow-y-auto  space-y-3.5 scrollbar-hide pb-20">
+                                                                {order?.transitItems && order.transitItems.length > 0 ? (
+                                                                    order.transitItems.map((item: any) => (
+                                                                        <div
+                                                                            key={item.id}
+                                                                            className="group relative bg-white/40 dark:bg-slate-800/40 rounded-[28px] p-4 border border-white/60 dark:border-slate-700/40 hover:border-emerald-300 dark:hover:border-emerald-500/50 transition-all cursor-pointer shadow-sm hover:shadow-xl hover:-translate-y-1"
+                                                                            onClick={() => handleSelectItem(item.id)}
+                                                                        >
+                                                                            <div className="flex items-center gap-4">
+                                                                                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-50 to-white dark:from-emerald-900/20 dark:to-slate-800 flex items-center justify-center text-emerald-500 border border-emerald-100/50 dark:border-emerald-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-500">
+                                                                                    <Package size={22} strokeWidth={2.5} />
+                                                                                </div>
+                                                                                <div className="flex-1 min-w-0">
+                                                                                    <div className="flex justify-between items-start mb-1">
+                                                                                        <h4 className="text-[12px] font-black text-slate-800 dark:text-slate-100 uppercase tracking-tight truncate">
+                                                                                            {item.name}
+                                                                                        </h4>
+                                                                                        <span className="text-[10px] font-mono font-black text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded-lg">
+                                                                                            {item.weight > 0 ? `${(item.weight / 1000).toFixed(1)}kg` : ''}
+                                                                                        </span>
+                                                                                    </div>
+                                                                                    <div className="flex items-center gap-2">
+                                                                                        <span className={`px-2 py-0.5 rounded-lg text-[8px] font-black uppercase tracking-widest
+                                                                                                ${item.status === 'DELIVERED' ? 'bg-emerald-500 text-white' :
+                                                                                                item.status === 'IN_TRANSIT' ? 'bg-amber-500 text-white' :
+                                                                                                    'bg-slate-100 dark:bg-slate-700 text-slate-500'}`}>
+                                                                                            {item.status || 'DRAFT'}
+                                                                                        </span>
+                                                                                        <div className="flex items-center gap-1 text-[9px] text-slate-400 font-bold uppercase tracking-tighter">
+                                                                                            <div className="w-1 h-1 rounded-full bg-slate-300"></div>
+                                                                                            Ref: {item.id.slice(-8)}
+                                                                                        </div>
+                                                                                    </div>
+                                                                                </div>
                                                                             </div>
                                                                         </div>
+                                                                    ))
+                                                                ) : (
+                                                                    <div className="flex flex-col items-center justify-center py-20 text-slate-300 dark:text-slate-700 text-center">
+                                                                        <div className="w-16 h-16 rounded-[24px] bg-slate-50 dark:bg-slate-800/50 flex items-center justify-center mb-4 border border-slate-100 dark:border-slate-800">
+                                                                            <Package size={32} className="opacity-20" />
+                                                                        </div>
+                                                                        <div className="text-[10px] font-black uppercase tracking-widest opacity-50">Aucun item</div>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </motion.div>
+                                                    )}
+
+                                                    {itemSubView === 'create' && (
+                                                        <TransitItemDetailView
+                                                            direction={itemDirection}
+                                                            transitItemForm={itemForm}
+                                                            isCreatingTransitItem={isSavingStandaloneItem}
+                                                            isEditing={!!selectedTransitItemId}
+                                                            setDirection={setItemDirection}
+                                                            onBack={() => {
+                                                                setItemSubView('list');
+                                                                setSelectedTransitItemId(null);
+                                                            }}
+                                                            setTransitItemForm={setItemForm}
+                                                            handleConfirmCreateTransitItem={handleStandaloneCreateConfirm}
+                                                        />
+                                                    )}
+
+                                                    {itemSubView === 'detail' && selectedTransitItemId && (
+                                                        <motion.div
+                                                            key="detail"
+                                                            custom={itemDirection}
+                                                            variants={variants}
+                                                            initial="enter"
+                                                            animate="center"
+                                                            exit="exit"
+                                                            transition={transition}
+                                                            className="absolute inset-0 flex flex-col"
+                                                        >
+                                                            {(() => {
+                                                                const item = order?.transitItems?.find(i => i.id === selectedTransitItemId);
+                                                                const linkedActions: any[] = [];
+                                                                steps.forEach((step, stepIdx) => {
+                                                                    step.stops.forEach((stop, stopIdx) => {
+                                                                        (stop.actions || []).forEach(action => {
+                                                                            if (action.transitItemId === selectedTransitItemId) {
+                                                                                linkedActions.push({
+                                                                                    ...action,
+                                                                                    stopAddress: stop.address?.street || stop.address?.formattedAddress || stop.address?.label,
+                                                                                    stepIndex: stepIdx,
+                                                                                    stopIndex: stopIdx
+                                                                                });
+                                                                            }
+                                                                        });
+                                                                    });
+                                                                });
+
+                                                                return (
+                                                                    <>
+                                                                        {/* Header */}
+                                                                        <div className="flex items-center justify-between p-2 bg-white dark:bg-slate-900 border-b border-gray-100 dark:border-slate-800">
+                                                                            <div className="flex items-center gap-4">
+                                                                                <button
+                                                                                    onClick={() => {
+                                                                                        setItemDirection(-1);
+                                                                                        setItemSubView('list');
+                                                                                    }}
+                                                                                    className="p-2 bg-gray-50 dark:bg-slate-800 text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-200 rounded-xl transition-all"
+                                                                                >
+                                                                                    <ChevronLeft size={20} />
+                                                                                </button>
+                                                                                <div className="flex flex-col">
+                                                                                    <span className="text-[10px] text-emerald-600 dark:text-emerald-400 uppercase tracking-[0.2em] mb-0.5">
+                                                                                        Détail de l'Item
+                                                                                    </span>
+                                                                                    <h2 className="text-xl tracking-tight font-bold text-gray-900 dark:text-slate-100">
+                                                                                        {item?.name || 'Inconnu'}
+                                                                                    </h2>
+                                                                                </div>
+                                                                            </div>
+                                                                            <button
+                                                                                onClick={() => {
+                                                                                    setItemForm({
+                                                                                        name: item?.name || '',
+                                                                                        weight: item?.weight || 0,
+                                                                                        unitary_price: item?.unitary_price ?? (item as any)?.unitaryPrice ?? 0,
+                                                                                        packaging_type: item?.packaging_type ?? (item as any)?.packagingType ?? 'box',
+                                                                                        dimensions: (item?.dimensions as any) || { width_cm: 0, height_cm: 0, depth_cm: 0 },
+                                                                                        requirements: item?.requirements || item?.metadata?.requirements || [],
+                                                                                        client_data: {
+                                                                                            name: item?.client_name || (item as any)?.clientName || item?.metadata?.client_data?.name || '',
+                                                                                            phone: item?.client_phone || (item as any)?.clientPhone || item?.metadata?.client_data?.phone || '',
+                                                                                            reference: item?.client_reference || (item as any)?.clientReference || item?.metadata?.client_data?.reference || ''
+                                                                                        }
+                                                                                    });
+                                                                                    setSelectedTransitItemId(item.id);
+                                                                                    setItemDirection(1);
+                                                                                    setItemSubView('create');
+                                                                                }}
+                                                                                className="p-2 text-slate-400 hover:text-emerald-500 transition-colors"
+                                                                            >
+                                                                                <Pencil size={18} />
+                                                                            </button>
+                                                                        </div>
+
+                                                                        <div className="flex-1 overflow-y-auto scrollbar-hide p-6 space-y-8">
+                                                                            {/* Stats & Specifications */}
+                                                                            <div className="space-y-4">
+                                                                                <div className="grid grid-cols-2 gap-4">
+                                                                                    <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm">
+                                                                                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Poids</div>
+                                                                                        <div className="text-lg font-black text-slate-800 dark:text-slate-100">{item?.weight ? `${(item.weight / 1000).toFixed(2)} Kg` : '--'}</div>
+                                                                                    </div>
+                                                                                    <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm">
+                                                                                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Prix Unit.</div>
+                                                                                        <div className="text-lg font-black text-slate-800 dark:text-slate-100">{item?.unitary_price || '0.00'} €</div>
+                                                                                    </div>
+                                                                                </div>
+
+                                                                                <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm space-y-3">
+                                                                                    <div className="flex items-center justify-between pb-2 border-b border-gray-50 dark:border-slate-800">
+                                                                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Spécifications</span>
+                                                                                        <span className="px-2 py-0.5 rounded bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[8px] font-black uppercase tracking-widest">
+                                                                                            {item?.packaging_type === 'fluid' ? 'Fluide' : 'Carton'}
+                                                                                        </span>
+                                                                                    </div>
+                                                                                    <div className="grid grid-cols-2 gap-y-2">
+                                                                                        <div className="flex flex-col">
+                                                                                            <span className="text-[9px] text-slate-400 uppercase font-bold">Dimensions</span>
+                                                                                            <span className="text-[11px] font-black text-slate-700 dark:text-slate-300">
+                                                                                                {item?.dimensions?.width_cm || 0}x{item?.dimensions?.height_cm || 0}x{item?.dimensions?.depth_cm || 0} cm
+                                                                                            </span>
+                                                                                        </div>
+                                                                                        <div className="flex flex-col">
+                                                                                            <span className="text-[9px] text-slate-400 uppercase font-bold">Client Final</span>
+                                                                                            <span className="text-[11px] font-black text-slate-700 dark:text-slate-300 truncate">
+                                                                                                {item?.client_name || item?.metadata?.client_data?.name || 'Non défini'}
+                                                                                            </span>
+                                                                                        </div>
+                                                                                    </div>
+                                                                                    {(() => {
+                                                                                        const reqs = item?.requirements || item?.metadata?.requirements;
+                                                                                        if (!reqs || reqs.length === 0) return null;
+                                                                                        return (
+                                                                                            <div className="flex flex-wrap gap-1 mt-2">
+                                                                                                {reqs.map((req: string) => (
+                                                                                                    <span key={req} className="px-1.5 py-0.5 rounded-md bg-slate-50 dark:bg-slate-800 text-[8px] text-slate-500 font-black uppercase border border-slate-100 dark:border-slate-700">
+                                                                                                        {req}
+                                                                                                    </span>
+                                                                                                ))}
+                                                                                            </div>
+                                                                                        );
+                                                                                    })()}
+                                                                                </div>
+                                                                            </div>
+
+                                                                            {/* Actions List */}
+                                                                            <section>
+                                                                                <div className="flex items-center justify-between mb-4">
+                                                                                    <div className="flex items-center gap-2">
+                                                                                        <div className="p-2 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-lg">
+                                                                                            <Boxes size={16} />
+                                                                                        </div>
+                                                                                        <h3 className="text-[12px] uppercase tracking-widest text-gray-400 dark:text-slate-500 font-bold">Planned Actions</h3>
+                                                                                    </div>
+                                                                                    <button
+                                                                                        onClick={() => {
+                                                                                            setItemDirection(1);
+                                                                                            setItemSubView('plan');
+                                                                                        }}
+                                                                                        className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-md shadow-emerald-200"
+                                                                                    >
+                                                                                        <Plus size={12} />
+                                                                                        Ajouter
+                                                                                    </button>
+                                                                                </div>
+
+                                                                                <div className="space-y-3">
+                                                                                    {linkedActions.length > 0 ? linkedActions.map((action: any, idx: number) => (
+                                                                                        <div
+                                                                                            key={action.id || idx}
+                                                                                            className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-gray-100 dark:border-slate-800 group hover:border-emerald-200 transition-all cursor-pointer"
+                                                                                            onClick={() => handleOpenStopDetail(action.stepIndex, action.stopIndex)}
+                                                                                        >
+                                                                                            <div className="flex items-center justify-between mb-2">
+                                                                                                <span className={`px-2 py-0.5 rounded-lg text-[8px] font-black uppercase tracking-widest ${action.type === 'PICKUP' ? 'bg-emerald-500 text-white' :
+                                                                                                    action.type === 'DELIVERY' ? 'bg-rose-500 text-white' : 'bg-slate-500 text-white'
+                                                                                                    }`}>
+                                                                                                    {action.type}
+                                                                                                </span>
+                                                                                                <span className="text-[11px] font-black text-slate-800 dark:text-slate-100">Qty: {action.quantity}</span>
+                                                                                            </div>
+                                                                                            <div className="text-[10px] text-slate-500 truncate font-bold uppercase tracking-tight">
+                                                                                                {action.stopAddress}
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    )) : (
+                                                                                        <div className="py-8 text-center text-slate-400 text-[10px] font-black uppercase tracking-widest border-2 border-dashed border-gray-100 rounded-2xl">
+                                                                                            Aucune action planifiée
+                                                                                        </div>
+                                                                                    )}
+                                                                                </div>
+                                                                            </section>
+                                                                        </div>
+
+                                                                        <div className="p-6">
+                                                                            {/* Removed bottom button per user request */}
+                                                                        </div>
+                                                                    </>
+                                                                );
+                                                            })()}
+                                                        </motion.div>
+                                                    )}
+
+                                                    {itemSubView === 'plan' && selectedTransitItemId && (
+                                                        <motion.div
+                                                            key="plan"
+                                                            custom={itemDirection}
+                                                            variants={variants}
+                                                            initial="enter"
+                                                            animate="center"
+                                                            exit="exit"
+                                                            transition={transition}
+                                                            className="absolute inset-0 flex flex-col bg-[#f8fafc] dark:bg-slate-950"
+                                                        >
+                                                            <div className="flex items-center justify-between p-2 bg-white dark:bg-slate-900 border-b border-gray-100 dark:border-slate-800">
+                                                                <div className="flex items-center gap-4">
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            setItemDirection(-1);
+                                                                            setItemSubView('detail');
+                                                                        }}
+                                                                        className="p-2 bg-gray-50 dark:bg-slate-800 text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-200 rounded-xl transition-all"
+                                                                    >
+                                                                        <ChevronLeft size={20} />
+                                                                    </button>
+                                                                    <div className="flex flex-col">
+                                                                        <span className="text-[10px] text-emerald-600 dark:text-emerald-400 uppercase tracking-[0.2em] mb-0.5">
+                                                                            Planifier
+                                                                        </span>
+                                                                        <h2 className="text-xl tracking-tight font-bold text-gray-900 dark:text-slate-100">
+                                                                            Choisir un arrêt
+                                                                        </h2>
                                                                     </div>
                                                                 </div>
                                                             </div>
-                                                        ))
-                                                    ) : (
-                                                        <div className="flex flex-col items-center justify-center py-20 text-slate-300 dark:text-slate-700 text-center">
-                                                            <div className="w-16 h-16 rounded-[24px] bg-slate-50 dark:bg-slate-800/50 flex items-center justify-center mb-4 border border-slate-100 dark:border-slate-800">
-                                                                <Package size={32} className="opacity-20" />
+
+                                                            <div className="flex-1 overflow-y-auto scrollbar-hide p-6 space-y-6">
+                                                                {!selectedStopIdForPlanning ? (
+                                                                    <div className="space-y-3 pb-8">
+                                                                        {steps.flatMap(s => s.stops).map((stop: any, index: number) => {
+                                                                            const pickupCount = stop.actions?.filter((a: any) => a.type?.toLowerCase() === 'pickup').length || 0;
+                                                                            const deliveryCount = stop.actions?.filter((a: any) => a.type?.toLowerCase() === 'delivery').length || 0;
+                                                                            const serviceCount = stop.actions?.filter((a: any) => a.type?.toLowerCase() === 'service').length || 0;
+
+                                                                            return (
+                                                                                <div
+                                                                                    key={stop.id}
+                                                                                    className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-gray-100 dark:border-slate-800 hover:border-emerald-200 transition-all cursor-pointer group flex items-center gap-4"
+                                                                                    onClick={() => setSelectedStopIdForPlanning(stop.id)}
+                                                                                >
+                                                                                    <div className="w-8 h-8 rounded-full bg-slate-50 dark:bg-slate-800 flex items-center justify-center text-[10px] font-black text-slate-400 group-hover:bg-emerald-500 group-hover:text-white transition-colors">
+                                                                                        {index + 1}
+                                                                                    </div>
+                                                                                    <div className="flex-1 min-w-0">
+                                                                                        <div className="text-[11px] font-black text-slate-800 dark:text-slate-100 uppercase mb-1 truncate">
+                                                                                            {stop.address?.street || stop.address?.formattedAddress || (stop.address as any)?.label}
+                                                                                        </div>
+                                                                                        <div className="flex flex-wrap gap-2">
+                                                                                            {pickupCount > 0 && <span className="text-[10px] flex items-center gap-1 font-bold text-emerald-500 uppercase">{pickupCount}
+                                                                                                <ArrowUpRight className="w-4 h-4" />
+                                                                                            </span>}
+                                                                                            {deliveryCount > 0 && <span className="text-[10px] flex items-center gap-1 font-bold text-rose-500 uppercase">{deliveryCount}
+                                                                                                <ArrowDownRight className="w-4 h-4" />
+                                                                                            </span>}
+                                                                                            {serviceCount > 0 && <span className="text-[10px] flex items-center gap-1 font-bold text-blue-500 uppercase">{serviceCount}
+                                                                                                <Wrench className="w-4 h-4" />
+                                                                                            </span>}
+                                                                                            {pickupCount === 0 && deliveryCount === 0 && serviceCount === 0 && (
+                                                                                                <span className="text-[8px] font-bold text-slate-400 uppercase italic">Aucune action</span>
+                                                                                            )}
+                                                                                        </div>
+                                                                                    </div>
+                                                                                </div>
+                                                                            );
+                                                                        })}
+                                                                    </div>
+                                                                ) : (
+                                                                    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                                                        <div className="bg-emerald-50 dark:bg-emerald-500/10 p-4 rounded-2xl border border-emerald-100 dark:border-emerald-500/20">
+                                                                            <div className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold uppercase mb-1">Arrêt sélectionné</div>
+                                                                            <div className="text-[12px] font-black text-slate-800 dark:text-slate-100 truncate">
+                                                                                {steps.flatMap(s => s.stops).find((s: any) => s.id === selectedStopIdForPlanning)?.address?.label}
+                                                                            </div>
+                                                                            <button
+                                                                                onClick={() => setSelectedStopIdForPlanning(null)}
+                                                                                className="mt-2 text-[9px] text-emerald-600 font-black uppercase underline"
+                                                                            >
+                                                                                Changer d'arrêt
+                                                                            </button>
+                                                                        </div>
+
+                                                                        <div className="space-y-4">
+                                                                            <div>
+                                                                                <label className="text-[10px] text-slate-400 font-black uppercase tracking-widest px-1 mb-2 block">Type d'Action</label>
+                                                                                <div className="flex gap-2">
+                                                                                    {['PICKUP', 'DELIVERY'].map(t => (
+                                                                                        <button
+                                                                                            key={t}
+                                                                                            onClick={() => setPlanningType(t as any)}
+                                                                                            className={`flex-1 py-3 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all ${planningType === t
+                                                                                                ? 'bg-emerald-500 text-white border-emerald-500'
+                                                                                                : 'bg-white text-slate-400 border-gray-100'
+                                                                                                }`}
+                                                                                        >
+                                                                                            {t}
+                                                                                        </button>
+                                                                                    ))}
+                                                                                </div>
+                                                                            </div>
+
+                                                                            <div>
+                                                                                <label className="text-[10px] text-slate-400 font-black uppercase tracking-widest px-1 mb-2 block">Quantité</label>
+                                                                                <div className="flex items-center gap-4 bg-white dark:bg-slate-900 p-2 rounded-2xl border border-gray-100 dark:border-slate-800">
+                                                                                    <button
+                                                                                        onClick={() => setPlanningQuantity(Math.max(1, planningQuantity - 1))}
+                                                                                        className="w-10 h-10 rounded-xl bg-gray-50 dark:bg-slate-800 flex items-center justify-center text-slate-500"
+                                                                                    >
+                                                                                        -
+                                                                                    </button>
+                                                                                    <input
+                                                                                        type="number"
+                                                                                        value={planningQuantity}
+                                                                                        onChange={(e) => setPlanningQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                                                                                        className="flex-1 text-center bg-transparent font-black text-slate-800 dark:text-slate-100"
+                                                                                    />
+                                                                                    <button
+                                                                                        onClick={() => setPlanningQuantity(planningQuantity + 1)}
+                                                                                        className="w-10 h-10 rounded-xl bg-gray-50 dark:bg-slate-800 flex items-center justify-center text-slate-500"
+                                                                                    >
+                                                                                        +
+                                                                                    </button>
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                )}
                                                             </div>
-                                                            <div className="text-[10px] font-black uppercase tracking-widest opacity-50">Aucun item</div>
-                                                        </div>
+
+                                                            <div className="p-6 bg-white dark:bg-slate-900 border-t border-gray-100 dark:border-slate-800">
+                                                                <button
+                                                                    onClick={handleConfirmPlanning}
+                                                                    disabled={!selectedStopIdForPlanning || isSavingStandaloneItem}
+                                                                    className={`w-full py-4 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${!selectedStopIdForPlanning || isSavingStandaloneItem
+                                                                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                                                        : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-lg shadow-emerald-200'
+                                                                        }`}
+                                                                >
+                                                                    {isSavingStandaloneItem ? (
+                                                                        <>
+                                                                            <Loader2 size={16} className="animate-spin" />
+                                                                            Planification...
+                                                                        </>
+                                                                    ) : (
+                                                                        'Confirmer la planification'
+                                                                    )}
+                                                                </button>
+                                                            </div>
+                                                        </motion.div>
                                                     )}
-                                                </div>
+                                                </AnimatePresence>
                                             </div>
                                         )}
                                     </div>

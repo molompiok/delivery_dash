@@ -1,14 +1,7 @@
 import client from './client';
 import { Vehicle } from './types';
+import { documentService } from './documents';
 
-// Base URL for file access
-const getFileBaseUrl = () => {
-    if ((import.meta as any).env?.VITE_API_URL) return (import.meta as any).env.VITE_API_URL.replace('/v1', '');
-    if (typeof window !== 'undefined') {
-        return `http://${window.location.hostname}:3333`;
-    }
-    return 'http://localhost:3333';
-};
 
 export const fleetService = {
     /**
@@ -87,27 +80,11 @@ export const fleetService = {
         return client.get<any[]>(`/vehicles/${vehicleId}/orders`);
     },
 
-    /**
-     * Get a file URL for viewing
-     * NEW FORMAT: Uses /fs/:filename route
-     */
     getFileUrl(filename: string) {
-        // Extract just the filename if it starts with 'fs/'
-        const cleanFilename = filename.startsWith('fs/') ? filename.substring(3) : filename;
-        return `${getFileBaseUrl()}/fs/${cleanFilename}`;
+        return documentService.getFileUrl(filename);
     },
 
-    /**
-     * View a document by requesting a temporary signed URL
-     */
     async getSignedUrl(filename: string) {
-        // 1. Get just the filename (security)
-        const cleanFilename = filename.startsWith('fs/') ? filename.substring(3) : filename;
-
-        // 2. Fetch temporary token from server
-        const { data } = await client.get<{ token: string }>(`/fs/token/${cleanFilename}`);
-
-        // 3. Construct direct URL with token
-        return `${getFileBaseUrl()}/fs/${cleanFilename}?token=${data.token}`;
+        return documentService.getSignedUrl(filename);
     }
 };

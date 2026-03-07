@@ -5,9 +5,9 @@ export const companyService = {
     /**
      * Get company profile
      */
-    async getProfile(companyId: string) {
-        // Assuming we can fetch company details
-        // Backend: GET /companies/:id
+    async getProfile(companyId?: string) {
+        // If no ID provided, get authenticated user's company
+        if (!companyId) return client.get<Company>('/company/me');
         return client.get<Company>(`/companies/${companyId}`);
     },
 
@@ -65,5 +65,19 @@ export const companyService = {
      */
     async updateRequirements(requirements: any[]) {
         return client.post<any[]>('/company/requirements', { requirements });
+    },
+
+    /**
+     * Create a new company
+     */
+    async create(data: { name: string, activityType: string, registreCommerce?: string, logo?: string, description?: string }) {
+        return client.post<Company>('/company', data);
+    },
+
+    /**
+     * Update company
+     */
+    async updateCompany(data: Partial<Company> | FormData) {
+        return client.put<Company>('/company', data);
     }
 };

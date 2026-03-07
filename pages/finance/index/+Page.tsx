@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
     CreditCard, Tag, Eye, EyeOff, Download, Send, Plus,
     TrendingUp, TrendingDown, ArrowUpRight, ArrowDownLeft,
@@ -10,6 +10,7 @@ import { walletService } from '../../../api/wallet';
 import { WalletGraph } from './components/WalletGraph';
 import { RechargeModal, WithdrawModal, TransferModal } from './components/WalletActionModals';
 import { Wallet as WalletType, Transaction, WalletStats } from '../../../api/types';
+import { socketClient } from '../../../api/socket';
 
 export default function Page() {
     const [isHidden, setIsHidden] = useState(() => {
@@ -28,6 +29,7 @@ export default function Page() {
     const [selectedWallet, setSelectedWallet] = useState<WalletType | null>(null);
     const [stats, setStats] = useState<WalletStats | null>(null);
     const [transactions, setTransactions] = useState<Transaction[]>([]);
+    const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // Modal states
     const [activeModal, setActiveModal] = useState<'RECHARGE' | 'WITHDRAW' | 'TRANSFER' | null>(null);
@@ -44,8 +46,10 @@ export default function Page() {
         }
     }, [selectedWallet, period]);
 
-    const fetchInitialData = async () => {
-        setLoading(true);
+    const fetchInitialData = async (silent = false) => {
+        if (!silent) {
+            setLoading(true);
+        }
         try {
             const walletList = await walletService.listWallets();
             setWallets(walletList);
@@ -57,7 +61,9 @@ export default function Page() {
         } catch (error) {
             console.error('Failed to fetch wallets', error);
         } finally {
-            setLoading(false);
+            if (!silent) {
+                setLoading(false);
+            }
         }
     };
 
@@ -78,6 +84,32 @@ export default function Page() {
             console.error('Failed to fetch stats/transactions', error);
         }
     };
+
+    useEffect(() => {
+        socketClient.joinFleetRoomFromStorage();
+
+        const scheduleSilentRefresh = () => {
+            if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+            refreshTimerRef.current = setTimeout(() => {
+                if (selectedWallet) {
+                    fetchStatsAndTransactions();
+                } else {
+                    fetchInitialData(true);
+                }
+            }, 1200);
+        };
+
+        const offOrderStatus = socketClient.on('order_status_updated', scheduleSilentRefresh);
+        const offRoute = socketClient.on('route_updated', scheduleSilentRefresh);
+        const offOrderUpdated = socketClient.on('order_updated', scheduleSilentRefresh);
+
+        return () => {
+            offOrderStatus();
+            offRoute();
+            offOrderUpdated();
+            if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+        };
+    }, [selectedWallet?.id, period]);
 
     const formatCurrency = (val: number) => {
         return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'XOF', maximumFractionDigits: 0 }).format(val).replace('XOF', 'F');
@@ -408,6 +440,7 @@ export default function Page() {
                     isOpen={activeModal === 'WITHDRAW'}
                     onClose={() => setActiveModal(null)}
                     walletId={selectedWallet?.id || ''}
+                    currentBalance={selectedWallet?.balanceAvailable || 0}
                     onSuccess={fetchInitialData}
                 />
                 <TransferModal

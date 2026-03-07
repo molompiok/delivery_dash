@@ -9,6 +9,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { usePageContext } from 'vike-react/usePageContext';
 import { HeaderProvider, useHeader } from '../context/HeaderContext';
 import { ThemeProvider, useTheme } from '../context/ThemeContext';
+import CompanyOnboardingWizard from '../components/CompanyOnboardingWizard';
 
 export { Layout };
 
@@ -85,9 +86,56 @@ function LayoutContent({ children, currentPath }: { children: React.ReactNode, c
   // Determine if we should show the full-frame layout (no top padding)
   const isFullFramePage = currentPath.includes('/map') || currentPath.includes('/fleet/3dview') || currentPath.includes('/orders/');
 
+  const [user, setUser] = useState<User | null>(null);
+  const [profileChecked, setProfileChecked] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const userStr = localStorage.getItem('delivery_user');
+    if (userStr) {
+      try {
+        setUser(JSON.parse(userStr));
+      } catch (e) { }
+    }
+    setProfileChecked(currentPath === '/login');
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (currentPath === '/login') {
+      setProfileChecked(true);
+      return;
+    }
+
+    const token = localStorage.getItem('delivery_token');
+    if (!token) {
+      setProfileChecked(true);
+      return;
+    }
+
+    authService.getProfile()
+      .then((res) => {
+        handleUserUpdate(res.data);
+      })
+      .catch((err) => {
+        console.error("Failed to sync profile:", err);
+      })
+      .finally(() => {
+        setProfileChecked(true);
+      });
+  }, [currentPath]);
+
+  const handleUserUpdate = (updatedUser: User) => {
+    setUser(updatedUser);
+    localStorage.setItem('delivery_user', JSON.stringify(updatedUser));
+  };
+
+  const effectiveCompanyId = user?.currentCompanyManaged || user?.companyId;
+  const showWizard = profileChecked && user && !effectiveCompanyId && currentPath !== '/login';
+
   return (
     <div className="relative h-screen overflow-hidden bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
-      <Topbar currentPath={currentPath} />
+      <Topbar currentPath={currentPath} user={user} />
       <main
         id="page-content"
         ref={scrollRef}
@@ -95,12 +143,25 @@ function LayoutContent({ children, currentPath }: { children: React.ReactNode, c
       >
         {children}
       </main>
+
+      {showWizard && (
+        <CompanyOnboardingWizard
+          user={user}
+          onComplete={async () => {
+            try {
+              const res = await authService.getProfile();
+              handleUserUpdate(res.data);
+            } catch (e) {
+              window.location.reload();
+            }
+          }}
+        />
+      )}
     </div>
   );
 }
 
-function Topbar({ currentPath }: { currentPath: string }) {
-  const [user, setUser] = useState<User | null>(null);
+function Topbar({ currentPath, user }: { currentPath: string, user: User | null }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const { headerContent, isHeaderHidden, isHeaderSuppressed, setHeaderHeight } = useHeader();
@@ -155,26 +216,9 @@ function Topbar({ currentPath }: { currentPath: string }) {
     };
   }, [setHeaderHeight, isActuallyHidden, headerContent]);
 
-  useEffect(() => {
-    const userStr = localStorage.getItem('delivery_user');
-    if (userStr) {
-      try {
-        const localUser = JSON.parse(userStr);
-        setUser(localUser);
-        authService.getProfile().then(res => {
-          const freshUser = res.data;
-          setUser(freshUser);
-          localStorage.setItem('delivery_user', JSON.stringify(freshUser));
-        }).catch(err => {
-          console.error("Failed to sync profile:", err);
-        });
-      } catch (e) { }
-    }
-  }, []);
-
   const NAV_LINKS = [
     { href: '/', icon: LayoutDashboard, label: 'Tableau de bord' },
-    { href: '/fleet/3dview/TR-001', icon: Truck, label: 'Véhicules', activeBase: '/fleet' },
+    { href: '/fleet', icon: Truck, label: 'Véhicules', activeBase: '/fleet' },
     { href: '/drivers', icon: Users, label: 'Chauffeurs' },
     { href: '/orders', icon: ShoppingBag, label: 'Commandes' },
     { href: '/finance', icon: Wallet, label: 'Finance' },
@@ -269,7 +313,11 @@ function Topbar({ currentPath }: { currentPath: string }) {
               <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{user?.role || 'Manager'}</div>
             </div>
             <a href="/settings" className="relative w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl border-2 border-white/50 dark:border-slate-800/50 shadow-lg overflow-hidden bg-slate-100 dark:bg-slate-800 hover:scale-105 active:scale-95 transition-all duration-300 ring-4 ring-[var(--primary-500)]/10 active:ring-[var(--primary-500)]/20 shadow-emerald-500/10">
-              <img src={`https://ui-avatars.com/api/?name=${user?.fullName || 'A'}&background=random`} alt="User" className="w-full h-full object-cover" />
+              {user?.photos?.[0] ? (
+                <img src={`${import.meta.env.VITE_API_URL || 'http://localhost:3333'}/${user.photos[0]}`} alt="User" className="w-full h-full object-cover" />
+              ) : (
+                <img src={`https://ui-avatars.com/api/?name=${user?.fullName || 'A'}&background=random`} alt="User" className="w-full h-full object-cover" />
+              )}
               {/* Notif Red Dot */}
               <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-rose-500 rounded-full border-2 border-white dark:border-slate-900 shadow-sm" />
             </a>

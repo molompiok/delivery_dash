@@ -53,6 +53,7 @@ export default function Page() {
     const [currentPage, setCurrentPage] = useState(1);
     const [paginationMeta, setPaginationMeta] = useState({ total: 0, perPage: 12, currentPage: 1, lastPage: 1 });
     const [footerCounts, setFooterCounts] = useState<any>(null);
+    const [orderStats, setOrderStats] = useState<any>(null);
     const ITEMS_PER_PAGE = 12;
 
     const handleNewOrder = () => {
@@ -85,17 +86,34 @@ export default function Page() {
     const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+    const fetchStats = async () => {
+        try {
+            const stats = await ordersApi.getStats({
+                dailyCounts: true,
+                completionRate: true,
+                templates: true,
+                inProgress: true
+            });
+            setOrderStats(stats);
+        } catch (err) {
+            console.error("Failed to fetch order stats:", err);
+        }
+    };
+
     const fetchOrders = async (silent = false, overrides: { page?: number, search?: string, status?: string } = {}) => {
         if (!silent) setIsLoading(true);
         setError(null);
         try {
-            const result = await ordersApi.list({
-                view: 'summary',
-                page: overrides.page ?? currentPage,
-                perPage: ITEMS_PER_PAGE,
-                search: overrides.search ?? (searchDebounced || undefined),
-                status: (overrides.status ?? activeFilter) !== 'ALL' ? (overrides.status ?? activeFilter) : undefined,
-            });
+            const [result] = await Promise.all([
+                ordersApi.list({
+                    view: 'summary',
+                    page: overrides.page ?? currentPage,
+                    perPage: ITEMS_PER_PAGE,
+                    search: overrides.search ?? (searchDebounced || undefined),
+                    status: (overrides.status ?? activeFilter) !== 'ALL' ? (overrides.status ?? activeFilter) : undefined,
+                }),
+                !silent ? fetchStats() : Promise.resolve()
+            ]);
             const ordersData = Array.isArray(result) ? result : (result?.data || []);
             const metaData = Array.isArray(result) ? { total: result.length, perPage: 12, currentPage: 1, lastPage: 1 } : (result?.meta || { total: 0, perPage: 12, currentPage: 1, lastPage: 1 });
 
@@ -146,41 +164,30 @@ export default function Page() {
     }, [searchDebounced, activeFilter]);
 
     useEffect(() => {
-        // Socket integration
-        const socket = socketClient.connect();
-        const userStr = localStorage.getItem('delivery_user');
-        if (userStr) {
-            try {
-                const user = JSON.parse(userStr);
-                const companyId = user.effectiveCompanyId || user.companyId;
-                if (companyId) {
-                    socket.emit('join', `fleet:${companyId}`);
-                    console.log(`Subscribed to fleet:${companyId}`);
-                }
-            } catch (e) { }
+        const room = socketClient.joinFleetRoomFromStorage();
+        if (room) {
+            console.log(`Subscribed to ${room}`);
         }
 
-        socket.connect();
-
-        socket.on('order_status_updated', (payload: any) => {
+        const offStatus = socketClient.on('order_status_updated', (payload: any) => {
             console.log('Order update received:', payload);
             debouncedRefresh();
         });
 
-        socket.on('route_updated', (payload: any) => {
+        const offRoute = socketClient.on('route_updated', (payload: any) => {
             console.log('Route update received, debounced refresh:', payload);
             debouncedRefresh();
         });
 
-        socket.on('orders:new', (payload: any) => {
+        const offNew = socketClient.on('orders:new', (payload: any) => {
             console.log('New order received:', payload);
             fetchOrders(true);
         });
 
         return () => {
-            socket.off('order_status_updated');
-            socket.off('route_updated');
-            socket.off('orders:new');
+            offStatus();
+            offRoute();
+            offNew();
             if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
         };
     }, []);
@@ -531,9 +538,15 @@ export default function Page() {
                             Supervisez vos expéditions, gérez les interventions techniques et suivez votre flotte.
                         </p>
                         <div className="flex flex-wrap gap-3">
-                            <span className="px-3 py-1 bg-white/20 rounded-lg text-[10px] font-black uppercase border border-white/20">Dispatch Auto</span>
-                            <span className="px-3 py-1 bg-white/20 rounded-lg text-[10px] font-black uppercase border border-white/20">Suivi Live</span>
-                            <span className="px-3 py-1 bg-white/20 rounded-lg text-[10px] font-black uppercase border border-white/20">Optimisation IA</span>
+                            {['COMMANDE', 'VOYAGE', 'MISSION'].map((type) => {
+                                const stat = orderStats?.templates?.find((t: any) => t.template === type);
+                                return (
+                                    <span key={type} className="px-3 py-1 bg-white/20 rounded-lg text-[10px] font-black uppercase border border-white/20 flex items-center gap-2">
+                                        <span className="opacity-60">{type}</span>
+                                        <span className="text-white">{stat?.count ?? 0}</span>
+                                    </span>
+                                );
+                            })}
                         </div>
                     </div>
 
@@ -542,7 +555,7 @@ export default function Page() {
                             <div>
                                 <p className="text-indigo-100 text-[10px] font-black uppercase tracking-widest">Opérations en cours</p>
                                 <div className="flex items-end mt-1">
-                                    <p className="text-3xl font-black leading-none">142 <span className="text-xs opacity-60 font-medium">actives</span></p>
+                                    <p className="text-3xl font-black leading-none">{orderStats?.inProgressCount ?? '...'} <span className="text-xs opacity-60 font-medium">actives</span></p>
 
                                     {/* Mini Trend Graph (SVG) */}
                                     <div className="w-[120px] h-[40px] ml-4 relative overflow-visible opacity-90 drop-shadow-md hidden lg:block">
@@ -554,25 +567,56 @@ export default function Page() {
                                                 </linearGradient>
                                             </defs>
 
-                                            {/* Area under the curve */}
-                                            <path
-                                                d="M0,30 Q15,10 30,20 T60,5 T90,20 T120,0 L120,40 L0,40 Z"
-                                                fill="url(#trend-gradient)"
-                                            />
+                                            {/* Dynamic Area under the curve */}
+                                            {orderStats?.dailyCounts && (
+                                                <path
+                                                    d={(() => {
+                                                        const counts = orderStats.dailyCounts.map((d: any) => d.count);
+                                                        const max = Math.max(...counts, 1);
+                                                        const points = counts.map((c: number, i: number) => {
+                                                            const x = (i / 6) * 120;
+                                                            const y = 40 - (c / max) * 35;
+                                                            return `${x},${y}`;
+                                                        });
+                                                        return `M0,40 L${points.join(' ')} L120,40 Z`;
+                                                    })()}
+                                                    fill="url(#trend-gradient)"
+                                                />
+                                            )}
 
-                                            {/* Stroke Line */}
-                                            <path
-                                                d="M0,30 Q15,10 30,20 T60,5 T90,20 T120,0"
-                                                fill="none"
-                                                stroke="#34d399"
-                                                strokeWidth="2.5"
-                                                strokeLinecap="round"
-                                                strokeLinejoin="round"
-                                                className="drop-shadow-[0_2px_4px_rgba(52,211,153,0.5)]"
-                                            />
+                                            {/* Dynamic Stroke Line */}
+                                            {orderStats?.dailyCounts && (
+                                                <path
+                                                    d={(() => {
+                                                        const counts = orderStats.dailyCounts.map((d: any) => d.count);
+                                                        const max = Math.max(...counts, 1);
+                                                        const points = counts.map((c: number, i: number) => {
+                                                            const x = (i / 6) * 120;
+                                                            const y = 40 - (c / max) * 35;
+                                                            return `${x},${y}`;
+                                                        });
+                                                        return `M${points.join(' ')}`;
+                                                    })()}
+                                                    fill="none"
+                                                    stroke="#34d399"
+                                                    strokeWidth="2.5"
+                                                    strokeLinecap="round"
+                                                    strokeLinejoin="round"
+                                                    className="drop-shadow-[0_2px_4px_rgba(52,211,153,0.5)]"
+                                                />
+                                            )}
 
                                             {/* Last Dot indicating current state */}
-                                            <circle cx="120" cy="0" r="3" fill="#ffffff" stroke="#34d399" strokeWidth="2" />
+                                            {orderStats?.dailyCounts && (
+                                                <circle
+                                                    cx="120"
+                                                    cy={40 - (orderStats.dailyCounts[6].count / Math.max(...orderStats.dailyCounts.map((d: any) => d.count), 1)) * 35}
+                                                    r="3"
+                                                    fill="#ffffff"
+                                                    stroke="#34d399"
+                                                    strokeWidth="2"
+                                                />
+                                            )}
                                         </svg>
                                     </div>
                                 </div>
@@ -580,21 +624,21 @@ export default function Page() {
                             <div className="text-right">
                                 <p className="text-indigo-100 text-[10px] font-black uppercase tracking-widest">Taux Complétion</p>
                                 <p className="text-sm font-black uppercase tracking-widest text-emerald-300">
-                                    98.5%
+                                    {orderStats?.completionRate ?? '0'}%
                                 </p>
                             </div>
                         </div>
                         <div className="h-px bg-white/20 my-4"></div>
                         <div className="flex justify-between items-end">
                             <div>
-                                <p className="text-indigo-100 text-[10px] font-black uppercase tracking-widest">Ressources Engagées</p>
-                                <p className="text-xl font-bold truncate max-w-[150px]">34 Chauffeurs</p>
+                                <p className="text-indigo-100 text-[10px] font-black uppercase tracking-widest">Volume (7 j)</p>
+                                <p className="text-xl font-bold truncate max-w-[150px]">{orderStats?.total7d ?? '0'} Missions</p>
                             </div>
                             <button
                                 onClick={handleNewOrder}
                                 className="relative z-10 bg-white text-indigo-600 px-6 py-3 rounded-2xl font-black uppercase text-xs shadow-xl shadow-black/10 hover:shadow-cyan-500/20 active:scale-95 transition-all flex items-center justify-center gap-2 whitespace-nowrap overflow-hidden"
                             >
-                                <span className="relative z-10">Créer une opération</span>
+                                <span className="relative z-10">Créer une mission</span>
                                 <ArrowRight size={16} className="relative z-10 hidden sm:block" />
                             </button>
                         </div>

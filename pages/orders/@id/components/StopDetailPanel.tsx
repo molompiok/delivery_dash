@@ -130,7 +130,8 @@ const StopDetailPanel: React.FC<StopDetailPanelProps> = ({
             unitary_price: 0,
             packaging_type: 'box',
             dimensions: { width_cm: 0, height_cm: 0, depth_cm: 0 },
-            requirements: []
+            requirements: [],
+            client_data: { name: '', phone: '', reference: '' }
         });
         setDirection(1);
         setView('transit-item-detail');
@@ -160,10 +161,15 @@ const StopDetailPanel: React.FC<StopDetailPanelProps> = ({
         setNewItemForm({
             name: itemToUse.name || '',
             weight: itemToUse.weight || 0,
-            unitary_price: itemToUse.unitary_price || 0,
-            packaging_type: itemToUse.packaging_type || 'box',
+            unitary_price: itemToUse.unitary_price ?? (itemToUse as any).unitaryPrice ?? 0,
+            packaging_type: itemToUse.packaging_type ?? (itemToUse as any).packagingType ?? 'box',
             dimensions: itemToUse.dimensions || { width_cm: 0, height_cm: 0, depth_cm: 0 },
-            requirements: itemToUse.metadata?.requirements || []
+            requirements: itemToUse.requirements || itemToUse.metadata?.requirements || [],
+            client_data: {
+                name: itemToUse.client_name || (itemToUse as any).clientName || itemToUse.metadata?.client_data?.name || '',
+                phone: itemToUse.client_phone || (itemToUse as any).clientPhone || itemToUse.metadata?.client_data?.phone || '',
+                reference: itemToUse.client_reference || (itemToUse as any).clientReference || itemToUse.metadata?.client_data?.reference || ''
+            }
         });
         setDirection(1);
         setView('transit-item-detail');
@@ -173,28 +179,50 @@ const StopDetailPanel: React.FC<StopDetailPanelProps> = ({
         if (editingProductIdx === null) return;
         setIsCreatingTransitItem(true);
         try {
-            const result = await ordersApi.addItem(orderId, {
+            const product = stop.actions?.[editingProductIdx];
+            const isEditingItem = product?.transitItemId;
+
+            const payload = {
                 name: newItemForm.name || 'Nouveau produit',
                 packaging_type: newItemForm.packaging_type,
                 weight: newItemForm.weight,
                 unitary_price: newItemForm.unitary_price,
                 dimensions: newItemForm.dimensions,
-                metadata: { requirements: newItemForm.requirements }
-            });
-            const newItem = result.entity || result.item;
+                client_name: newItemForm.client_data?.name,
+                client_phone: newItemForm.client_data?.phone,
+                client_reference: newItemForm.client_data?.reference,
+                requirements: newItemForm.requirements,
+                metadata: {
+                    requirements: newItemForm.requirements,
+                    client_data: newItemForm.client_data
+                }
+            };
+
+            const result = isEditingItem
+                ? await ordersApi.updateItem(product.transitItemId, payload)
+                : await ordersApi.addItem(orderId, payload);
+
+            const newItem = result.entity || result.item || result.id;
 
             if (newItem) {
-                handleProductChange(editingProductIdx, '', {
-                    transitItemId: newItem.id,
-                    transitItem: newItem
-                });
+                // If it was a creation, link it to the current action
+                if (!isEditingItem) {
+                    handleProductChange(editingProductIdx, '', {
+                        transitItemId: newItem.id || (typeof newItem === 'string' ? newItem : undefined),
+                        transitItem: typeof newItem === 'object' ? newItem : undefined
+                    });
+                }
+
+                // Important: Refresh order state to get synchronized data
+                const updatedOrder = await ordersApi.get(orderId, ['steps.stops.actions.transitItem', 'transitItems']);
+                onUpdate(updatedOrder);
 
                 setTransitItemSearch('');
                 setDirection(-1);
                 setView('product');
             }
         } catch (error) {
-            console.error("Failed to create transit item", error);
+            console.error("Failed to save transit item", error);
         } finally {
             setIsCreatingTransitItem(false);
         }
@@ -221,6 +249,9 @@ const StopDetailPanel: React.FC<StopDetailPanelProps> = ({
 
         try {
             await ordersApi.updateItem(idToUpdate, { [field]: value });
+            // Refresh to ensure everything is in sync (shadows, etc)
+            const updatedOrder = await ordersApi.get(orderId, ['steps.stops.actions.transitItem', 'transitItems']);
+            onUpdate(updatedOrder);
         } catch (error) {
             console.error("Failed to update transit item", error);
         }
@@ -345,9 +376,9 @@ const StopDetailPanel: React.FC<StopDetailPanelProps> = ({
                         isCreatingTransitItem={isCreatingTransitItem}
                         isEditing={product?.transitItemId ? true : false}
                         setDirection={setDirection}
-                        setView={setView}
                         setTransitItemForm={setNewItemForm}
                         handleConfirmCreateTransitItem={handleConfirmCreateTransitItem}
+                        onBack={() => setView('product')}
                         handleTransitItemChange={(field, value) => handleTransitItemChange(undefined, field, value)}
                     />
                 );
