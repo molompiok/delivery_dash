@@ -90,7 +90,7 @@ importers:
         specifier: 0.182.0
         version: 0.182.0
       vike:
-        specifier: ^0.4.251
+        specifier: 0.4.252
         version: 0.4.252(react-streaming@0.4.15(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(vite@7.3.1(@types/node@25.0.10)(jiti@2.6.1)(lightningcss@1.30.2))
       vike-photon:
         specifier: ^0.1.24
