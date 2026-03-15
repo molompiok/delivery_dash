@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Truck, Users, Calendar, FileText, ShoppingBag,
@@ -49,7 +49,7 @@ export default function Page() {
   const [tutorials, setTutorials] = useState<Record<string, TutorialData>>({});
   const [activeTutorial, setActiveTutorial] = useState<TutorialData | null>(null);
   const [isTutorialOpen, setIsTutorialOpen] = useState(false);
-  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [hasPendingOrdersRefresh, setHasPendingOrdersRefresh] = useState(false);
   useHeaderAutoHide();
 
   useEffect(() => {
@@ -145,24 +145,27 @@ export default function Page() {
   useEffect(() => {
     socketClient.joinFleetRoomFromStorage();
 
-    const silentRefresh = () => {
-      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
-      refreshTimerRef.current = setTimeout(() => loadDashboardData(true), 900);
+    const markOrdersAsStale = () => {
+      setHasPendingOrdersRefresh(true);
     };
 
-    const offOrderStatus = socketClient.on('order_status_updated', silentRefresh);
-    const offRoute = socketClient.on('route_updated', silentRefresh);
-    const offNew = socketClient.on('orders:new', silentRefresh);
-    const offOrderUpdated = socketClient.on('order_updated', silentRefresh);
+    const offOrderStatus = socketClient.on('order_status_updated', markOrdersAsStale);
+    const offRoute = socketClient.on('route_updated', markOrdersAsStale);
+    const offNew = socketClient.on('orders:new', markOrdersAsStale);
+    const offOrderUpdated = socketClient.on('order_updated', markOrdersAsStale);
 
     return () => {
       offOrderStatus();
       offRoute();
       offNew();
       offOrderUpdated();
-      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
     };
   }, []);
+
+  const refreshRecentOrders = async () => {
+    await loadDashboardData(true);
+    setHasPendingOrdersRefresh(false);
+  };
 
   if (loading) {
     return (
@@ -530,7 +533,35 @@ export default function Page() {
         link="/orders"
         linkColor="purple"
         badge={`${stats.ordersCount} total`}
+        headerActions={hasPendingOrdersRefresh ? (
+          <button
+            onClick={refreshRecentOrders}
+            className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.18em] text-emerald-700 transition-colors hover:bg-emerald-100 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300 dark:hover:bg-emerald-500/15"
+          >
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
+            </span>
+            Rafraichir
+          </button>
+        ) : null}
       >
+        {hasPendingOrdersRefresh && (
+          <div className="mb-4 flex items-center justify-between gap-3 rounded-2xl border border-emerald-100 bg-emerald-50/80 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-500/15 dark:bg-emerald-500/10 dark:text-emerald-200">
+            <div className="flex items-center gap-2">
+              <Bell size={15} className="shrink-0" />
+              <span className="font-semibold">
+                De nouvelles missions ou mises a jour sont disponibles.
+              </span>
+            </div>
+            <button
+              onClick={refreshRecentOrders}
+              className="shrink-0 rounded-xl bg-emerald-600 px-3 py-2 text-[11px] font-black uppercase tracking-[0.16em] text-white hover:bg-emerald-500"
+            >
+              Refresh
+            </button>
+          </div>
+        )}
         <div className="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {data.orders.length > 0 ? data.orders.map((order: OrderSummary) => {
             const progress = order.itinerary?.progressPercent || 0;
@@ -811,7 +842,7 @@ const linkTextColorMap: Record<string, string> = {
   amber: 'hover:text-amber-500',
 };
 
-function BentoCard({ title, icon, badge, children, className, link, linkColor = 'slate' }: any) {
+function BentoCard({ title, icon, badge, children, className, link, linkColor = 'slate', headerActions }: any) {
   const circleBg = linkColorMap[linkColor] || 'bg-slate-500/10';
   return (
     <div className={`bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-[0_8px_30px_rgb(0,0,0,0.02)] p-5 hover:shadow-[0_20px_40px_rgba(0,0,0,0.04)] dark:hover:shadow-[0_20px_40px_rgba(0,0,0,0.2)] transition-all duration-500 ${className} group flex flex-col min-h-0 relative overflow-hidden`}>
@@ -826,6 +857,11 @@ function BentoCard({ title, icon, badge, children, className, link, linkColor = 
             {badge && <span className="text-[10px] uppercase font-black tracking-widest text-slate-400">{badge}</span>}
           </div>
         </div>
+        {headerActions && (
+          <div className="mr-16 flex items-center gap-2">
+            {headerActions}
+          </div>
+        )}
         {link && (
           <a href={link} className={`absolute flex items-end justify-start p-5 top-0 right-2 w-24 h-24 ${circleBg} rounded-full -mr-8 -mt-8 hover:scale-110 overflow-visible transition-transform cursor-pointer`}>
             <ArrowRight className='dark:text-white/80' size={20} />

@@ -66,7 +66,7 @@ import { fleetService } from '../../../api/fleet';
 import { trackingApi } from '../../../api/tracking';
 import { User as UserType, CompanyDriverSetting, Vehicle } from '../../../api/types';
 import { socketClient } from '../../../api/socket';
-import { cn } from '../../../lib/utils';
+import { cn, calculateHaversineDistance } from '../../../lib/utils';
 
 interface Stop {
     id: string;
@@ -76,7 +76,7 @@ interface Stop {
     address: {
         id: string;
         addressId?: string;
-        formattedAddress?:string|null;
+        formattedAddress?: string | null;
         name: string;
         street: string;
         city: string;
@@ -136,6 +136,9 @@ export default function Page() {
 
     // Core state
     const [order, setOrder] = useState<Order | null>(null);
+    const orderRef = useRef<Order | null>(null);
+    useEffect(() => { orderRef.current = order; }, [order]);
+
     const [isLoading, setIsLoading] = useState(true);
     const [steps, setSteps] = useState<PageStep[]>([]);
     const [driverLocation, setDriverLocation] = useState<any>(null); // Real-time position
@@ -206,7 +209,7 @@ export default function Page() {
     }, [visibleLayers.auto, order?.hasPendingChanges]);
 
     const [isLayerMenuOpen, setIsLayerMenuOpen] = useState(false);
-    const { headerHeight, setHeaderHidden, setHeaderSuppressed } = useHeader(); 
+    const { headerHeight, setHeaderHidden, setHeaderSuppressed } = useHeader();
     const listRefs = useRef<{ [key: number]: HTMLDivElement | null }>({});
 
     // Sync sidebar fullscreen with header suppression
@@ -353,11 +356,58 @@ export default function Page() {
 
         const handleUpdate = (data: any) => debouncedRefresh(data, 'order');
         const handleRouteUpdate = (data: any) => debouncedRefresh(data, 'route');
+        const handleDriverPositionUpdate = (data: any) => {
+            if (data.orderId !== id) return;
+            console.log("[SOCKET] Silent Driver Position Update:", data);
+            setDriverLocation({
+                lat: data.lat,
+                lng: data.lng,
+                heading: data.heading,
+                timestamp: data.timestamp
+            });
+
+            // Dynamic Slicing & Deviation Detection
+            const currentOrder = orderRef.current;
+            if (currentOrder?.live_route?.geometry?.coordinates) {
+                const coords = [...currentOrder.live_route.geometry.coordinates];
+                let toRemove = 0;
+                for (const coord of coords) {
+                    const dist = calculateHaversineDistance(data.lat, data.lng, coord[1], coord[0]);
+                    if (dist < 20) toRemove++;
+                    else break;
+                }
+
+                if (toRemove > 0) {
+                    const newCoords = coords.slice(toRemove);
+                    setOrder(prev => prev ? {
+                        ...prev,
+                        live_route: {
+                            ...prev.live_route,
+                            geometry: { ...prev.live_route.geometry, coordinates: newCoords }
+                        }
+                    } : null);
+                }
+
+                // Deviation check
+                const remaining = toRemove > 0 ? coords.slice(toRemove) : coords;
+                if (remaining.length > 0) {
+                    const next = remaining[0];
+                    const devDist = calculateHaversineDistance(data.lat, data.lng, next[1], next[0]);
+                    if (devDist > 100) {
+                        console.log("[NAV] Deviation detected in Dash:", devDist, "meters. Refreshing route...");
+                        fetchRoute({ silent: true, force: true });
+                    }
+                } else {
+                    fetchRoute({ silent: true, force: true });
+                }
+            }
+        };
 
         const offOrder = socketClient.on('order_updated', handleUpdate);
         const offRoute = socketClient.on('route_updated', handleRouteUpdate);
         const offStop = socketClient.on('stop_status_updated', handleUpdate);
         const offAction = socketClient.on('action_status_updated', handleUpdate);
+        const offPosition = socketClient.on('driver_position_updated', handleDriverPositionUpdate);
 
         return () => {
             if (refreshTimeout.current) clearTimeout(refreshTimeout.current);
@@ -365,6 +415,7 @@ export default function Page() {
             offRoute();
             offStop();
             offAction();
+            offPosition();
         };
     }, [id, socketClient]);
 
@@ -665,18 +716,15 @@ export default function Page() {
         };
 
         pollLocation(); // Immediate first fetch
-        const interval = setInterval(pollLocation, 5000); // 5s interval matching mobile app
-
         // Periodic Route refresh to see the TRACE grow
         let routeInterval: NodeJS.Timeout | null = null;
         if (order?.status === 'ACCEPTED') {
             routeInterval = setInterval(() => {
                 fetchRoute({ silent: true });
-            }, 10000); // Every 10s is enough for the trace line
+            }, 300000); // Fail-safe fallback (5 min) instead of 30s
         }
 
         return () => {
-            clearInterval(interval);
             if (routeInterval) clearInterval(routeInterval);
         };
     }, [id, order?.driverId]);
@@ -2693,7 +2741,7 @@ export default function Page() {
                                                                             if (action.transitItemId === selectedTransitItemId) {
                                                                                 linkedActions.push({
                                                                                     ...action,
-                                                                                    stopAddress: stop.address?.street || stop.address?.formattedAddress ,
+                                                                                    stopAddress: stop.address?.street || stop.address?.formattedAddress,
                                                                                     stepIndex: stepIdx,
                                                                                     stopIndex: stopIdx
                                                                                 });
@@ -2937,7 +2985,7 @@ export default function Page() {
                                                                         <div className="bg-emerald-50 dark:bg-emerald-500/10 p-4 rounded-2xl border border-emerald-100 dark:border-emerald-500/20">
                                                                             <div className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold uppercase mb-1">Arrêt sélectionné</div>
                                                                             <div className="text-[12px] font-black text-slate-800 dark:text-slate-100 truncate">
-                                                                                {steps.flatMap(s => s.stops).find((s: any) => s.id === selectedStopIdForPlanning)?.address?.label}
+                                                                                {steps.flatMap(s => s.stops).find((s: any) => s.id === selectedStopIdForPlanning)?.address?.street}
                                                                             </div>
                                                                             <button
                                                                                 onClick={() => setSelectedStopIdForPlanning(null)}
