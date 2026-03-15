@@ -1,0 +1,16 @@
+{
+    "tutorials": {
+        "dashboard_setup": {
+            "title": "Configuration du Dashboard",
+            "description": "Apprenez à configurer vos véhicules, chauffeurs et zones pour démarrer vos opérations.",
+            "tuto_video": "https://www.youtube.com/channel/UCD-jxvBIorOz2uAkiReh_kw",
+            "preview": "/assets/tuto_dashboard_preview.gif"
+        },
+        "order_details_empty_stops": {
+            "title": "Ajouter des arrêts",
+            "description": "Découvrez comment construire un itinéraire efficace en ajoutant des points de collecte et livraison sur la carte.",
+            "tuto_video": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+            "preview": "/assets/tuto_add_stops_preview.webp"
+        }
+    }
+}

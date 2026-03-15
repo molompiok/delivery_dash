@@ -19,8 +19,9 @@ import { dashboardApi } from '../../api/dashboard';
 import { MapLibre as GlobeMap } from '../../components/MapLibre';
 import { formatId } from '../../api/utils';
 import { socketClient } from '../../api/socket';
+import { TutorialOverlay, TutorialData } from '../../components/TutorialOverlay';
 
-const TUTORIAL_URL = 'https://www.youtube.com/channel/UCD-jxvBIorOz2uAkiReh_kw';
+const DEFAULT_TUTORIAL_URL = 'https://www.youtube.com/channel/UCD-jxvBIorOz2uAkiReh_kw';
 
 export default function Page() {
   const [stats, setStats] = useState({
@@ -45,12 +46,44 @@ export default function Page() {
   });
   const [dashStats, setDashStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [tutorials, setTutorials] = useState<Record<string, TutorialData>>({});
+  const [activeTutorial, setActiveTutorial] = useState<TutorialData | null>(null);
+  const [isTutorialOpen, setIsTutorialOpen] = useState(false);
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useHeaderAutoHide();
 
   useEffect(() => {
     loadDashboardData();
+    loadTutorials();
   }, []);
+
+  const loadTutorials = async () => {
+    try {
+      const response = await fetch('/config/dash-setting.json');
+      const data = await response.json();
+      if (data.tutorials) {
+        setTutorials(data.tutorials);
+      }
+    } catch (e) {
+      console.error("Failed to load tutorials", e);
+    }
+  };
+
+  const openTutorial = (key: string) => {
+    const tuto = tutorials[key];
+    if (tuto) {
+      if (!tuto.preview && tuto.tuto_video) {
+        window.open(tuto.tuto_video, '_blank');
+        return;
+      }
+      setActiveTutorial(tuto);
+      setIsTutorialOpen(true);
+    } else {
+      // Show support contact popup case (handled by Overlay if tutorial is null but isOpen is true)
+      setActiveTutorial(null);
+      setIsTutorialOpen(true);
+    }
+  };
 
   const loadDashboardData = async (silent = false) => {
     if (!silent) {
@@ -328,6 +361,7 @@ export default function Page() {
               description="Créez vos zones pour router automatiquement vos opérations."
               primaryHref="/map?tab=ZONES"
               primaryLabel="Créer une zone"
+              onTutorialClick={() => openTutorial('zones_config')}
             />
           )}
         </BentoCard>
@@ -426,6 +460,7 @@ export default function Page() {
                 description="Ajoutez votre premier véhicule pour commencer à dispatcher."
                 primaryHref="/fleet/add"
                 primaryLabel="Ajouter un véhicule"
+                onTutorialClick={() => openTutorial('fleet_setup')}
               />
             )}
           </div>
@@ -480,6 +515,7 @@ export default function Page() {
                 description="Invitez vos chauffeurs pour démarrer les affectations."
                 primaryHref="/drivers/invite"
                 primaryLabel="Inviter un chauffeur"
+                onTutorialClick={() => openTutorial('drivers_invite')}
               />
             )}
           </div>
@@ -645,20 +681,23 @@ export default function Page() {
                 >
                   Créer une mission
                 </a>
-                <a
-                  href={TUTORIAL_URL}
-                  target="_blank"
-                  rel="noreferrer"
+                <button
+                  onClick={() => openTutorial('dashboard_setup')}
                   className="flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                 >
                   voir tuto <ChevronRight className='w-4 h-4' />
-                </a>
+                </button>
               </div>
             </div>
           )}
         </div>
       </BentoCard>
 
+      <TutorialOverlay
+        isOpen={isTutorialOpen}
+        onClose={() => setIsTutorialOpen(false)}
+        tutorial={activeTutorial}
+      />
     </div>
   );
 }
@@ -723,12 +762,14 @@ function EmptyCardCta({
   title,
   description,
   primaryHref,
-  primaryLabel
+  primaryLabel,
+  onTutorialClick
 }: {
   title: string;
   description: string;
   primaryHref: string;
   primaryLabel: string;
+  onTutorialClick?: () => void;
 }) {
   return (
     <div className="mt-3 rounded-2xl  p-4 text-center">
@@ -741,14 +782,12 @@ function EmptyCardCta({
         >
           {primaryLabel}
         </a>
-        <a
-          href={TUTORIAL_URL}
-          target="_blank"
-          rel="noreferrer"
+        <button
+          onClick={() => onTutorialClick?.()}
           className="flex gap-2 items-center px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
         >
           voir tuto <ChevronRight className='w-4 h-4' />
-        </a>
+        </button>
       </div>
     </div>
   );
@@ -774,7 +813,6 @@ const linkTextColorMap: Record<string, string> = {
 
 function BentoCard({ title, icon, badge, children, className, link, linkColor = 'slate' }: any) {
   const circleBg = linkColorMap[linkColor] || 'bg-slate-500/10';
-  const arrowHover = linkTextColorMap[linkColor] || 'hover:text-slate-600';
   return (
     <div className={`bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-[0_8px_30px_rgb(0,0,0,0.02)] p-5 hover:shadow-[0_20px_40px_rgba(0,0,0,0.04)] dark:hover:shadow-[0_20px_40px_rgba(0,0,0,0.2)] transition-all duration-500 ${className} group flex flex-col min-h-0 relative overflow-hidden`}>
 
@@ -793,11 +831,7 @@ function BentoCard({ title, icon, badge, children, className, link, linkColor = 
             <ArrowRight className='dark:text-white/80' size={20} />
           </a>
         )}
-        {/* {link && (
-          <a href={link} className={`p-2 rounded-full text-slate-300 ${arrowHover} transition-all z-10`}>
-            
-          </a>
-        )} */}
+
       </header>
       <div className="flex-1 overflow-y-auto pr-1">
         {children}

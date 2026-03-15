@@ -320,8 +320,12 @@ export default function Page() {
                 onClick={() => window.location.href = `/orders/${order.id}`}
                 className="group relative bg-white/60 dark:bg-slate-900/40 backdrop-blur-2xl rounded-[32px] border border-white dark:border-slate-800/50 p-6 shadow-sm hover:shadow-[0_32px_64px_-12px_rgba(0,0,0,0.1)] dark:hover:shadow-[0_32px_64px_-12px_rgba(0,0,0,0.3)] hover:-translate-y-1 transition-all duration-500 cursor-pointer overflow-hidden flex flex-col gap-5"
             >
-                {/* Visual Accent Gradient */}
-                <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-indigo-500/10 to-transparent blur-3xl group-hover:from-indigo-500/20 transition-all duration-500" />
+                {/* Template 3D Background Accent */}
+                <img
+                    src={`/assets/${(order.template || 'COMMANDE').toLowerCase()}_bg.png`}
+                    className="absolute -top-6 -right-6 w-[120px] h-32 object-cover opacity-60 pointer-events-none group-hover:scale-110 transition-transform duration-700"
+                    alt=""
+                />
 
                 {/* Header */}
                 <div className="flex items-start justify-between relative z-10">

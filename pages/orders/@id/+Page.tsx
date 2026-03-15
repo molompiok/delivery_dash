@@ -40,7 +40,9 @@ import {
     Ticket,
     Boxes,
     ArrowDownRight,
-    Pencil
+    Pencil,
+    Play,
+    Info
 } from 'lucide-react';
 import { arrayMove } from '@dnd-kit/sortable';
 import ListOptions from './components/ListOptions';
@@ -51,6 +53,7 @@ import { useTheme } from '../../../context/ThemeContext';
 import { ConfirmModal } from '../../../components/ConfirmModal';
 import LocationSearchBar from '../../../components/LocationSearchBar';
 import StopDetailPanel from './components/StopDetailPanel';
+import { TutorialOverlay, TutorialData } from '../../../components/TutorialOverlay';
 import {
     NewItemFormState,
     TransitItemDetailView,
@@ -73,6 +76,7 @@ interface Stop {
     address: {
         id: string;
         addressId?: string;
+        formattedAddress?:string|null;
         name: string;
         street: string;
         city: string;
@@ -144,7 +148,7 @@ export default function Page() {
     const [direction, setDirection] = useState(0);
     const [isSidebarFullscreen, setIsSidebarFullscreen] = useState(false);
     const [activeRouteTab, setActiveRouteTab] = useState<'details' | 'history'>('details');
-    const [activeRightPanel, setActiveRightPanel] = useState<'list' | 'bookings' | 'history' | 'operation' | 'weight' | 'items' | null>('bookings');
+    const [activeRightPanel, setActiveRightPanel] = useState<'list' | 'bookings' | 'history' | 'operation' | 'weight' | 'items' | null>('list');
     const [selectedTransitItemId, setSelectedTransitItemId] = useState<string | null>(null);
     const [itemSubView, setItemSubView] = useState<'list' | 'detail' | 'create' | 'plan'>('list');
     const [itemDirection, setItemDirection] = useState(0);
@@ -162,6 +166,11 @@ export default function Page() {
     const [planningType, setPlanningType] = useState<'PICKUP' | 'DELIVERY'>('PICKUP');
     const [planningQuantity, setPlanningQuantity] = useState(1);
     const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1200);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isPushing, setIsPushing] = useState(false);
+    const [tutorials, setTutorials] = useState<Record<string, TutorialData>>({});
+    const [activeTutorial, setActiveTutorial] = useState<TutorialData | null>(null);
+    const [isTutorialOpen, setIsTutorialOpen] = useState(false);
 
     useEffect(() => {
         if (typeof window === 'undefined') return;
@@ -197,7 +206,7 @@ export default function Page() {
     }, [visibleLayers.auto, order?.hasPendingChanges]);
 
     const [isLayerMenuOpen, setIsLayerMenuOpen] = useState(false);
-    const { setHeaderContent, clearHeaderContent, headerHeight, setHeaderHidden, setHeaderSuppressed } = useHeader();
+    const { headerHeight, setHeaderHidden, setHeaderSuppressed } = useHeader(); 
     const listRefs = useRef<{ [key: number]: HTMLDivElement | null }>({});
 
     // Sync sidebar fullscreen with header suppression
@@ -429,8 +438,36 @@ export default function Page() {
         if (id) {
             fetchOrder();
             loadFleetData();
+            loadTutorials();
         }
     }, [id]);
+
+    const loadTutorials = async () => {
+        try {
+            const response = await fetch('/config/dash-setting.json');
+            const data = await response.json();
+            if (data.tutorials) {
+                setTutorials(data.tutorials);
+            }
+        } catch (e) {
+            console.error("Failed to load tutorials", e);
+        }
+    };
+
+    const openTutorial = (key: string) => {
+        const tuto = tutorials[key];
+        if (tuto) {
+            if (!tuto.preview && tuto.tuto_video) {
+                window.open(tuto.tuto_video, '_blank');
+                return;
+            }
+            setActiveTutorial(tuto);
+            setIsTutorialOpen(true);
+        } else {
+            setActiveTutorial(null);
+            setIsTutorialOpen(true);
+        }
+    };
 
     // Keep selectedStop in sync with steps data
     useEffect(() => {
@@ -520,7 +557,7 @@ export default function Page() {
                     isPendingChange: st.isPendingChange
                 };
             })
-        }));
+        })) as any;
     };
 
     const fetchOrder = async (showLoading = true) => {
@@ -533,8 +570,21 @@ export default function Page() {
             const serverSteps = Array.isArray(serverOrder.steps) ? serverOrder.steps : [];
             const mappedSteps = mapServerToLocalSteps(serverSteps);
             setSteps(mappedSteps);
-            setOrder(prev => prev ? { ...serverOrder, ...prev } : serverOrder);
-
+            setOrder(prev => {
+                if (!prev) return serverOrder;
+                // Merge server data but preserve local-only flags if they was true
+                // CRITICAL: if server returns a defined hasPendingChanges, it should usually win 
+                // but our backend might not yet support this field natively, so we treat it carefully.
+                // However, after a PUSH, we definitely want it to be false if server says so.
+                return {
+                    ...prev,
+                    ...serverOrder,
+                    hasPendingChanges: serverOrder.hasPendingChanges !== undefined
+                        ? serverOrder.hasPendingChanges
+                        : (prev.hasPendingChanges || false)
+                };
+            });
+            console.log("%c[ORDER FETCH]", "color: #2563eb; font-weight: bold; font-size: 11px;", serverOrder);
             // Deferred route loading remains, but now we know it's fulfilling a specific role
             fetchRoute({ silent: !showLoading });
         } catch (error) {
@@ -718,14 +768,14 @@ export default function Page() {
     useEffect(() => {
         if (steps.length > 0) {
             const payload = mapStepsForDebug(steps, assignedDriver, assignedVehicle);
-            console.log("%c[ORDER STATE]", "color: #2563eb; font-weight: bold; font-size: 11px;", payload);
         }
     }, [steps, assignedDriver, assignedVehicle]);
 
     // Submit DRAFT order -> PENDING
     const handleSubmit = async () => {
-        if (!order || !id) return;
+        if (!order || !id || isSubmitting) return;
 
+        setIsSubmitting(true);
         try {
             const result = await ordersApi.submit(id);
             setOrder(result.order);
@@ -735,15 +785,20 @@ export default function Page() {
             showAlert("Échec de la soumission", error.response?.data?.message || error.message || "Une erreur s'est produite.");
             // Refresh order to get consistent state
             await fetchOrder(false);
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
     // Push updates to driver (PENDING+ orders)
     const handlePushUpdates = async () => {
-        if (!order || !id) return;
+        if (!order || !id || isPushing) return;
 
+        setIsPushing(true);
         try {
             await ordersApi.pushUpdates(id);
+            // Manually clear pending changes flag locally to ensure buttons disappear
+            setOrder(prev => prev ? { ...prev, hasPendingChanges: false } : null);
             // Important: Re-fetch the whole order to get back ORIGINAL IDs (shadows merged)
             await fetchOrder(true);
             showAlert("Mise à jour envoyée", `Les modifications ont été envoyées au chauffeur.`);
@@ -751,6 +806,8 @@ export default function Page() {
             console.error("Push updates failed", error);
             showAlert("Échec de l'envoi", error.response?.data?.message || error.message || "Une erreur s'est produite.");
             await fetchOrder(false);
+        } finally {
+            setIsPushing(false);
         }
     };
 
@@ -1148,7 +1205,15 @@ export default function Page() {
             id: tempId,
             type: 'Point',
             typeColor: 'bg-gray-100',
-            address: { id: '', name: 'Nouveau point', street: '', city: '', country: '' },
+            address: {
+                id: '',
+                name: 'Nouveau point',
+                street: 'Recherche...',
+                city: '',
+                country: '',
+                lat: coordinates?.lat,
+                lng: coordinates?.lng
+            },
             opening: { start: '08:00', end: '18:00' },
             actions: [],
             client: { name: 'En cours...', avatar: '' },
@@ -1380,55 +1445,6 @@ export default function Page() {
         }
     };
 
-    useEffect(() => {
-        const isDraft = order?.status === 'DRAFT';
-        const isPending = order && !['DRAFT', 'DELIVERED', 'CANCELLED', 'FAILED'].includes(order.status);
-
-        setHeaderContent(
-            <div className=" flex items-center justify-end w-full h-full gap-4">
-                {isDraft && (
-                    <>
-                        <button
-                            onClick={() => window.history.back()}
-                            className="px-4 py-2 text-[10px] font-black text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl uppercase tracking-widest transition-colors hidden sm:block"
-                        >
-                            Annuler
-                        </button>
-                        <button
-                            onClick={handleSubmit}
-                            className="px-5 py-2.5 text-[10px] font-black text-white bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600 rounded-xl uppercase tracking-widest shadow-lg shadow-emerald-200/50 dark:shadow-none transition-all flex items-center gap-2"
-                        >
-                            <Send size={14} />
-                            <span className="hidden sm:inline">Soumettre</span>
-                            <span className="sm:hidden">OK</span>
-                        </button>
-                    </>
-                )}
-                {isPending && order?.hasPendingChanges && (
-                    <>
-                        <button
-                            onClick={handleRevert}
-                            className="p-2.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-xl transition-colors border border-transparent hover:border-rose-100 dark:hover:border-rose-500/20"
-                            title="Annuler les modifications"
-                        >
-                            <RotateCcw size={18} />
-                        </button>
-                        <button
-                            onClick={handlePushUpdates}
-                            className="px-5 py-2.5 text-[10px] font-black text-white bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600 rounded-xl uppercase tracking-widest shadow-lg shadow-emerald-200/50 dark:shadow-none transition-all flex items-center gap-2"
-                        >
-                            <Check size={14} />
-                            <span className="hidden sm:inline">Confirmer</span>
-                            <span className="sm:hidden">OK</span>
-                        </button>
-                    </>
-                )}
-            </div>
-        );
-        return () => clearHeaderContent();
-    }, [setHeaderContent, clearHeaderContent, order, id, windowWidth]);
-
-
     const livePath = React.useMemo(() => {
         if (!order?.live_route?.geometry) return [];
         return order.live_route.geometry.coordinates.map(([lng, lat]: [number, number]) => ({ lat, lng }));
@@ -1648,7 +1664,7 @@ export default function Page() {
                                                             m.stop.status === 'PARTIAL' ? 'bg-blue-600 text-white border-blue-500 ring-blue-600/20 shadow-blue-600/20' :
                                                                 m.stop.status === 'FAILED' ? 'bg-rose-500 text-white border-rose-400 ring-rose-500/20 shadow-rose-500/20' :
                                                                     m.stop.status === 'ARRIVED' ? 'bg-amber-500 text-white border-amber-400 ring-amber-500/20 shadow-amber-500/20' :
-                                                                        'bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-white/40 dark:border-slate-800 ring-gray-400/20'}`}>
+                                                                        'bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-white/40 dark:border-slate-800 ring-gray-400/20'} ${m.stop.isPending ? 'opacity-70 animate-pulse border-dashed ring-emerald-400/50' : ''}`}>
 
                                                         {/* Sequence Number */}
                                                         <span className={`text-xs font-black ${['COMPLETED', 'PARTIAL', 'FAILED', 'ARRIVED'].includes(m.stop.status) ? 'text-white' : 'text-emerald-600 shadow-sm'}`}>
@@ -1781,7 +1797,7 @@ export default function Page() {
                             )}
                         </GoogleMap>
 
-                        {/* Route Loading Overlay */}
+                        Route Loading Overlay
                         <AnimatePresence>
                             {isRouteLoading && (
                                 <motion.div
@@ -1809,7 +1825,13 @@ export default function Page() {
                     >
                         {/* Order Summary Info Bubble (Vertical Card) */}
                         {order && (
-                            <div className="w-[240px] bg-white/40 dark:bg-slate-900/40 backdrop-blur-3xl rounded-[32px] border border-white/60 dark:border-slate-800 shadow-2xl p-3 pt-6 flex flex-col gap-6 transition-all hover:bg-white/60 dark:hover:bg-slate-900/60 group pointer-events-auto">
+                            <div className="w-[240px] bg-white/40 dark:bg-slate-900/40 backdrop-blur-3xl rounded-[32px] border border-white/60 dark:border-slate-800 shadow-2xl p-3 pt-6 flex flex-col gap-6 transition-all hover:bg-white/60 dark:hover:bg-slate-900/60 group pointer-events-auto relative overflow-hidden">
+                                {/* Template 3D Background */}
+                                <img
+                                    src={`/assets/${(order.template || 'COMMANDE').toLowerCase()}_bg.png`}
+                                    className="absolute -top-6 -right-6 w-[120px] h-32 object-cover opacity-60 pointer-events-none"
+                                    alt=""
+                                />
                                 <div className="flex flex-col border-b border-gray-200/50 dark:border-slate-700/50 ">
                                     <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-2">Template Commande</div>
                                     <div className="text-sm font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-tight truncate">
@@ -1852,42 +1874,58 @@ export default function Page() {
                                 </div>
 
                                 <div className="flex flex-col gap-2 pt-4 border-t border-gray-200/50 dark:border-slate-700/50">
-                                    {order.status === 'DRAFT' && (
-                                        <button
-                                            onClick={handleSubmit}
-                                            className="w-full py-3 bg-emerald-500 text-white rounded-2xl hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-500/20 active:scale-95 flex items-center justify-center gap-2 group/btn"
-                                        >
-                                            <CheckCircle2 size={16} />
-                                            <span className="text-[10px] font-black uppercase tracking-widest">Valider la commande</span>
-                                        </button>
-                                    )}
-                                    {(order.status === 'PENDING' || order.status === 'DRAFT') && order.template === 'VOYAGE' && (
-                                        <button
-                                            onClick={handlePublish}
-                                            className="w-full py-3 bg-blue-500 text-white rounded-2xl hover:bg-blue-600 transition-all shadow-lg shadow-blue-500/20 active:scale-95 flex items-center justify-center gap-2 group/btn"
-                                        >
-                                            <Send size={16} />
-                                            <span className="text-[10px] font-black uppercase tracking-widest">Publier Voyage</span>
-                                        </button>
-                                    )}
-                                    {order.hasPendingChanges && (
-                                        <div className="flex gap-2">
-                                            <button
-                                                onClick={handleRevert}
-                                                className="flex-1 py-3 bg-rose-50 text-rose-600 rounded-2xl hover:bg-rose-100 transition-all active:scale-95 flex items-center justify-center gap-2 border border-rose-100"
-                                            >
-                                                <RotateCcw size={16} />
-                                                <span className="text-[10px] font-black uppercase tracking-widest">Annuler</span>
-                                            </button>
-                                            <button
-                                                onClick={handlePushUpdates}
-                                                className="flex-1 py-3 bg-indigo-500 text-white rounded-2xl hover:bg-indigo-600 transition-all shadow-lg shadow-indigo-500/20 active:scale-95 flex items-center justify-center gap-2"
-                                            >
-                                                <Check size={16} />
-                                                <span className="text-[10px] font-black uppercase tracking-widest">Push</span>
-                                            </button>
-                                        </div>
-                                    )}
+                                    {(() => {
+                                        const isDraft = order.status === 'DRAFT';
+                                        const isPending = !['DRAFT', 'DELIVERED', 'CANCELLED', 'FAILED'].includes(order.status);
+                                        const hasChanges = !!order.hasPendingChanges;
+
+                                        return (
+                                            <>
+                                                {isDraft && (
+                                                    <button
+                                                        onClick={handleSubmit}
+                                                        disabled={isSubmitting}
+                                                        className={`w-full py-3 bg-emerald-500 text-white rounded-2xl hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-500/20 active:scale-95 flex items-center justify-center gap-2 group/btn ${isSubmitting ? 'opacity-70 cursor-not-allowed' : ''}`}
+                                                    >
+                                                        {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+                                                        <span className="text-[10px] font-black uppercase tracking-widest">{isSubmitting ? 'Chargement...' : 'Soumettre'}</span>
+                                                    </button>
+                                                )}
+
+                                                {isPending && hasChanges && (
+                                                    <div className="flex gap-2">
+                                                        <button
+                                                            onClick={handleRevert}
+                                                            disabled={isPushing}
+                                                            className="flex-1 py-3 bg-rose-50 text-rose-600 rounded-2xl hover:bg-rose-100 transition-all active:scale-95 flex items-center justify-center gap-2 border border-rose-100 disabled:opacity-50"
+                                                        >
+                                                            <RotateCcw size={16} />
+                                                            <span className="text-[10px] font-black uppercase tracking-widest">Annuler</span>
+                                                        </button>
+                                                        <button
+                                                            onClick={handlePushUpdates}
+                                                            disabled={isPushing}
+                                                            className={`flex-1 py-3 bg-indigo-500 text-white rounded-2xl hover:bg-indigo-600 transition-all shadow-lg shadow-indigo-500/20 active:scale-95 flex items-center justify-center gap-2 ${isPushing ? 'opacity-70 cursor-not-allowed' : ''}`}
+                                                        >
+                                                            {isPushing ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+                                                            <span className="text-[10px] font-black uppercase tracking-widest">{isPushing ? 'Chargement...' : 'Confirmer'}</span>
+                                                        </button>
+                                                    </div>
+                                                )}
+
+                                                {/* VOYAGE specific publish button - keeps existing logic if needed elsewhere but fits here too */}
+                                                {!hasChanges && isDraft && order.template === 'VOYAGE' && (
+                                                    <button
+                                                        onClick={handlePublish}
+                                                        className="w-full py-3 bg-blue-500 text-white rounded-2xl hover:bg-blue-600 transition-all shadow-lg shadow-blue-500/20 active:scale-95 flex items-center justify-center gap-2 group/btn"
+                                                    >
+                                                        <Send size={16} />
+                                                        <span className="text-[10px] font-black uppercase tracking-widest">Publier Voyage</span>
+                                                    </button>
+                                                )}
+                                            </>
+                                        );
+                                    })()}
                                 </div>
                             </div>
                         )}
@@ -2250,11 +2288,14 @@ export default function Page() {
                                                         >
                                                             {steps[activeStep]?.stops?.length === 0 && (
                                                                 <div
-                                                                    onClick={() => handleAddStop(activeStep)}
+                                                                    onClick={() => openTutorial('order_details_empty_stops')}
                                                                     className="flex flex-col items-center justify-center py-12 border-2 border-dashed border-gray-200 rounded-[28px] text-gray-400 cursor-pointer hover:border-emerald-300 hover:bg-emerald-50/30 transition-all group"
                                                                 >
-                                                                    <Plus size={24} className="text-gray-300 group-hover:text-emerald-400 transition-colors mb-2" />
-                                                                    <div className="text-[10px] font-black uppercase tracking-widest">Add Stop</div>
+                                                                    <div className="w-12 h-12 rounded-full bg-slate-50 dark:bg-slate-800 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                                                                        <Play size={20} className="text-gray-300 group-hover:text-emerald-400 fill-current" />
+                                                                    </div>
+                                                                    <div className="text-[10px] font-black uppercase tracking-widest">Voir le tutoriel</div>
+                                                                    <div className="text-[9px] text-gray-400 font-medium mt-1">Apprendre à ajouter des arrêts</div>
                                                                 </div>
                                                             )}
                                                         </StopListWrapper>
@@ -2411,7 +2452,6 @@ export default function Page() {
                                                         </div>
                                                         <img
                                                             src="https://images.unsplash.com/photo-1601584115197-04ecc0da31d7?auto=format&fit=crop&q=80&w=800"
-                                                            alt="Delivery Truck"
                                                             className="w-44 h-32 object-contain drop-shadow-2xl transition-transform duration-700 group-hover:scale-110"
                                                         />
                                                     </div>
@@ -2653,7 +2693,7 @@ export default function Page() {
                                                                             if (action.transitItemId === selectedTransitItemId) {
                                                                                 linkedActions.push({
                                                                                     ...action,
-                                                                                    stopAddress: stop.address?.street || stop.address?.formattedAddress || stop.address?.label,
+                                                                                    stopAddress: stop.address?.street || stop.address?.formattedAddress ,
                                                                                     stepIndex: stepIdx,
                                                                                     stopIndex: stopIdx
                                                                                 });
@@ -2700,7 +2740,7 @@ export default function Page() {
                                                                                             reference: item?.client_reference || (item as any)?.clientReference || item?.metadata?.client_data?.reference || ''
                                                                                         }
                                                                                     });
-                                                                                    setSelectedTransitItemId(item.id);
+                                                                                    item && setSelectedTransitItemId(item.id);
                                                                                     setItemDirection(1);
                                                                                     setItemSubView('create');
                                                                                 }}
@@ -3101,6 +3141,11 @@ export default function Page() {
                     scrollbar-width: none;
                 }
             `}</style>
-        </div >
+            <TutorialOverlay
+                isOpen={isTutorialOpen}
+                onClose={() => setIsTutorialOpen(false)}
+                tutorial={activeTutorial}
+            />
+        </div>
     );
-}
+};
