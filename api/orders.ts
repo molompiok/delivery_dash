@@ -1,6 +1,12 @@
 import client from "./client";
 import { Address } from "./types";
 
+const companyOrderOptions = {
+    headers: {
+        'x-order-access-context': 'company',
+    },
+} as const;
+
 // --- API Response Types with Validation ---
 export interface ValidationIssue {
     path: string;           // e.g. "steps[0].stops[1].actions[0]"
@@ -332,17 +338,17 @@ export interface OrderSummary {
 export const ordersApi = {
     // --- Order CRUD ---
     create: async (payload: OrderPayload | HierarchicalOrderPayload) => {
-        const response = await client.post<{ order: Order; warnings?: ValidationIssue[] }>('/orders', payload);
+        const response = await client.post<{ order: Order; warnings?: ValidationIssue[] }>('/orders', payload, companyOrderOptions);
         return response.data;
     },
 
     createComplex: async (payload: ComplexOrderPayload) => {
-        const response = await client.post<{ order: Order }>('/orders/complex', payload);
+        const response = await client.post<{ order: Order }>('/orders/complex', payload, companyOrderOptions);
         return response.data;
     },
 
     estimate: async (payload: OrderPayload) => {
-        const response = await client.post<any>('/orders/estimate', payload);
+        const response = await client.post<any>('/orders/estimate', payload, companyOrderOptions);
         return response.data;
     },
 
@@ -355,13 +361,13 @@ export const ordersApi = {
         if (options.status) params.set('status', options.status);
         const qs = params.toString();
         const url = qs ? `/orders?${qs}` : '/orders';
-        const response = await client.get<any>(url);
+        const response = await client.get<any>(url, companyOrderOptions);
         return response.data;
     },
 
     get: async (id: string, include?: string[]) => {
         const queryString = include ? `?include=${include.join(',')}` : '';
-        const response = await client.get<Order>(`/orders/${id}${queryString}`);
+        const response = await client.get<Order>(`/orders/${id}${queryString}`, companyOrderOptions);
         return response.data;
     },
 
@@ -376,46 +382,46 @@ export const ordersApi = {
             pending_route: any;
             actual_trace: any;
             metadata: { live_source: string; pending_source: string }
-        }>(`/orders/${id}/route${queryString}`);
+        }>(`/orders/${id}/route${queryString}`, companyOrderOptions);
         return response.data;
     },
 
     update: async (id: string, payload: any) => {
-        const response = await client.put<{ order: Order; warnings?: ValidationIssue[] }>(`/orders/${id}`, payload);
+        const response = await client.put<{ order: Order; warnings?: ValidationIssue[] }>(`/orders/${id}`, payload, companyOrderOptions);
         return response.data;
     },
 
     addItem: async (id: string, payload: any) => {
-        const response = await client.post<any>(`/orders/${id}/items`, payload);
+        const response = await client.post<any>(`/orders/${id}/items`, payload, companyOrderOptions);
         return response.data;
     },
 
     updateItem: async (id: string, payload: any) => {
-        const response = await client.patch<any>(`/items/${id}`, payload);
+        const response = await client.patch<any>(`/items/${id}`, payload, companyOrderOptions);
         return response.data;
     },
 
     // --- Order Lifecycle ---
     initiate: async (payload?: { template: string }) => {
-        const response = await client.post<{ order: Order; message: string }>('/orders/initiate', payload || {});
+        const response = await client.post<{ order: Order; message: string }>('/orders/initiate', payload || {}, companyOrderOptions);
         return response.data;
     },
 
     submit: async (id: string) => {
-        const response = await client.post<{ order: Order; message: string }>(`/orders/${id}/submit`);
+        const response = await client.post<{ order: Order; message: string }>(`/orders/${id}/submit`, undefined, companyOrderOptions);
         return response.data;
     },
     publish: async (id: string) => {
-        const response = await client.post<{ order: Order; message: string }>(`/orders/${id}/publish`);
+        const response = await client.post<{ order: Order; message: string }>(`/orders/${id}/publish`, undefined, companyOrderOptions);
         return response.data;
     },
     pushUpdates: async (id: string) => {
-        const response = await client.post<{ order: Order; message: string }>(`/orders/${id}/push-updates`);
+        const response = await client.post<{ order: Order; message: string }>(`/orders/${id}/push-updates`, undefined, companyOrderOptions);
         return response.data;
     },
 
     revertChanges: async (id: string) => {
-        const response = await client.post<{ order: Order; message: string }>(`/orders/${id}/revert`);
+        const response = await client.post<{ order: Order; message: string }>(`/orders/${id}/revert`, undefined, companyOrderOptions);
         return response.data;
     },
 
@@ -424,7 +430,8 @@ export const ordersApi = {
         const params = options?.recalculate ? '?recalculate=true' : '';
         const response = await client.post<{ step: Step; validationErrors?: ValidationIssue[] }>(
             `/orders/${orderId}/steps${params}`,
-            payload
+            payload,
+            companyOrderOptions
         );
         return response.data;
     },
@@ -433,14 +440,15 @@ export const ordersApi = {
         const params = options?.recalculate ? '?recalculate=true' : '';
         const response = await client.patch<{ step: Step; validationErrors?: ValidationIssue[] }>(
             `/steps/${stepId}${params}`,
-            payload
+            payload,
+            companyOrderOptions
         );
         return response.data;
     },
 
     removeStep: async (stepId: string, options?: { recalculate?: boolean }) => {
         const params = options?.recalculate ? '?recalculate=true' : '';
-        const response = await client.delete<{ message: string }>(`/steps/${stepId}${params}`);
+        const response = await client.delete<{ message: string }>(`/steps/${stepId}${params}`, undefined, companyOrderOptions);
         return response.data;
     },
 
@@ -449,7 +457,8 @@ export const ordersApi = {
         const params = options?.recalculate ? '?recalculate=true' : '';
         const response = await client.post<{ stop: Stop; entity?: Stop; validationErrors?: ValidationIssue[] }>(
             `/steps/${stepId}/stops${params}`,
-            payload
+            payload,
+            companyOrderOptions
         );
         return response.data;
     },
@@ -458,14 +467,15 @@ export const ordersApi = {
         const params = options?.recalculate ? '?recalculate=true' : '';
         const response = await client.patch<{ stop: Stop; entity?: Stop; validationErrors?: ValidationIssue[] }>(
             `/stops/${stopId}${params}`,
-            payload
+            payload,
+            companyOrderOptions
         );
         return response.data;
     },
 
     removeStop: async (stopId: string, options?: { recalculate?: boolean }) => {
         const params = options?.recalculate ? '?recalculate=true' : '';
-        const response = await client.delete<{ message: string }>(`/stops/${stopId}${params}`);
+        const response = await client.delete<{ message: string }>(`/stops/${stopId}${params}`, undefined, companyOrderOptions);
         return response.data;
     },
 
@@ -474,7 +484,8 @@ export const ordersApi = {
         const params = options?.recalculate ? '?recalculate=true' : '';
         const response = await client.post<{ action: Action; validationErrors?: ValidationIssue[] }>(
             `/stops/${stopId}/actions${params}`,
-            payload
+            payload,
+            companyOrderOptions
         );
         return response.data;
     },
@@ -483,14 +494,15 @@ export const ordersApi = {
         const params = options?.recalculate ? '?recalculate=true' : '';
         const response = await client.patch<{ action: Action; validationErrors?: ValidationIssue[] }>(
             `/actions/${actionId}${params}`,
-            payload
+            payload,
+            companyOrderOptions
         );
         return response.data;
     },
 
     removeAction: async (actionId: string, options?: { recalculate?: boolean }) => {
         const params = options?.recalculate ? '?recalculate=true' : '';
-        const response = await client.delete<{ message: string }>(`/actions/${actionId}${params}`);
+        const response = await client.delete<{ message: string }>(`/actions/${actionId}${params}`, undefined, companyOrderOptions);
         return response.data;
     },
 
@@ -508,7 +520,7 @@ export const ordersApi = {
 
         const qs = params.toString();
         const url = qs ? `/orders/stats?${qs}` : '/orders/stats';
-        const response = await client.get<any>(url);
+        const response = await client.get<any>(url, companyOrderOptions);
         return response.data;
     }
 };

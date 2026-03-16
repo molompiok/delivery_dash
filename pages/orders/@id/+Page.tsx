@@ -2064,7 +2064,7 @@ export default function Page() {
                                 onClick={() => fetchRoute({ force: true })}
                                 disabled={isRouteLoading}
                                 className={`p-2 bg-white dark:bg-slate-900 rounded-lg shadow-md text-gray-600 hover:bg-gray-50 transition-all ${isRouteLoading ? 'opacity-50' : ''}`}
-                                title="Recalculer la route (VROOM)"
+                                title="Recalculer la route"
                             >
                                 <RotateCcw size={18} className={isRouteLoading ? 'animate-spin' : ''} />
                             </button>
