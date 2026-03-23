@@ -305,6 +305,14 @@ export default function Page() {
     // --- UI Components ---
     const OrderCard = ({ order }: { order: OrderSummary }) => {
         const [copied, setCopied] = useState(false);
+        const driverName = order.attribution?.driver?.name?.trim() || 'Chauffeur';
+        const driverInitials = driverName
+            .split(/\s+/)
+            .filter(Boolean)
+            .map((part) => part[0])
+            .join('')
+            .substring(0, 2) || 'CH';
+        const driverFirstName = driverName.split(/\s+/)[0] || 'Chauffeur';
 
         const handleCopyId = (e: React.MouseEvent) => {
             e.stopPropagation();
@@ -357,14 +365,14 @@ export default function Page() {
                         <div className="flex items-center gap-2.5 bg-white/40 dark:bg-slate-800/40 p-1.5 pr-3 rounded-full border border-white/60 dark:border-slate-800/50 shadow-sm">
                             <div className="relative">
                                 <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-500 to-cyan-400 flex items-center justify-center text-[10px] font-black text-white shadow-sm ring-2 ring-white dark:ring-slate-900 uppercase">
-                                    {order.attribution.driver.name.split(' ').map(n => n[0]).join('').substring(0, 2)}
+                                    {driverInitials}
                                 </div>
                                 <div className="absolute -right-1 -bottom-1 w-4 h-4 rounded-full bg-white dark:bg-slate-800 flex items-center justify-center shadow-sm">
                                     <Truck size={10} className="text-slate-400" />
                                 </div>
                             </div>
                             <div className="flex flex-col">
-                                <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 leading-none">{order.attribution.driver.name.split(' ')[0]}</span>
+                                <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 leading-none">{driverFirstName}</span>
                                 <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">{order.attribution.vehicle?.plate || 'Sans vhc'}</span>
                             </div>
                         </div>

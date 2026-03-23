@@ -24,6 +24,11 @@ export interface PayoutEstimate {
 export const walletService = {
     /**
      * List all wallets accessible by the user (Personal + Managed Companies)
+     *
+     * Important for realtime refresh:
+     * the finance page displays the headline balances from this payload, not from the
+     * stats endpoint. After a `wallet_update` socket event, we must refetch this list
+     * to update the visible balance card.
      */
     async listWallets() {
         const { data } = await client.get<Wallet[]>('/driver/payments/wallets');

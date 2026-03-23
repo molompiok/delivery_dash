@@ -254,6 +254,7 @@ export default function Page() {
                   ? (dashStats?.resources.drivers ?? stats.driversCount) + ' chauffeurs'
                   : (dashStats?.missions.today ?? 0) + ' ce jour';
 
+              console.log(step.key, countText);
               return (
                 <motion.a
                   key={step.key}
@@ -570,6 +571,14 @@ export default function Page() {
             const isDelivered = order.status === 'DELIVERED';
             const isPending = order.status === 'PENDING';
             const isActive = !isDelivered && !isPending && progress > 0;
+            const driverName = order.attribution?.driver?.name?.trim() || 'Chauffeur';
+            const driverInitials = driverName
+              .split(/\s+/)
+              .filter(Boolean)
+              .map((part) => part[0])
+              .join('')
+              .substring(0, 2) || 'CH';
+            const driverFirstName = driverName.split(/\s+/)[0] || 'Chauffeur';
 
             return (
               <a
@@ -594,9 +603,9 @@ export default function Page() {
                   {order.attribution ? (
                     <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-700/50 pl-1 pr-2 py-0.5 rounded-full border border-slate-100 dark:border-slate-600/50">
                       <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-indigo-500 to-cyan-400 flex items-center justify-center text-[8px] font-black text-white uppercase flex-shrink-0">
-                        {order.attribution.driver.name.split(' ').map(n => n[0]).join('').substring(0, 2)}
+                        {driverInitials}
                       </div>
-                      <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300 truncate max-w-[60px]">{order.attribution.driver.name.split(' ')[0]}</span>
+                      <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300 truncate max-w-[60px]">{driverFirstName}</span>
                     </div>
                   ) : (
                     <div className="flex items-center gap-1 px-2 py-1 bg-slate-50 dark:bg-slate-700/30 rounded-full border border-dashed border-slate-200 dark:border-slate-600">

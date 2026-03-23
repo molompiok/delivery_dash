@@ -264,6 +264,7 @@ export interface Order {
     live_route?: any;
     pending_route?: any;
     actual_trace?: any;
+    nav_trace?: any;
     route_metadata?: { live_source: string; pending_source: string };
 }
 
@@ -371,16 +372,19 @@ export const ordersApi = {
         return response.data;
     },
 
-    getRoute: async (id: string, include?: string[], options: { force?: boolean } = {}) => {
+    getRoute: async (id: string, include?: string[], options: { force?: boolean, lat?: number, lng?: number } = {}) => {
         const includeParam = include ? `include=${include.join(',')}` : '';
         const forceParam = options.force ? `force=true` : '';
-        const params = [includeParam, forceParam].filter(Boolean).join('&');
+        const latParam = options.lat ? `lat=${options.lat}` : '';
+        const lngParam = options.lng ? `lng=${options.lng}` : '';
+        const params = [includeParam, forceParam, latParam, lngParam].filter(Boolean).join('&');
         const queryString = params ? `?${params}` : '';
 
         const response = await client.get<{
             live_route: any;
             pending_route: any;
             actual_trace: any;
+            nav_trace: any;
             metadata: { live_source: string; pending_source: string }
         }>(`/orders/${id}/route${queryString}`, companyOrderOptions);
         return response.data;

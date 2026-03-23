@@ -51,9 +51,29 @@ class SocketClient {
         socket.emit("join", room);
     }
 
+    public leave(room: string) {
+        if (!room) return;
+        const socket = this.ensureConnected();
+        socket.emit("leave", room);
+    }
+
     public joinOrderRoom(orderId: string) {
         if (!orderId) return;
         this.join(`order:${orderId}`);
+    }
+
+    public joinWalletRoom(walletId: string): string | null {
+        if (!walletId) return null;
+        const room = `wallet:${walletId}`;
+        this.join(room);
+        return room;
+    }
+
+    public leaveWalletRoom(walletId: string): string | null {
+        if (!walletId) return null;
+        const room = `wallet:${walletId}`;
+        this.leave(room);
+        return room;
     }
 
     public joinFleetRoomFromStorage(): string | null {

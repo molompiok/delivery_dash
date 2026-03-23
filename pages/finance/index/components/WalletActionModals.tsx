@@ -27,8 +27,19 @@ export const RechargeModal: React.FC<ModalProps> = ({ isOpen, onClose, walletId,
 
     const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
 
+    useEffect(() => {
+        if (!isOpen) {
+            setAmount('');
+            setCheckoutUrl(null);
+        }
+    }, [isOpen]);
+
     const handleRecharge = async () => {
         if (!amount || isNaN(Number(amount))) return;
+        if (!walletId) {
+            alert('Erreur: Aucun portefeuille sélectionné');
+            return;
+        }
         setLoading(true);
         try {
             const res = await walletService.deposit({
@@ -46,8 +57,12 @@ export const RechargeModal: React.FC<ModalProps> = ({ isOpen, onClose, walletId,
                     // Popup blocked, we'll show a link in the UI
                     console.warn('Popup blocked');
                 } else {
-                    onSuccess();
                     onClose();
+                    const popupWatcher = window.setInterval(() => {
+                        if (!popup.closed) return;
+                        window.clearInterval(popupWatcher);
+                        onSuccess();
+                    }, 1000);
                 }
             } else {
                 throw new Error('No checkout URL received');

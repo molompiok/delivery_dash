@@ -36,6 +36,15 @@ export default function Page() {
 
     useHeaderAutoHide();
 
+    const pickWallet = (walletList: WalletType[], preferredWalletId?: string | null) => {
+        if (!walletList.length) return null;
+        if (preferredWalletId) {
+            const preferredWallet = walletList.find((wallet) => wallet.id === preferredWalletId);
+            if (preferredWallet) return preferredWallet;
+        }
+        return walletList.find((wallet) => wallet.walletType === 'COMPANY') || walletList[0];
+    };
+
     useEffect(() => {
         fetchInitialData();
     }, []);
@@ -46,18 +55,15 @@ export default function Page() {
         }
     }, [selectedWallet, period]);
 
-    const fetchInitialData = async (silent = false) => {
+    const fetchInitialData = async (silent = false, preferredWalletId?: string | null) => {
         if (!silent) {
             setLoading(true);
         }
         try {
             const walletList = await walletService.listWallets();
             setWallets(walletList);
-            if (walletList.length > 0) {
-                // Prioritize company wallet for ETP dash
-                const companyWallet = walletList.find(w => w.walletType === 'COMPANY') || walletList[0];
-                setSelectedWallet(companyWallet);
-            }
+            const nextWallet = pickWallet(walletList, preferredWalletId || selectedWallet?.id || null);
+            setSelectedWallet(nextWallet);
         } catch (error) {
             console.error('Failed to fetch wallets', error);
         } finally {
@@ -87,12 +93,16 @@ export default function Page() {
 
     useEffect(() => {
         socketClient.joinFleetRoomFromStorage();
+        const walletRoom = selectedWallet?.id ? socketClient.joinWalletRoom(selectedWallet.id) : null;
 
         const scheduleSilentRefresh = () => {
             if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
             refreshTimerRef.current = setTimeout(() => {
                 if (selectedWallet) {
-                    fetchStatsAndTransactions();
+                    // The visible balance card is fed by selectedWallet from listWallets(),
+                    // not by stats alone. Re-fetch the wallet list first so the socket-driven
+                    // refresh updates both the headline balance and the side datasets.
+                    fetchInitialData(true, selectedWallet.id);
                 } else {
                     fetchInitialData(true);
                 }
@@ -102,11 +112,18 @@ export default function Page() {
         const offOrderStatus = socketClient.on('order_status_updated', scheduleSilentRefresh);
         const offRoute = socketClient.on('route_updated', scheduleSilentRefresh);
         const offOrderUpdated = socketClient.on('order_updated', scheduleSilentRefresh);
+        const offWalletUpdate = socketClient.on('wallet_update', scheduleSilentRefresh);
+        const offPaymentStatus = socketClient.on('payment_status_updated', scheduleSilentRefresh);
 
         return () => {
             offOrderStatus();
             offRoute();
             offOrderUpdated();
+            offWalletUpdate();
+            offPaymentStatus();
+            if (walletRoom) {
+                socketClient.leave(walletRoom);
+            }
             if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
         };
     }, [selectedWallet?.id, period]);
@@ -296,8 +313,9 @@ export default function Page() {
                         {/* Actions */}
                         <div className="flex flex-col gap-4 min-w-[240px]">
                             <button
+                                disabled={!selectedWallet}
                                 onClick={() => setActiveModal('RECHARGE')}
-                                className="flex items-center justify-center gap-3 bg-slate-900 dark:bg-white text-white dark:text-slate-900 px-8 py-5 rounded-3xl font-black uppercase tracking-widest shadow-xl hover:shadow-indigo-500/20 hover:scale-[1.02] active:scale-95 transition-all"
+                                className={`flex items-center justify-center gap-3 px-8 py-5 rounded-3xl font-black uppercase tracking-widest shadow-xl transition-all ${!selectedWallet ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:shadow-indigo-500/20 hover:scale-[1.02] active:scale-95'}`}
                             >
                                 <Plus size={20} />
                                 Recharger

@@ -192,6 +192,7 @@ export default function Page() {
         live: true,
         pending: true,
         actual: true,
+        nav: true,
         auto: true
     });
 
@@ -650,12 +651,17 @@ export default function Page() {
         if (!id) return;
         if (!options.silent) setIsRouteLoading(true);
         try {
-            const routeData = await ordersApi.getRoute(id, ['live', 'pending', 'trace'], { force: options.force });
+            const routeData = await ordersApi.getRoute(id, ['live', 'pending', 'trace', 'nav_trace'], {
+                force: options.force,
+                lat: driverLocation?.lat,
+                lng: driverLocation?.lng
+            });
             setOrder(prev => prev ? {
                 ...prev,
                 live_route: routeData.live_route,
                 pending_route: routeData.pending_route,
                 actual_trace: routeData.actual_trace,
+                nav_trace: routeData.nav_trace,
                 route_metadata: routeData.metadata
             } : null);
         } catch (error) {
@@ -1508,6 +1514,11 @@ export default function Page() {
         return order.actual_trace.geometry.coordinates.map(([lng, lat]: [number, number]) => ({ lat, lng }));
     }, [order?.actual_trace]);
 
+    const navTracePath = React.useMemo(() => {
+        if (!order?.nav_trace?.geometry) return [];
+        return order.nav_trace.geometry.coordinates.map(([lng, lat]: [number, number]) => ({ lat, lng }));
+    }, [order?.nav_trace]);
+
     const routeDetails = React.useMemo(() => {
         const activeRoute = order?.pending_route || order?.live_route;
         if (!activeRoute?.stops) return [];
@@ -1814,6 +1825,16 @@ export default function Page() {
                                 />
                             )}
 
+                            {/* Navigation Trace in Solid Blue (Middle) */}
+                            {visibleLayers.nav && navTracePath.length > 0 && (
+                                <Polyline
+                                    path={navTracePath}
+                                    strokeColor="#3b82f6"
+                                    strokeWeight={4}
+                                    strokeOpacity={0.8}
+                                />
+                            )}
+
                             {/* Real-time Driver Marker (Only when mission is in progress) */}
                             {driverLocation && order?.status === 'ACCEPTED' && (
                                 <MapMarker
@@ -2025,6 +2046,14 @@ export default function Page() {
                                             >
                                                 <span className="text-[11px] font-bold">Tracé Réel</span>
                                                 <div className={`w-2 h-2 rounded-full ${visibleLayers.actual ? 'bg-amber-500' : 'bg-gray-200'}`} />
+                                            </button>
+
+                                            <button
+                                                onClick={() => setVisibleLayers(prev => ({ ...prev, nav: !prev.nav, auto: false }))}
+                                                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition-colors ${visibleLayers.nav ? 'bg-blue-50 text-blue-700' : 'text-gray-500 hover:bg-gray-50'}`}
+                                            >
+                                                <span className="text-[11px] font-bold">Tracé Navigation</span>
+                                                <div className={`w-2 h-2 rounded-full ${visibleLayers.nav ? 'bg-blue-600' : 'bg-gray-200'}`} />
                                             </button>
 
                                             {/* Sources Tooltip */}
